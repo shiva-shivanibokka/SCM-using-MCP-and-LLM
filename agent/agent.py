@@ -399,24 +399,45 @@ def _compress_history(messages: list[dict]) -> list[dict]:
         return messages  # nothing to compress
 
     # Find a safe cut point: the tail must not start mid-way through a
-    # tool_use → tool_result pair. Walk back from the cut point to find
-    # the first message that is a "user" message NOT containing tool_result,
-    # ensuring we start the tail at a clean turn boundary.
+    # tool_use → tool_result pair. Walk forward from the cut point to find
+    # the first message that is a clean turn boundary.
+    #
+    # BUG-016 fix: for OpenAI/Groq, tool results use role="tool" (not role="user").
+    # The boundary scan must skip role="tool" messages too, otherwise a tool_call
+    # in the previous assistant message gets orphaned (no matching tool_result),
+    # causing OpenAI API error: "tool_calls must be followed by tool messages".
     cut = len(messages) - KEEP_RECENT_MESSAGES
-    # Scan forward from cut to find a safe boundary (assistant message)
     while cut < len(messages) - 1:
         msg = messages[cut]
         content = msg.get("content", "")
         role = msg.get("role", "")
-        # A clean boundary: a user message that is NOT a tool result
-        if role == "user" and not (
-            isinstance(content, list)
+        # Skip role="tool" messages (OpenAI/Groq tool results) — not a clean boundary
+        if role == "tool":
+            cut += 1
+            continue
+        # Skip user messages that ARE tool results (Anthropic/Gemini format)
+        if (
+            role == "user"
+            and isinstance(content, list)
             and any(
                 isinstance(p, dict) and p.get("type") == "tool_result" for p in content
             )
         ):
-            break
-        cut += 1
+            cut += 1
+            continue
+        # Skip assistant messages that contain tool_use calls (not a boundary —
+        # their tool_result must be in the tail too)
+        if (
+            role == "assistant"
+            and isinstance(content, list)
+            and any(
+                isinstance(p, dict) and p.get("type") == "tool_use" for p in content
+            )
+        ):
+            cut += 1
+            continue
+        # Clean boundary found: a plain user message or assistant text-only message
+        break
 
     head = messages[:1]  # original user query
     tail = messages[cut:]  # keep recent intact from safe boundary

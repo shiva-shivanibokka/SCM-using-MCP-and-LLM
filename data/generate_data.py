@@ -2,8 +2,8 @@
 Heads Up For Tails (HUFT) — Supply Chain & Marketing Dataset Generator
 =======================================================================
 Generates realistic synthetic data modelled on HUFT's actual business:
-  - 120 real Indian city stores across 4 regions
-  - 80 SKUs from real HUFT brands (Royal Canin, Pedigree, Sara's, Farmina,
+  - 67 stores across 4 regions (60 physical + 2 online + 5 spa)
+  - 65 SKUs from real pet store brands (Royal Canin, Pedigree, Sara's, Farmina,
     Drools, Whiskas, KONG, Trixie, Virbac, Ruffwear + HUFT private labels)
   - Indian INR pricing
   - India-specific seasonality: Diwali, monsoon, summer, New Year
@@ -12,7 +12,7 @@ Generates realistic synthetic data modelled on HUFT's actual business:
   - Customer segments, promotions, returns, brand performance
 
 Output files (all in data/):
-  huft_daily_demand.csv          — core daily demand/inventory (80 SKUs × 730 days)
+  huft_daily_demand.csv          — core daily demand/inventory (65 SKUs × 730 days)
   huft_stores.csv                — 120 store master
   huft_products.csv              — 80 product master with full HUFT attributes
   huft_customers.csv             — 5000 customer records with segments
@@ -1619,8 +1619,11 @@ PROMOTIONS = [
         200000,
     ),
     (
+        # BUG-033 fix: renamed from "Sara's Fresh Tuesday" to avoid implying weekly cadence.
+        # A 2-year continuous promo contaminated all Dog Food ML promo features.
+        # Renamed to "Fresh Food Online Discount" — represents a permanent online pricing strategy.
         "PROMO_013",
-        "Sara's Fresh Tuesday",
+        "Fresh Food Online Discount",
         "2023-01-01",
         "2024-12-31",
         10,

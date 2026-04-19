@@ -88,7 +88,24 @@ def get_df() -> pd.DataFrame:
         current_mtime = _csv_mtime(CSV_PATH)
         if _df_cache is None or current_mtime != _df_cache_mtime:
             if CSV_PATH.exists():
-                _df_cache = pd.read_csv(CSV_PATH, parse_dates=["date"])
+                df_raw = pd.read_csv(CSV_PATH, parse_dates=["date"])
+                # BUG-028 fix: normalize missing columns so charts never get KeyError
+                if "price_inr" in df_raw.columns and "price_usd" not in df_raw.columns:
+                    df_raw["price_usd"] = df_raw["price_inr"]
+                elif (
+                    "price_usd" in df_raw.columns and "price_inr" not in df_raw.columns
+                ):
+                    df_raw["price_inr"] = df_raw["price_usd"]
+                for col, default in [
+                    ("cost_inr", 0.0),
+                    ("margin_pct", 0.0),
+                    ("price_inr", 0.0),
+                ]:
+                    if col not in df_raw.columns:
+                        df_raw[col] = default
+                if "region" not in df_raw.columns:
+                    df_raw["region"] = "India"
+                _df_cache = df_raw
                 _df_cache_mtime = current_mtime
             else:
                 import sys
@@ -2166,7 +2183,12 @@ def build_cold_chain_trend(sku_filter: str | None = None) -> go.Figure:
                     x=pd.concat([sub["week"], sub["week"].iloc[::-1]]),
                     y=pd.concat([sub["max_temp"], sub["min_temp"].iloc[::-1]]),
                     fill="toself",
-                    fillcolor=color.replace("#", "rgba(") + ",0.08)"
+                    # BUG-013 fix: proper hex→rgba conversion
+                    fillcolor=(
+                        lambda h, a=0.10: (
+                            f"rgba({int(h[1:3], 16)},{int(h[3:5], 16)},{int(h[5:7], 16)},{a})"
+                        )
+                    )(color)
                     if color.startswith("#")
                     else color,
                     line=dict(width=0),
@@ -3966,7 +3988,8 @@ def build_inventory_tab():
             )
             name_col = "name" if "name" in merged_s.columns else "sku_id"
             merged_s["label"] = merged_s["sku_id"] + " — " + merged_s[name_col].str[:20]
-            avg_lt = float(merged_s["lead_time_days"].mean())
+            # BUG-020: removed dead variable avg_lt (was computed but never used after
+            # replacing single vline with per-SKU markers in a prior fix)
             fig = go.Figure()
             for risk in risk_order:
                 sub = merged_s[merged_s["risk"] == risk]
@@ -4245,16 +4268,13 @@ def build_inventory_tab():
             merged = _compute_inv_merged(cat, store_id)
 
             if merged is None or merged.empty:
-                scope = store_val if store_id else "No data"
+                # BUG-005 fix: must return exactly 6 values matching outs list
                 return (
                     _empty_fig("No data available for this selection"),
                     "",
-                    "",
-                    "",
-                    "",
-                    "",
+                    '<div style="padding:10px;color:#9CA3AF;">No inventory data for this selection.</div>',
                     [],
-                    f'<div style="margin-top:18px;">No data</div>',
+                    '<div style="margin-top:18px; font-size:1.1rem; font-weight:700; color:#9CA3AF;">No data available</div>',
                     [],
                 )
 
@@ -4615,11 +4635,11 @@ def build_analytics_tab():
 
         _OPS_INTERP = {
             "Lead Time Performance": _interp_box(
-                "<b>What this chart shows:</b> Each dot = one supplier. X-axis = actual days orders took to arrive. "
-                "Y-axis = days promised. The diagonal line = perfect on-time delivery.<br>"
-                "<b>How to read it:</b> Dots <i>above</i> the line = supplier delivered faster than promised (good). "
-                "Dots <i>below</i> = supplier was late (bad). Dot colour = overall on-time delivery rate — green is good, red is poor.<br>"
-                "<b>What to act on:</b> Any supplier significantly below the line needs a conversation about improving lead times."
+                "<b>What this chart shows:</b> Each horizontal bar = one supplier's average on-time delivery %. "
+                "Green = ≥95% OTD target. Amber = 88–95%. Red = below 88% (underperforming).<br>"
+                "<b>Secondary axis:</b> Lead-time delta = actual − promised days. Positive (red) = delivering late. Negative (green) = delivering early.<br>"
+                "<b>Target line:</b> Dashed green line at 95% OTD — the industry benchmark all suppliers should meet.<br>"
+                "<b>What to act on:</b> Red OTD bars need supplier review. Positive lead-time delta = chronic lateness — raise in contract negotiation."
             ),
             "Cold Chain Monitor": _interp_box(
                 "<b>Top panel — Weekly average temperature per SKU:</b> Each coloured line = one cold-chain SKU. "
@@ -4728,9 +4748,11 @@ def build_analytics_tab():
                 "Units growing faster than revenue = average selling price declining."
             ),
             "Store Inventory Comparison": _interp_box(
-                "<b>What this chart shows:</b> Average days of supply remaining per product category, based on current inventory ÷ recent daily demand.<br>"
-                "<b>How to read it:</b> Red bars = less than 7 days stock (critical). Amber = 7–14 days (order soon). Green = well stocked.<br>"
-                "<b>What to act on:</b> Any red category needs immediate reorder. Consistently low categories may need a higher reorder point or safety stock buffer."
+                "<b>What this chart shows:</b> Average days of supply per product category (aggregated across all SKUs in that category).<br>"
+                "<b>How to read it:</b> Red = below that category's avg lead time (critical — can't restock before stockout). "
+                "Amber = below 2× avg lead time (reorder soon). Green = well stocked. "
+                "The red ◆ marker shows each category's own critical threshold (its avg lead time — not a fixed 7 days).<br>"
+                "<b>What to act on:</b> Red categories need immediate reorder across all their SKUs."
             ),
         }
 
@@ -4782,8 +4804,15 @@ def build_forecast_fig(
                 # Fall back to full demand CSV which has the full 730-day history.
                 if not store_sku.empty and len(store_sku) >= 90:
                     df_src = store_sku.copy().sort_values("date")
+                    logger.info(
+                        f"[forecast] Using store {store_id} data ({len(store_sku)} rows)"
+                    )
                 else:
                     df_src = get_df()
+                    # BUG-007: surface the fallback so user knows store data was insufficient
+                    logger.warning(
+                        f"[forecast] Store {store_id} has <90 rows for {sku_id}; using national demand data"
+                    )
             else:
                 df_src = get_df()
         except Exception:

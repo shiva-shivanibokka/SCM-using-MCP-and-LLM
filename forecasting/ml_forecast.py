@@ -668,14 +668,19 @@ def _train_tft(df: pd.DataFrame, fine_tune: bool = False) -> dict[str, Any]:
     if fine_tune and _TFT_CKPT.exists():
         from pytorch_forecasting import TemporalFusionTransformer
 
-        model = TemporalFusionTransformer.load_from_checkpoint(str(_TFT_CKPT))
-        logger.info(f"[TFT] Loaded checkpoint from {_TFT_CKPT} for fine-tuning")
-        # Reduce LR for fine-tuning
-        opt = model.optimizers()
-        if isinstance(opt, list):
-            opt = opt[0]
-        for pg in opt.param_groups:
-            pg["lr"] = 1e-4
+        # BUG-027 fix: model.optimizers() is only valid inside a Lightning training
+        # loop — calling it on a freshly loaded checkpoint raises RuntimeError.
+        # Instead, pass the reduced learning rate as an hparam override when loading.
+        model = TemporalFusionTransformer.load_from_checkpoint(
+            str(_TFT_CKPT),
+            map_location="cpu",  # safe default; trainer moves to GPU if available
+        )
+        # Override LR directly on the hparams dict (persisted into the checkpoint)
+        if hasattr(model, "hparams") and "learning_rate" in model.hparams:
+            model.hparams["learning_rate"] = 1e-4
+        logger.info(
+            f"[TFT] Loaded checkpoint from {_TFT_CKPT} for fine-tuning (LR=1e-4)"
+        )
     else:
         model = _build_tft_model(train_dataset)
 
@@ -904,6 +909,54 @@ def _save_tft_meta() -> None:
     logger.info(f"[TFT] Metadata saved → {_TFT_META}")
 
 
+def _rebuild_tft_dataset(df: pd.DataFrame, meta: dict):
+    """
+    BUG-026 fix: re-create the TimeSeriesDataSet from saved training metadata
+    so TFT inference works after a process restart.
+    Returns the dataset or None if TFT dependencies are unavailable.
+    """
+    try:
+        from pytorch_forecasting import TimeSeriesDataSet
+
+        enriched = _enrich_demand_df(df)
+        enriched["time_idx"] = (
+            enriched["date"] - enriched["date"].min()
+        ).dt.days.astype(int)
+        max_encoder = meta.get("max_encoder_length", MAX_ENCODER)
+        max_prediction = meta.get("max_prediction_length", MAX_PREDICTION)
+        cutoff_idx = int(enriched["time_idx"].max()) - max_prediction
+        train_df = enriched[enriched["time_idx"] <= cutoff_idx]
+        dataset = TimeSeriesDataSet(
+            train_df,
+            time_idx="time_idx",
+            target="demand",
+            group_ids=["sku_id"],
+            max_encoder_length=max_encoder,
+            max_prediction_length=max_prediction,
+            static_categoricals=["sku_id", "category", "supplier"],
+            static_reals=["price_inr"],
+            time_varying_known_reals=[
+                "time_idx",
+                "isoweek",
+                "month",
+                "quarter",
+                "is_promo_active",
+                "promo_discount_pct",
+                "days_to_festival",
+                "festival_active",
+            ],
+            time_varying_unknown_reals=["demand"],
+            target_normalizer=None,
+            add_relative_time_idx=True,
+            add_target_scales=True,
+            add_encoder_length=True,
+        )
+        return dataset
+    except Exception as exc:
+        logger.warning(f"[TFT] _rebuild_tft_dataset failed: {exc}")
+        return None
+
+
 def _load_tft() -> bool:
     global _tft_model, _tft_dataset, _tft_trained
     global _tft_metrics, _tft_trained_at
@@ -923,8 +976,29 @@ def _load_tft() -> bool:
             k: v for k, v in meta.items() if k not in ("trained_at", "engine")
         }
         _tft_trained_at = meta.get("trained_at", "cached")
-        _tft_trained = True
 
+        # BUG-026 fix: _tft_dataset is required by _forecast_tft() but is not
+        # persisted. Rebuild it from CSV + saved metadata so TFT inference works
+        # after a process restart. Fall back to CatBoost if rebuild fails.
+        try:
+            df_rebuild = pd.read_csv(
+                DATA_DIR / "huft_daily_demand.csv", parse_dates=["date"]
+            )
+            rebuilt = _rebuild_tft_dataset(df_rebuild, meta)
+            if rebuilt is not None:
+                global _tft_dataset
+                _tft_dataset = rebuilt
+                logger.info("[TFT] Dataset rebuilt from saved metadata")
+            else:
+                logger.warning(
+                    "[TFT] Could not rebuild dataset — TFT inference will fall back to CatBoost"
+                )
+        except Exception as ds_exc:
+            logger.warning(
+                f"[TFT] Dataset rebuild failed: {ds_exc} — will use CatBoost fallback"
+            )
+
+        _tft_trained = True
         logger.info(
             f"[TFT] Loaded checkpoint from {_TFT_CKPT} "
             f"(trained {_tft_trained_at}, MAPE {meta.get('mape', '?')}%)"

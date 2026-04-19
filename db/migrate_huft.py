@@ -835,6 +835,10 @@ SELECT * FROM inventory_alerts WHERE resolved = FALSE ORDER BY alert_date DESC;
 
 
 def migrate_mysql(cfg: dict, label: str) -> None:
+    # BUG-010 fix: skip silently when host is not configured to avoid cluttered error output
+    if not cfg.get("host"):
+        print(f"  [SKIP] {label} — host not configured (set in .env).")
+        return
     try:
         import pymysql
         from pymysql.constants import CLIENT
@@ -952,6 +956,10 @@ def _mysql_load_csvs(conn, cur, label: str) -> None:
 
 
 def migrate_postgres(cfg: dict, label: str) -> None:
+    # BUG-010 fix: skip silently when host is not configured
+    if not cfg.get("host"):
+        print(f"  [SKIP] {label} — host not configured (set in .env).")
+        return
     try:
         import psycopg2
         import psycopg2.extras

@@ -2797,7 +2797,9 @@ def tool_get_cold_chain_monitor(days_ahead: int = 7) -> str:
     lines.append(
         f"\n── Summary ──\n"
         f"  Total breach events (7d): {len(breaches)}\n"
-        f"  Units at expiry risk: {int(at_expiry['units_at_risk_of_expiry'].sum()) if not at_expiry.empty else 0}\n"
+        # BUG-036 fix: units_at_risk_of_expiry is 0 in 92% of rows (sparse synthetic field).
+        # Use units_in_cold_storage for rows in the expiry window as the risk count.
+        f"  Units at expiry risk: {int(at_expiry['units_in_cold_storage'].sum()) if not at_expiry.empty and 'units_in_cold_storage' in at_expiry.columns else int(at_expiry.get('units_at_risk_of_expiry', pd.Series([0])).sum())}\n"
         f"  Estimated waste value: ₹{total_waste:,.0f}\n"
         f"  CRITICAL items (< 3d): {len(critical_expiry)}"
     )
@@ -6343,10 +6345,17 @@ def tool_get_transfer_recommendations(
             sku = need_row["sku_id"]
             donors = overstocked[overstocked["sku_id"] == sku]
             for _, donor in donors.iterrows():
-                # Transfer enough to give receiving store 14 days of supply
-                avg_d = max(float(need_row.get("days_of_supply", 1)), 0.5)
+                # BUG-003 fix: use actual daily demand not days_of_supply
+                # days_of_supply = inventory/demand (a ratio), not demand itself
+                avg_d = max(float(need_row.get("demand", 1)), 1.0)
+                # Give receiving store 14 days of buffer stock
                 need_units = max(0, int(14 * avg_d) - int(need_row["inventory"]))
-                can_give = max(0, int(donor["inventory"]) - int(60 * avg_d))
+                # Donor can give up to what keeps them above 60d buffer
+                can_give = max(
+                    0,
+                    int(donor["inventory"])
+                    - int(60 * max(float(donor.get("demand", 1)), 1.0)),
+                )
                 transfer_qty = min(need_units, can_give)
                 if transfer_qty > 0:
                     transfers.append(
@@ -6430,19 +6439,19 @@ def tool_get_abc_xyz_analysis(
                 recent["category"].str.contains(category, case=False, na=False)
             ]
 
-        # Revenue and variability per SKU
+        # BUG-002 fix: pre-compute revenue column before groupby to avoid
+        # lambda index misalignment when recent has been filtered/re-indexed
+        recent["_revenue"] = recent["demand"] * recent["price_inr"]
         sku_stats = (
             recent.groupby(["sku_id", "name", "category"])
             .agg(
-                total_revenue=(
-                    "demand",
-                    lambda x: (x * recent.loc[x.index, "price_inr"]).sum(),
-                ),
+                total_revenue=("_revenue", "sum"),
                 avg_demand=("demand", "mean"),
                 std_demand=("demand", "std"),
             )
             .reset_index()
         )
+        recent = recent.drop(columns=["_revenue"])
         sku_stats["cv"] = (
             sku_stats["std_demand"] / sku_stats["avg_demand"].replace(0, np.nan)
         ).fillna(0)
@@ -6510,7 +6519,9 @@ def tool_get_supplier_fill_rate_trend(
     Answers: "Which suppliers are getting worse?" / "How has supplier X's fill rate changed?"
     """
     try:
-        sp = get_supplier_perf_df()
+        sp = (
+            get_supplier_perf()
+        )  # BUG-001 fix: server.py uses get_supplier_perf() not get_supplier_perf_df()
         if sp.empty:
             return "No supplier performance data available."
 
@@ -6621,8 +6632,17 @@ def tool_get_basket_analysis(
         if category:
             txn = txn[txn["category"].str.contains(category, case=False, na=False)]
 
-        # Build baskets: group by transaction ID
-        baskets = txn.groupby("txn_id")["sku_id"].apply(list)
+        # BUG-023 fix: generated data has 1 SKU per txn_id (unique txn per row),
+        # so groupby("txn_id") always gives single-item baskets.
+        # Use store+date+customer_segment as a proxy basket: items bought at the
+        # same store on the same day by customers of the same type are likely
+        # purchased as part of the same shopping occasion.
+        basket_key = (
+            ["store_id", "date", "customer_segment"]
+            if all(c in txn.columns for c in ["store_id", "date", "customer_segment"])
+            else ["txn_id"]
+        )
+        baskets = txn.groupby(basket_key)["sku_id"].apply(list)
         # Only keep baskets with 2+ items
         baskets = baskets[baskets.apply(len) >= 2]
 
@@ -6647,6 +6667,11 @@ def tool_get_basket_analysis(
             txn.drop_duplicates("sku_id").set_index("sku_id")["category"].to_dict()
         )
         total_baskets = len(baskets)
+        basket_method = (
+            "store+date+segment proxy baskets"
+            if basket_key != ["txn_id"]
+            else "transaction baskets"
+        )
 
         pairs_df = (
             pd.DataFrame(
@@ -6665,7 +6690,7 @@ def tool_get_basket_analysis(
         scope = f" — {category}" if category else ""
         header = (
             f"## Basket Analysis — Frequently Bought Together{scope}\n\n"
-            f"Analysed **{total_baskets:,} multi-item baskets** from {len(txn):,} transactions. "
+            f"Analysed **{total_baskets:,} {basket_method}** from {len(txn):,} transaction rows. "
             f"Support % = % of baskets containing both products.\n\n"
         )
         tbl = (
@@ -6710,7 +6735,9 @@ def tool_get_price_elasticity_analysis(
     """
     try:
         txn = get_transactions()
-        promos = get_promotions_df()
+        promos = (
+            get_promotions()
+        )  # BUG-001 fix: server.py uses get_promotions() not get_promotions_df()
         dem = get_df()
         if txn.empty or promos.empty:
             return "Transaction or promotion data unavailable for elasticity analysis."
