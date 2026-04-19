@@ -1608,9 +1608,14 @@ def build_promotion_impact(
         return _empty_fig(f"Error: {exc}")
 
 
-def build_store_inventory_comparison(region_filter: str = "All") -> go.Figure:
+def build_store_inventory_comparison(
+    region_filter: str = "All", store_id: str | None = None
+) -> go.Figure:
     """
-    Store Inventory Comparison — horizontal bar chart, cities sorted by avg days_of_supply.
+    Category Inventory Health — avg days of supply per product category.
+    Correctly named: this chart shows CATEGORY-level averages, not store comparisons.
+    Thresholds use per-category avg lead time (consistent with the rest of the app)
+    instead of the old fixed 7d/14d values.
     """
     try:
         demand_df = get_df()
@@ -1658,86 +1663,108 @@ def build_store_inventory_comparison(region_filter: str = "All") -> go.Figure:
                 else "No inventory data available"
             )
 
-        city_dos = (
+        # Per-category avg lead time — use this as threshold instead of fixed 7/14d
+        cat_lt = (
+            merged.groupby("category")["lead_time_days"]
+            .mean()
+            .reset_index()
+            .rename(columns={"lead_time_days": "avg_lt"})
+        )
+        cat_dos = (
             merged.groupby("category")["days_of_supply"]
             .mean()
             .reset_index()
             .sort_values("days_of_supply")
         )
+        cat_dos = cat_dos.merge(cat_lt, on="category", how="left")
+        cat_dos["avg_lt"] = cat_dos["avg_lt"].fillna(7)
 
-        def _bar_color(dos):
-            if dos < 7:
-                return "#EA4335"
-            if dos < 14:
-                return "#FBBC05"
-            return "#34A853"
+        # Risk using per-category avg lead time — consistent with inventory dashboard
+        def _cat_risk(dos, lt):
+            if dos < lt:
+                return "CRITICAL"
+            if dos < 2 * lt:
+                return "WARNING"
+            return "HEALTHY"
 
-        city_dos = city_dos.sort_values("days_of_supply", ascending=True).reset_index(
+        cat_dos["risk"] = cat_dos.apply(
+            lambda r: _cat_risk(r["days_of_supply"], r["avg_lt"]), axis=1
+        )
+        cat_dos = cat_dos.sort_values("days_of_supply", ascending=True).reset_index(
             drop=True
         )
-        bar_colors = [_bar_color(d) for d in city_dos["days_of_supply"]]
 
-        # Separate traces per risk level for proper legend
+        color_map = {"CRITICAL": "#EA4335", "WARNING": "#F9AB00", "HEALTHY": "#34A853"}
+        risk_labels = {
+            "CRITICAL": "Critical (DoS < avg lead time)",
+            "WARNING": "Warning (DoS < 2× avg lead time)",
+            "HEALTHY": "Healthy (DoS ≥ 2× avg lead time)",
+        }
+
         fig = go.Figure()
-        risk_groups = [
-            ("#EA4335", "Critical (<7d)"),
-            ("#F9AB00", "Warning (7–14d)"),
-            ("#34A853", "Healthy (>14d)"),
-        ]
-        for col, label in risk_groups:
-            mask = [c == col for c in bar_colors]
-            idxs = [i for i, c in enumerate(bar_colors) if c == col]
-            if not idxs:
+        for risk, color in color_map.items():
+            sub = cat_dos[cat_dos["risk"] == risk]
+            if sub.empty:
                 continue
-            sub = city_dos.iloc[idxs]
             fig.add_trace(
                 go.Bar(
-                    name=label,
+                    name=risk_labels[risk],
                     x=sub["days_of_supply"],
                     y=sub["category"],
                     orientation="h",
-                    marker_color=col,
+                    marker_color=color,
                     marker_opacity=0.88,
                     text=[f"{d:.1f}d" for d in sub["days_of_supply"]],
                     textposition="outside",
                     textfont=dict(size=10),
-                    hovertemplate=f"<b>%{{y}}</b><br>Avg Days of Supply: %{{x:.1f}}<br>Status: {label}<extra></extra>",
+                    customdata=sub[["avg_lt"]].values,
+                    hovertemplate=(
+                        "<b>%{y}</b><br>"
+                        "Avg Days of Supply: <b>%{x:.1f}d</b><br>"
+                        "Category avg lead time: %{customdata[0]:.0f}d<br>"
+                        "Status: " + risk_labels[risk] + "<extra></extra>"
+                    ),
                 )
             )
 
-        fig.add_vline(
-            x=7,
-            line_dash="dash",
-            line_color="#EA4335",
-            line_width=1.5,
-            annotation_text="7d Critical",
-            annotation_font=dict(color="#EA4335", size=10),
-            annotation_position="top right",
+        # Per-category lead-time markers so users can see the threshold visually
+        fig.add_trace(
+            go.Scatter(
+                x=cat_dos["avg_lt"],
+                y=cat_dos["category"],
+                mode="markers",
+                name="Avg lead time (critical threshold)",
+                marker=dict(
+                    symbol="diamond",
+                    size=9,
+                    color="#C5221F",
+                    line=dict(color="#fff", width=1),
+                ),
+                hovertemplate="<b>%{y}</b><br>Avg lead time: <b>%{x:.0f}d</b><extra></extra>",
+            )
         )
-        fig.add_vline(
-            x=14,
-            line_dash="dot",
-            line_color="#F9AB00",
-            line_width=1.5,
-            annotation_text="14d Warning",
-            annotation_font=dict(color="#B06000", size=10),
-            annotation_position="top right",
-        )
+
+        n_crit = int((cat_dos["risk"] == "CRITICAL").sum())
+        n_warn = int((cat_dos["risk"] == "WARNING").sum())
+        scope_label = f" | Region: {region_filter}" if region_filter != "All" else ""
+
         fig.update_layout(
             **_CHART_LAYOUT,
             title=dict(
                 text=(
-                    "Average Days of Supply by Product Category<br>"
-                    "<sup style='color:#666'>Based on current inventory ÷ avg daily demand (last 30 days)</sup>"
+                    f"Category Inventory Health{scope_label}<br>"
+                    "<sup style='color:#666'>Avg days of supply per category · "
+                    f"{n_crit} Critical &nbsp;|&nbsp; {n_warn} Warning &nbsp;·&nbsp; "
+                    "◆ = category's avg lead-time threshold</sup>"
                 ),
                 font=dict(size=14, color="#4285F4"),
             ),
             xaxis_title="Avg Days of Supply",
             yaxis=dict(tickfont=dict(size=11)),
             barmode="overlay",
-            height=max(380, len(city_dos) * 38 + 160),
-            legend=dict(orientation="h", y=1.06, x=0, font=dict(size=11)),
-            margin=dict(t=90, b=60, l=130, r=100),
+            height=max(380, len(cat_dos) * 38 + 180),
+            legend=dict(orientation="h", y=-0.12, x=0, font=dict(size=10)),
+            margin=dict(t=90, b=100, l=130, r=100),
         )
         return fig
     except Exception as exc:
@@ -1847,25 +1874,17 @@ def build_stockout_risk_timeline(days_ahead: int = 30) -> go.Figure:
                 )
             )
 
-        # Average lead time reference line
-        avg_lt = at_risk["lead_time_days"].mean()
-        fig.add_vline(
-            x=avg_lt,
-            line_dash="dash",
-            line_color="#EA4335",
-            line_width=1.5,
-            annotation_text=f"Avg lead time ({avg_lt:.0f}d)",
-            annotation_font=dict(color="#EA4335", size=10),
-            annotation_position="top right",
-        )
-
         crit_count = sum(1 for c in colors if c == "#EA4335")
+        # Note: no single avg_lt vline — each SKU has its own lead time threshold
+        # which is reflected in the bar colour (CRITICAL = will stock out before
+        # its own lead time elapses; not before an average lead time).
         fig.update_layout(
             **_CHART_LAYOUT,
             title=dict(
                 text=(
                     f"Stockout Risk — {len(at_risk)} SKUs running out within {days_ahead} days<br>"
-                    f"<sup style='color:#EA4335'>{crit_count} CRITICAL (stock out before reorder can arrive)</sup>"
+                    f"<sup style='color:#EA4335'>{crit_count} CRITICAL (stock out before that SKU's own reorder can arrive) "
+                    f"&nbsp;·&nbsp; Colour based on each SKU's individual lead time</sup>"
                 ),
                 font=dict(size=14, color="#EA4335"),
             ),
@@ -2527,9 +2546,15 @@ def build_dead_stock_bar(category_filter: str = "All") -> go.Figure:
                 autorange="reversed",
             ),
             barmode="overlay",
-            height=max(480, n_skus * 22 + 140),
-            legend=dict(orientation="h", y=1.06, x=0, font=dict(size=11)),
-            margin=dict(t=90, b=60, l=190, r=100),
+            height=max(480, n_skus * 22 + 180),
+            legend=dict(
+                orientation="h",
+                y=-0.07,  # below the chart — never overlaps bars
+                x=0,
+                font=dict(size=11),
+                yanchor="top",
+            ),
+            margin=dict(t=80, b=90, l=190, r=100),
         )
         return fig
     except Exception as exc:
@@ -2607,10 +2632,13 @@ def build_seasonal_demand_radar() -> go.Figure:
                 .tolist()
             )
             # Colour bars: peak months brighter, below-average muted
+            # bar_colors: brighter for above-average months, muted for below-average
+            # Applied per-bar so peak months are visually prominent
+            base_color = palette[i % len(palette)]
             bar_colors = [
-                palette[i % len(palette)]
+                base_color
                 if v >= 100
-                else palette[i % len(palette)] + "88"
+                else base_color + "66"  # 40% opacity for below-average months
                 for v in vals
             ]
             fig.add_trace(
@@ -2618,8 +2646,8 @@ def build_seasonal_demand_radar() -> go.Figure:
                     name=cat,
                     x=month_names,
                     y=vals,
-                    marker_color=palette[i % len(palette)],
-                    marker_opacity=0.82,
+                    marker_color=bar_colors,  # now correctly applied per-bar
+                    marker_opacity=1.0,  # opacity handled via hex alpha above
                     hovertemplate=(
                         f"<b>{cat}</b><br>"
                         "Month: %{x}<br>"
@@ -3313,46 +3341,81 @@ def build_inventory_fig(category_filter: str):
         margin=dict(t=80, b=80),
     )
 
-    # Chart 2: Inventory vs Avg Demand — grouped bar (SKUs on x-axis, two bars per SKU)
-    merged_sorted2 = merged.sort_values("avg_daily_demand", ascending=False).head(20)
+    # Chart 2: Inventory vs Lead-Time Demand — grouped bar
+    # Compare inventory against the units needed to bridge the reorder window,
+    # NOT against 30-day demand (which makes short-lt SKUs look falsely critical).
+    merged_sorted2 = (
+        merged.sort_values("avg_daily_demand", ascending=False).head(20).copy()
+    )
+    merged_sorted2["lt_demand"] = (
+        merged_sorted2["avg_daily_demand"] * merged_sorted2["lead_time_days"]
+    ).round(0)
+
+    color_map2 = {"CRITICAL": "#EA4335", "WARNING": "#F9AB00", "OK": "#34A853"}
     fig2 = go.Figure()
+    for risk_val, color in color_map2.items():
+        sub2 = merged_sorted2[merged_sorted2["risk"] == risk_val]
+        if sub2.empty:
+            continue
+        fig2.add_trace(
+            go.Bar(
+                name=f"Inventory ({risk_val})",
+                x=sub2["sku_id"],
+                y=sub2["inventory"],
+                marker_color=color,
+                marker_line_color="#ffffff",
+                marker_line_width=1,
+                customdata=sub2[
+                    ["days_of_supply", "lead_time_days", "avg_daily_demand"]
+                ].values,
+                hovertemplate=(
+                    "<b>%{x}</b> [" + risk_val + "]<br>"
+                    "Inventory: <b>%{y:,} units</b><br>"
+                    "Days of Supply: <b>%{customdata[0]:.1f}d</b> vs Lead Time: %{customdata[1]:.0f}d<br>"
+                    "Avg daily demand: %{customdata[2]:.1f}/day"
+                    "<extra></extra>"
+                ),
+            )
+        )
     fig2.add_trace(
         go.Bar(
-            name="Current Inventory",
+            name="Lead-Time Demand (reorder buffer)",
             x=merged_sorted2["sku_id"],
-            y=merged_sorted2["inventory"],
-            marker_color="#4285F4",
+            y=merged_sorted2["lt_demand"],
+            marker_color="#94A3B8",
             marker_line_color="#ffffff",
             marker_line_width=1,
-            hovertemplate="<b>%{x}</b><br>Inventory: <b>%{y:,}</b><extra></extra>",
+            customdata=merged_sorted2[["lead_time_days", "avg_daily_demand"]].values,
+            hovertemplate=(
+                "<b>%{x}</b><br>Lead-Time Demand: <b>%{y:,} units</b><br>"
+                "(%{customdata[1]:.1f}/day × %{customdata[0]:.0f}d lead time)<br>"
+                "Inventory must stay above this line to avoid stockout"
+                "<extra></extra>"
+            ),
         )
     )
-    fig2.add_trace(
-        go.Bar(
-            name="30-Day Demand",
-            x=merged_sorted2["sku_id"],
-            y=(merged_sorted2["avg_daily_demand"] * 30).round(0),
-            marker_color="#EA4335",
-            marker_line_color="#ffffff",
-            marker_line_width=1,
-            hovertemplate="<b>%{x}</b><br>30-Day Demand: <b>%{y:,}</b><extra></extra>",
-        )
-    )
+    n2_crit = int((merged_sorted2["risk"] == "CRITICAL").sum())
+    n2_warn = int((merged_sorted2["risk"] == "WARNING").sum())
     fig2.update_layout(
         title=dict(
-            text=f"Inventory vs 30-Day Demand — Top 20 SKUs ({category_filter})",
+            text=(
+                f"Inventory vs Lead-Time Demand — {category_filter}<br>"
+                f"<sup style='color:#666'>{n2_crit} Critical &nbsp;|&nbsp; {n2_warn} Warning &nbsp;|&nbsp; "
+                f"{len(merged_sorted2) - n2_crit - n2_warn} OK &nbsp;·&nbsp; "
+                f"Grey = units needed to cover each SKU's reorder window</sup>"
+            ),
             font=dict(size=15, color="#4285F4"),
         ),
         xaxis_title="SKU ID",
         yaxis_title="Units",
         barmode="group",
-        height=440,
-        legend=dict(orientation="h", y=1.08, x=0),
+        height=460,
+        legend=dict(orientation="h", y=1.10, x=0, font=dict(size=10)),
         plot_bgcolor="#F8F9FA",
         paper_bgcolor="#FFFFFF",
         font=chart_font,
         xaxis=dict(tickangle=45, tickfont=dict(size=11)),
-        margin=dict(t=80, b=80),
+        margin=dict(t=90, b=80),
     )
 
     # KPI numbers
@@ -3552,8 +3615,15 @@ def build_inventory_tab():
                 "**Action:** Reorder any red bar immediately."
             ),
             "Inventory vs Demand": (
-                "**What this shows:** For each SKU, the blue bar = current inventory; the orange bar = total demand in the last 30 days.  \n"
-                "**How to read it:** When the orange bar is taller than the blue bar, you are selling faster than you have stock — stockout risk is high."
+                "**What this shows:** For each SKU, the coloured bar = current inventory (colour = risk level); "
+                "the grey bar = lead-time demand (units needed to bridge the reorder window = avg daily demand × lead time).  \n"
+                "**Why lead-time demand, not 30-day demand?** Risk is about whether you can survive until the next delivery arrives — "
+                "not whether you have 30 days of stock. A SKU with a 2-day lead time only needs 2 days of stock before a reorder arrives. "
+                "Comparing to 30-day demand would make all short-lead-time SKUs look falsely critical.  \n"
+                "**How to read it:** When the coloured bar is shorter than the grey bar, "
+                "inventory is below the minimum safe level for that SKU's lead time → the bar will be red (CRITICAL).  \n"
+                "**Why is a short green bar still OK?** Because its lead time is short — "
+                "a reorder can arrive quickly. The grey bar (reorder buffer) will be short too. Hover over any bar to see the exact numbers."
             ),
             "Stockout Risk Timeline": (
                 "**What this shows:** A timeline of when each at-risk SKU is predicted to hit zero stock, "
@@ -3781,15 +3851,22 @@ def build_inventory_tab():
                         marker_line_width=1,
                         text=sub["days_of_supply"].round(1),
                         textposition="outside",
-                        customdata=sub[
-                            ["lead_time_days", "inventory", "avg_daily_demand"]
-                        ].values,
+                        customdata=np.column_stack(
+                            [
+                                sub[
+                                    ["lead_time_days", "inventory", "avg_daily_demand"]
+                                ].values,
+                                (
+                                    sub["lead_time_days"] * 2
+                                ).values,  # [3] = 2×lt for hover
+                            ]
+                        ),
                         hovertemplate=(
                             "<b>%{x}</b><br>"
                             "Days of Supply: <b>%{y:.1f}d</b><br>"
                             "Lead Time: <b>%{customdata[0]:.0f}d</b><br>"
-                            "Critical if below: <b>%{customdata[0]:.0f}d</b> &nbsp; "
-                            "Warning if below: <b>%{customdata[0]:.0f}×2=%{customdata[0]:.0f}d</b><br>"
+                            "Critical if DoS &lt; <b>%{customdata[0]:.0f}d</b> &nbsp;|&nbsp; "
+                            "Warning if DoS &lt; <b>%{customdata[3]:.0f}d</b> (2×LT)<br>"
                             "Inventory: %{customdata[1]:,} units &nbsp;|&nbsp; "
                             "Avg demand: %{customdata[2]:.1f}/day"
                             "<extra></extra>"
@@ -4035,51 +4112,42 @@ def build_inventory_tab():
                     )
                 )
 
-            # 30-Day Demand bars
+            # Lead-time demand bar: units needed to cover the reorder window
+            # This is the CORRECT comparison — not 30-day demand.
+            # A SKU with lt=2d only needs 2 days of stock before a reorder arrives.
+            # Comparing to 30-day demand would make every short-lt SKU look critical.
             fig.add_trace(
                 go.Bar(
-                    name="30-Day Demand",
-                    x=top20["sku_id"],
-                    y=(top20["avg_daily_demand"] * 30).round(0),
-                    marker_color="#94A3B8",
-                    marker_opacity=0.6,
-                    hovertemplate="<b>%{x}</b><br>30-Day Demand: <b>%{y:,} units</b><extra></extra>",
-                )
-            )
-
-            # Reorder buffer line — minimum safe inventory = avg_demand × lead_time
-            fig.add_trace(
-                go.Scatter(
+                    name="Lead-Time Demand (units needed to bridge reorder)",
                     x=top20["sku_id"],
                     y=top20["reorder_buffer"],
-                    mode="markers",
-                    name="Reorder Buffer (demand × lead time)",
-                    marker=dict(
-                        symbol="line-ew",
-                        size=16,
-                        color="#C5221F",
-                        line=dict(color="#C5221F", width=2),
-                    ),
+                    marker_color="#94A3B8",
+                    marker_opacity=0.6,
+                    customdata=top20[["lead_time_days", "avg_daily_demand"]].values,
                     hovertemplate=(
                         "<b>%{x}</b><br>"
-                        "Min safe inventory: <b>%{y:,} units</b><br>"
-                        "(avg demand × lead time — below this = CRITICAL)"
+                        "Lead-Time Demand: <b>%{y:,} units</b><br>"
+                        "(avg %{customdata[1]:.1f}/day × %{customdata[0]:.0f}d lead time)<br>"
+                        "Inventory must stay above this to avoid stockout"
                         "<extra></extra>"
                     ),
                 )
             )
 
-            n_crit = int((top20["risk"] == "CRITICAL").sum())
-            n_warn = int((top20["risk"] == "WARNING").sum())
+            # Use full merged dataset for counts so subtitle matches KPI boxes
+            n_crit_all = int((merged["risk"] == "CRITICAL").sum())
+            n_warn_all = int((merged["risk"] == "WARNING").sum())
+            n_ok_all = int((merged["risk"] == "OK").sum())
             fig.update_layout(
                 **_CHART_LAYOUT,
                 title=dict(
                     text=(
-                        f"Inventory vs 30-Day Demand — {cat_label}<br>"
-                        f"<sup style='color:#666'>{n_crit} Critical &nbsp;|&nbsp; "
-                        f"{n_warn} Warning &nbsp;|&nbsp; "
-                        f"{len(top20) - n_crit - n_warn} OK &nbsp;·&nbsp; "
-                        f"— = min safe stock (demand × lead time)</sup>"
+                        f"Inventory vs Lead-Time Demand — {cat_label} (Top 20 by demand)<br>"
+                        f"<sup style='color:#666'>"
+                        f"{n_crit_all} Critical &nbsp;|&nbsp; "
+                        f"{n_warn_all} Warning &nbsp;|&nbsp; "
+                        f"{n_ok_all} OK across all {len(merged)} SKUs &nbsp;·&nbsp; "
+                        f"Grey bar = units needed to bridge each SKU's own reorder window</sup>"
                     ),
                     font=dict(size=15, color="#4285F4"),
                 ),
@@ -4149,23 +4217,14 @@ def build_inventory_tab():
                         ),
                     )
                 )
-            avg_lt = float(at_risk["lead_time_days"].mean())
-            fig.add_vline(
-                x=avg_lt,
-                line_dash="dash",
-                line_color="#EA4335",
-                line_width=1.5,
-                annotation_text=f"Avg lead time ({avg_lt:.0f}d)",
-                annotation_font=dict(color="#EA4335", size=10),
-                annotation_position="top right",
-            )
             crit = sum(1 for c in colors if c == "#EA4335")
             fig.update_layout(
                 **_CHART_LAYOUT,
                 title=dict(
                     text=(
                         f"Stockout Risk — {len(at_risk)} SKUs running out within {days_ahead} days<br>"
-                        f"<sup style='color:#EA4335'>{crit} CRITICAL (stock out before reorder can arrive)</sup>"
+                        f"<sup style='color:#EA4335'>{crit} CRITICAL (stock out before that SKU's own reorder can arrive) "
+                        f"&nbsp;·&nbsp; Colour based on each SKU's individual lead time</sup>"
                     ),
                     font=dict(size=14, color="#EA4335"),
                 ),
@@ -4686,7 +4745,7 @@ def build_analytics_tab():
             elif chart_type == "Month-over-Month Growth":
                 fig = build_mom_growth_chart(store_id=sid)
             elif chart_type == "Store Inventory Comparison":
-                fig = build_store_inventory_comparison()
+                fig = build_store_inventory_comparison(store_id=sid)
             else:
                 fig = _empty_fig("Select a chart type")
             return fig, _MGMT_INTERP.get(chart_type, "")
@@ -4718,10 +4777,11 @@ def build_forecast_fig(
                 store_sku = sdi[
                     (sdi["store_id"] == store_id) & (sdi["sku_id"] == sku_id_clean)
                 ]
-                if not store_sku.empty:
-                    # Use store-level demand as the demand series
-                    df_src = store_sku.rename(columns={"date": "date"}).copy()
-                    df_src = df_src.sort_values("date")
+                # Need at least 90 days of history for the forecast model encoder window.
+                # store_daily_inventory.csv typically has only 1 snapshot per store per SKU.
+                # Fall back to full demand CSV which has the full 730-day history.
+                if not store_sku.empty and len(store_sku) >= 90:
+                    df_src = store_sku.copy().sort_values("date")
                 else:
                     df_src = get_df()
             else:
@@ -6784,10 +6844,36 @@ def build_ui() -> gr.Blocks:
 # automatically switch to CatBoost on the next request — no restart needed.
 import threading as _threading
 
+# ── Load saved models BEFORE building the UI so the forecast tab works immediately.
+# This is a fast operation (reads pkl files, ~1-3s) — no need to defer to background.
+# If no cached model exists, _init_ml() will silently return and the user can
+# train from the MLOps Monitor tab.
+try:
+    from forecasting.ml_forecast import (
+        load_models as _load_saved_models,
+        get_metrics as _get_saved_metrics,
+    )
+
+    if _load_saved_models():
+        _ml_metrics = _get_saved_metrics()
+        _ml_ready = True
+        import logging as _logging
+
+        _logging.getLogger(__name__).info(
+            f"[app] Model pre-loaded: {_ml_metrics.get('engine')} "
+            f"MAPE={_ml_metrics.get('mape', '?')}% "
+            f"trained {_ml_metrics.get('trained_at', '?')}"
+        )
+except Exception as _e:
+    pass  # No cached model — user can train from MLOps Monitor
+
 demo = build_ui()
 
-_ml_thread = _threading.Thread(target=_init_ml, daemon=True)
-_ml_thread.start()
+# Background thread only needed if no cached model was found
+# (to attempt loading from the configured data source on first run)
+if not _ml_ready:
+    _ml_thread = _threading.Thread(target=_init_ml, daemon=True)
+    _ml_thread.start()
 
 if __name__ == "__main__":
     import socket as _socket
