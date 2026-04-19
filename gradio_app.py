@@ -905,8 +905,6 @@ def build_inventory_heatmap(category_filter: str = "All") -> go.Figure:
         color_map = {"CRITICAL": "#EA4335", "WARNING": "#F9AB00", "OK": "#34A853"}
         risk_order = ["CRITICAL", "WARNING", "OK"]
 
-        avg_lt = merged["lead_time_days"].mean()
-
         fig = go.Figure()
         for risk in risk_order:
             sub = merged[merged["risk"] == risk]
@@ -928,32 +926,50 @@ def build_inventory_heatmap(category_filter: str = "All") -> go.Figure:
                     ].values,
                     hovertemplate=(
                         "<b>%{y}</b><br>"
-                        "Days of Supply: %{x:.1f}<br>"
+                        "Days of Supply: <b>%{x:.1f}d</b><br>"
+                        "Lead Time: <b>%{customdata[2]:.0f}d</b> "
+                        "(critical if DoS < this, warning if < 2×this)<br>"
                         "Inventory: %{customdata[0]:,} units<br>"
-                        "Avg Daily Demand: %{customdata[1]:.1f}<br>"
-                        "Lead Time: %{customdata[2]:.0f}d<br>"
+                        "Avg Daily Demand: %{customdata[1]:.1f}/day<br>"
                         "Category: %{customdata[3]}<extra></extra>"
                     ),
                 )
             )
 
-        fig.add_vline(
-            x=avg_lt,
-            line_dash="dash",
-            line_color="#EA4335",
-            line_width=1.5,
-            annotation_text=f"Critical ({avg_lt:.0f}d)",
-            annotation_font=dict(color="#EA4335", size=10),
-            annotation_position="top right",
+        # Per-SKU lead-time markers — ◆ at critical threshold, ▲ at warning threshold
+        fig.add_trace(
+            go.Scatter(
+                x=merged["lead_time_days"],
+                y=merged["label"],
+                mode="markers",
+                name="Lead Time (critical threshold)",
+                marker=dict(
+                    symbol="diamond",
+                    size=9,
+                    color="#C5221F",
+                    line=dict(color="#fff", width=1),
+                ),
+                hovertemplate=(
+                    "<b>%{y}</b><br>Critical threshold: <b>%{x}d</b> (= lead time)<extra></extra>"
+                ),
+            )
         )
-        fig.add_vline(
-            x=avg_lt * 2,
-            line_dash="dot",
-            line_color="#F9AB00",
-            line_width=1.5,
-            annotation_text=f"Warning ({avg_lt * 2:.0f}d)",
-            annotation_font=dict(color="#B06000", size=10),
-            annotation_position="top right",
+        fig.add_trace(
+            go.Scatter(
+                x=merged["lead_time_days"] * 2,
+                y=merged["label"],
+                mode="markers",
+                name="2× Lead Time (warning threshold)",
+                marker=dict(
+                    symbol="triangle-right",
+                    size=8,
+                    color="#F9AB00",
+                    line=dict(color="#fff", width=1),
+                ),
+                hovertemplate=(
+                    "<b>%{y}</b><br>Warning threshold: <b>%{x}d</b> (= 2 × lead time)<extra></extra>"
+                ),
+            )
         )
 
         crit_count = int((merged["risk"] == "CRITICAL").sum())
@@ -966,20 +982,15 @@ def build_inventory_heatmap(category_filter: str = "All") -> go.Figure:
                     f"Inventory Health — {scope}<br>"
                     f"<sup style='color:#666'>{crit_count} Critical &nbsp;|&nbsp; "
                     f"{warn_count} Warning &nbsp;|&nbsp; "
-                    f"{len(merged) - crit_count - warn_count} OK &nbsp;(of {len(merged)} SKUs)</sup>"
+                    f"{len(merged) - crit_count - warn_count} OK &nbsp;(of {len(merged)} SKUs) "
+                    f"&nbsp;·&nbsp; ◆ = each SKU's own lead-time threshold</sup>"
                 ),
                 font=dict(size=14, color="#4285F4"),
             ),
             xaxis_title="Days of Supply remaining",
             yaxis=dict(tickfont=dict(size=10), autorange="reversed"),
             height=max(440, len(merged) * 22 + 160),
-            legend=dict(
-                orientation="h",
-                y=1.06,
-                x=0,
-                font=dict(size=11),
-                traceorder="normal",
-            ),
+            legend=dict(orientation="h", y=1.06, x=0, font=dict(size=10)),
             margin=dict(t=90, b=60, l=190, r=100),
             barmode="overlay",
         )
@@ -1872,8 +1883,14 @@ def build_stockout_risk_timeline(days_ahead: int = 30) -> go.Figure:
 
 def build_lead_time_scatter() -> go.Figure:
     """
-    Lead Time Performance Scatter — promised vs actual lead time per supplier.
-    Points above y=x are late. Color by on_time_delivery_pct.
+    Supplier Lead Time & On-Time Delivery Dashboard — horizontal bar chart.
+
+    Replaces the illegible scatter plot (26 suppliers all at y≈5d with overlapping
+    labels). New design:
+    - Suppliers ranked by on-time delivery % (worst at top → easy triage)
+    - Bar 1: on-time delivery % (green/amber/red by threshold)
+    - Bar 2: lead-time variance (actual − promised, shown as ±d delta)
+    - Target lines at 95% OTD and 0 variance
     """
     try:
         supplier_df = get_supplier_perf_df()
@@ -1881,22 +1898,19 @@ def build_lead_time_scatter() -> go.Figure:
         if supplier_df.empty:
             return _empty_fig("Supplier performance data not available")
 
-        # Aggregate supplier_df: avg actual lead time and on_time_delivery_pct
         sup_agg = (
             supplier_df.groupby("supplier_name")
             .agg(
                 avg_actual_lt=("lead_time_actual_days", "mean"),
                 avg_on_time=("on_time_delivery_pct", "mean"),
+                avg_fill=("fill_rate_pct", "mean"),
+                avg_defect=("defect_rate_pct", "mean"),
             )
             .reset_index()
         )
 
         # Get promised lead time from products
-        if (
-            not products.empty
-            and "supplier" in products.columns
-            and "lead_time_days" in products.columns
-        ):
+        if not products.empty and "supplier" in products.columns:
             promised = (
                 products.groupby("supplier")["lead_time_days"]
                 .mean()
@@ -1915,56 +1929,133 @@ def build_lead_time_scatter() -> go.Figure:
         else:
             sup_agg["promised_lt"] = sup_agg["avg_actual_lt"]
 
-        # Diagonal reference line
-        max_val = (
-            max(sup_agg["promised_lt"].max(), sup_agg["avg_actual_lt"].max()) * 1.1
+        sup_agg["lt_delta"] = (sup_agg["avg_actual_lt"] - sup_agg["promised_lt"]).round(
+            1
         )
+        sup_agg = sup_agg.sort_values("avg_on_time", ascending=True).reset_index(
+            drop=True
+        )
+
+        # Truncate long supplier names
+        sup_agg["label"] = sup_agg["supplier_name"].str[:28]
+
+        def _otd_color(pct):
+            if pct >= 95:
+                return "#34A853"
+            if pct >= 88:
+                return "#F9AB00"
+            return "#EA4335"
+
+        otd_colors = [_otd_color(p) for p in sup_agg["avg_on_time"]]
+
         fig = go.Figure()
+
+        # ── On-Time Delivery % bars ────────────────────────────────────────
         fig.add_trace(
-            go.Scatter(
-                x=[0, max_val],
-                y=[0, max_val],
-                mode="lines",
-                name="Perfect (y=x)",
-                line=dict(dash="dash", color="#9CA3AF", width=1.5),
-                hoverinfo="skip",
-            )
-        )
-        fig.add_trace(
-            go.Scatter(
-                x=sup_agg["promised_lt"],
-                y=sup_agg["avg_actual_lt"],
-                mode="markers+text",
-                text=sup_agg["supplier_name"],
-                textposition="top center",
-                textfont=dict(size=9),
-                marker=dict(
-                    size=14,
-                    color=sup_agg["avg_on_time"],
-                    colorscale="RdYlGn",
-                    cmin=80,
-                    cmax=100,
-                    colorbar=dict(title="On-Time %"),
-                    line=dict(width=1, color="#ffffff"),
-                ),
+            go.Bar(
+                name="On-Time Delivery %",
+                y=sup_agg["label"],
+                x=sup_agg["avg_on_time"],
+                orientation="h",
+                marker_color=otd_colors,
+                marker_opacity=0.88,
+                text=[f"{v:.1f}%" for v in sup_agg["avg_on_time"]],
+                textposition="outside",
+                textfont=dict(size=10),
+                customdata=sup_agg[
+                    [
+                        "avg_actual_lt",
+                        "promised_lt",
+                        "lt_delta",
+                        "avg_fill",
+                        "avg_defect",
+                    ]
+                ].values,
                 hovertemplate=(
-                    "<b>%{text}</b><br>Promised: %{x:.1f}d<br>"
-                    "Actual: %{y:.1f}d<extra></extra>"
+                    "<b>%{y}</b><br>"
+                    "On-Time Delivery: <b>%{x:.1f}%</b><br>"
+                    "Actual Lead Time: %{customdata[0]:.1f}d &nbsp;|&nbsp; "
+                    "Promised: %{customdata[1]:.0f}d<br>"
+                    "Lead Time Delta: <b>%{customdata[2]:+.1f}d</b><br>"
+                    "Fill Rate: %{customdata[3]:.1f}% &nbsp;|&nbsp; "
+                    "Defect Rate: %{customdata[4]:.2f}%"
+                    "<extra></extra>"
                 ),
-                name="Supplier",
+                xaxis="x",
             )
         )
+
+        # ── Lead-time delta bars (secondary x-axis) ────────────────────────
+        delta_colors = ["#EA4335" if d > 0 else "#34A853" for d in sup_agg["lt_delta"]]
+        fig.add_trace(
+            go.Bar(
+                name="Lead Time Delta (actual − promised)",
+                y=sup_agg["label"],
+                x=sup_agg["lt_delta"],
+                orientation="h",
+                marker_color=delta_colors,
+                marker_opacity=0.6,
+                text=[f"{d:+.1f}d" for d in sup_agg["lt_delta"]],
+                textposition="outside",
+                textfont=dict(size=9),
+                hovertemplate=(
+                    "<b>%{y}</b><br>"
+                    "Lead Time Delta: <b>%{x:+.1f}d</b><br>"
+                    "(positive = delivered late, negative = delivered early)"
+                    "<extra></extra>"
+                ),
+                xaxis="x2",
+            )
+        )
+
+        n_poor = int((sup_agg["avg_on_time"] < 88).sum())
+        n_ok = int((sup_agg["avg_on_time"] >= 95).sum())
+
         fig.update_layout(
             **_CHART_LAYOUT,
             title=dict(
-                text="Lead Time Performance: Promised vs Actual",
-                font=dict(size=15, color="#4285F4"),
+                text=(
+                    "Supplier Lead Time & On-Time Delivery<br>"
+                    f"<sup style='color:#666'>{n_ok} suppliers meeting 95% target &nbsp;|&nbsp; "
+                    f"{n_poor} underperforming (&lt;88%) — sorted worst → best</sup>"
+                ),
+                font=dict(size=14, color="#4285F4"),
             ),
-            xaxis_title="Promised Lead Time (days)",
-            yaxis_title="Actual Lead Time (days)",
-            height=480,
-            margin=dict(t=80, b=60),
+            xaxis=dict(
+                title="On-Time Delivery %",
+                range=[75, 105],
+                domain=[0, 0.62],
+                ticksuffix="%",
+            ),
+            xaxis2=dict(
+                title="Lead Time Delta (days)",
+                range=[
+                    min(-3, sup_agg["lt_delta"].min() * 1.3),
+                    max(3, sup_agg["lt_delta"].max() * 1.3),
+                ],
+                domain=[0.68, 1.0],
+                zeroline=True,
+                zerolinecolor="#6B7280",
+                zerolinewidth=1.5,
+            ),
+            yaxis=dict(tickfont=dict(size=10)),
+            barmode="overlay",
+            height=max(480, len(sup_agg) * 26 + 160),
+            legend=dict(orientation="h", y=1.06, x=0, font=dict(size=11)),
+            margin=dict(t=90, b=60, l=210, r=60),
         )
+
+        # Target line at 95% OTD
+        fig.add_vline(
+            x=95,
+            line_dash="dash",
+            line_color="#34A853",
+            line_width=1.5,
+            annotation_text="Target (95%)",
+            annotation_font=dict(color="#137333", size=10),
+            annotation_position="top",
+        )
+
         return fig
     except Exception as exc:
         return _empty_fig(f"Error: {exc}")
@@ -1972,7 +2063,17 @@ def build_lead_time_scatter() -> go.Figure:
 
 def build_cold_chain_trend(sku_filter: str | None = None) -> go.Figure:
     """
-    Cold Chain Temperature Trend — line chart with safe/danger bands.
+    Cold Chain Monitor — two-row subplot layout.
+
+    Row 1: Weekly-average temperature per SKU (smooth lines).
+           730 raw daily points → ~104 weekly points = readable.
+           Reference lines at 0°C and 6°C mark the safe zone boundaries.
+
+    Row 2: Monthly breach count per SKU (grouped bars).
+           A breach = any day where temp_celsius < 0 or > 6.
+
+    Replaces the raw daily line chart where 3 SKUs × 730 days
+    produced an unreadable noise band.
     """
     try:
         cc = get_cold_chain_df()
@@ -1984,71 +2085,172 @@ def build_cold_chain_trend(sku_filter: str | None = None) -> go.Figure:
             if cc.empty:
                 return _empty_fig(f"No cold chain data for SKU: {sku_filter}")
 
-        fig = go.Figure()
+        cc = cc.copy()
+        cc["date"] = pd.to_datetime(cc["date"])
+
+        # ── Week-level aggregation ─────────────────────────────────────────
+        cc["week"] = cc["date"].dt.to_period("W").dt.start_time
+        weekly = (
+            cc.groupby(["sku_id", "week"])
+            .agg(
+                avg_temp=("temp_celsius", "mean"),
+                min_temp=("temp_celsius", "min"),
+                max_temp=("temp_celsius", "max"),
+                breach_days=(
+                    "temp_breach",
+                    lambda x: (x.astype(str).str.lower() == "true").sum(),
+                ),
+                name=("name", "first"),
+            )
+            .reset_index()
+        )
+
+        # ── Monthly breach count ───────────────────────────────────────────
+        cc["month"] = cc["date"].dt.to_period("M").dt.start_time
+        monthly_breach = (
+            cc[cc["temp_breach"].astype(str).str.lower() == "true"]
+            .groupby(["sku_id", "month"])
+            .size()
+            .reset_index(name="breach_count")
+        )
+        # Add name
+        sku_names = cc.drop_duplicates("sku_id")[["sku_id", "name"]].set_index(
+            "sku_id"
+        )["name"]
+        monthly_breach["name"] = monthly_breach["sku_id"].map(sku_names).str[:25]
+
         skus = cc["sku_id"].unique()
-        colors = px.colors.qualitative.Set2
+        palette = ["#4285F4", "#EA4335", "#34A853", "#F9AB00", "#7C3AED"]
 
-        min_date = cc["date"].min()
-        max_date = cc["date"].max()
-        date_range = [min_date, max_date]
+        from plotly.subplots import make_subplots
 
-        # Danger/safe bands
-        fig.add_hrect(
-            y0=-10,
-            y1=0,
-            fillcolor="rgba(66,133,244,0.10)",
-            line_width=0,
-            annotation_text="Too Cold (<0°C)",
-            annotation_position="left",
-            annotation_font=dict(size=9, color="#1967D2"),
-        )
-        fig.add_hrect(
-            y0=6,
-            y1=20,
-            fillcolor="rgba(234,67,53,0.10)",
-            line_width=0,
-            annotation_text="Too Warm (>6°C)",
-            annotation_position="left",
-            annotation_font=dict(size=9, color="#C5221F"),
-        )
-        fig.add_hrect(
-            y0=2,
-            y1=6,
-            fillcolor="rgba(52,168,83,0.10)",
-            line_width=0,
-            annotation_text="Safe Zone 2-6°C",
-            annotation_position="left",
-            annotation_font=dict(size=9, color="#137333"),
+        fig = make_subplots(
+            rows=2,
+            cols=1,
+            row_heights=[0.65, 0.35],
+            shared_xaxes=True,
+            vertical_spacing=0.08,
+            subplot_titles=(
+                "Weekly Average Temperature per SKU",
+                "Monthly Breach Count",
+            ),
         )
 
+        # ── Row 1: weekly temperature lines ───────────────────────────────
         for i, sku in enumerate(skus):
-            sub = cc[cc["sku_id"] == sku].sort_values("date")
-            name_label = sub["name"].iloc[0] if "name" in sub.columns else sku
+            sub = weekly[weekly["sku_id"] == sku].sort_values("week")
+            name_label = sub["name"].iloc[0][:25] if not sub.empty else sku
+            color = palette[i % len(palette)]
+            # Shade the uncertainty band (min–max)
             fig.add_trace(
                 go.Scatter(
-                    x=sub["date"],
-                    y=sub["temp_celsius"],
-                    mode="lines",
-                    name=name_label[:30],
-                    line=dict(color=colors[i % len(colors)], width=2),
-                    hovertemplate=f"<b>{name_label[:25]}</b><br>%{{x|%b %d}}: %{{y:.1f}}°C<extra></extra>",
-                )
+                    x=pd.concat([sub["week"], sub["week"].iloc[::-1]]),
+                    y=pd.concat([sub["max_temp"], sub["min_temp"].iloc[::-1]]),
+                    fill="toself",
+                    fillcolor=color.replace("#", "rgba(") + ",0.08)"
+                    if color.startswith("#")
+                    else color,
+                    line=dict(width=0),
+                    showlegend=False,
+                    hoverinfo="skip",
+                    name=f"{name_label} range",
+                ),
+                row=1,
+                col=1,
             )
+            # Weekly avg line
+            fig.add_trace(
+                go.Scatter(
+                    x=sub["week"],
+                    y=sub["avg_temp"],
+                    mode="lines+markers",
+                    name=name_label,
+                    line=dict(color=color, width=2),
+                    marker=dict(size=4),
+                    customdata=sub[["min_temp", "max_temp", "breach_days"]].values,
+                    hovertemplate=(
+                        f"<b>{name_label}</b><br>"
+                        "%{x|%b %d %Y}<br>"
+                        "Avg: <b>%{y:.1f}°C</b><br>"
+                        "Range: %{customdata[0]:.1f}°C – %{customdata[1]:.1f}°C<br>"
+                        "Breach days this week: %{customdata[2]}"
+                        "<extra></extra>"
+                    ),
+                ),
+                row=1,
+                col=1,
+            )
+
+        # Safe zone reference lines (cleaner than filled rects)
+        for y_val, label, color in [
+            (0, "Min safe (0°C)", "#4285F4"),
+            (6, "Max safe (6°C)", "#EA4335"),
+        ]:
+            fig.add_hline(
+                y=y_val,
+                line_dash="dash",
+                line_color=color,
+                line_width=1.2,
+                annotation_text=label,
+                annotation_font=dict(size=9, color=color),
+                annotation_position="left",
+                row=1,
+                col=1,
+            )
+
+        # ── Row 2: monthly breach bars ─────────────────────────────────────
+        for i, sku in enumerate(skus):
+            sub = monthly_breach[monthly_breach["sku_id"] == sku].sort_values("month")
+            if sub.empty:
+                continue
+            name_label = sub["name"].iloc[0] if not sub.empty else sku
+            fig.add_trace(
+                go.Bar(
+                    x=sub["month"],
+                    y=sub["breach_count"],
+                    name=f"{name_label} breaches",
+                    marker_color=palette[i % len(palette)],
+                    marker_opacity=0.75,
+                    showlegend=False,
+                    hovertemplate=(
+                        f"<b>{name_label}</b><br>"
+                        "%{x|%b %Y}: <b>%{y} breach days</b><extra></extra>"
+                    ),
+                ),
+                row=2,
+                col=1,
+            )
+
+        total_breaches = int(
+            (cc["temp_breach"].astype(str).str.lower() == "true").sum()
+        )
+        scope = sku_names.get(sku_filter, sku_filter) if sku_filter else "All SKUs"
 
         fig.update_layout(
             **_CHART_LAYOUT,
             title=dict(
-                text="Cold Chain Temperature Monitor",
-                font=dict(size=15, color="#4285F4"),
+                text=(
+                    f"Cold Chain Monitor — {scope}<br>"
+                    f"<sup style='color:#666'>{total_breaches} total breach days across full period &nbsp;·&nbsp; "
+                    f"Safe zone: 0°C – 6°C</sup>"
+                ),
+                font=dict(size=14, color="#4285F4"),
             ),
-            xaxis_title="Date",
-            yaxis_title="Temperature (°C)",
-            height=460,
-            legend=dict(orientation="h", y=-0.18, x=0),
-            margin=dict(t=80, b=100, l=60),
-            yaxis=dict(
-                range=[-10, 15]
-            ),  # BUG-053 fix: extend to -10 to show full "Too Cold" zone
+            height=600,
+            legend=dict(orientation="h", y=1.06, x=0, font=dict(size=10)),
+            margin=dict(t=100, b=60, l=60, r=40),
+            hovermode="x unified",
+            barmode="group",
+        )
+        fig.update_yaxes(title_text="Temp (°C)", range=[-3, 10], row=1, col=1)
+        fig.update_yaxes(title_text="Breach Days", row=2, col=1)
+        fig.update_xaxes(
+            title_text="Month",
+            tickformat="%b %Y",
+            tickangle=30,
+            tickfont=dict(size=10),
+            row=2,
+            col=1,
         )
         return fig
     except Exception as exc:
@@ -3232,6 +3434,18 @@ def _get_store_choices() -> list[str]:
     return ["All Stores"]
 
 
+def _parse_store_id(store_val: str) -> str | None:
+    """
+    Extract store_id from a dropdown value like 'ST001 — Mumbai (West · Flagship)'.
+    Returns None when 'All Stores' is selected.
+    Module-level so it can be used in build_inventory_tab, build_analytics_tab,
+    and build_forecast_tab without NameError.
+    """
+    if not store_val or store_val == "All Stores":
+        return None
+    return store_val.split(" —")[0].strip()
+
+
 def build_inventory_tab():
     with gr.TabItem("Inventory Dashboard"):
         gr.HTML("""
@@ -3401,11 +3615,7 @@ def build_inventory_tab():
             wrap=True,
         )
 
-        def _parse_store_id(store_val: str) -> str | None:
-            """Extract store_id from dropdown value like 'ST001 — Mumbai (West · Flagship)'."""
-            if not store_val or store_val == "All Stores":
-                return None
-            return store_val.split(" —")[0].strip()
+        # _parse_store_id is defined at module level — available here and in other tabs
 
         def _get_store_df(store_id: str | None) -> pd.DataFrame | None:
             """Load store_daily_inventory.csv filtered to one store, or None for all-store view."""
@@ -4261,11 +4471,7 @@ def build_analytics_tab():
         def _update_mkt(chart_type, cat, channel, store_val, period):
             """Route to the correct chart builder passing ALL filters including store."""
             p = int(period)
-            sid = (
-                _parse_store_id(store_val)
-                if store_val and store_val != "All Stores"
-                else None
-            )
+            sid = _parse_store_id(store_val)  # module-level — handles None/All Stores
             if chart_type == "Sales by Channel":
                 fig = build_sales_by_channel(period_days=p, store_id=sid)
             elif chart_type == "Brand Performance":
@@ -4357,10 +4563,13 @@ def build_analytics_tab():
                 "<b>What to act on:</b> Any supplier significantly below the line needs a conversation about improving lead times."
             ),
             "Cold Chain Monitor": _interp_box(
-                "<b>What this chart shows:</b> Temperature readings over time for all cold-chain SKUs (freeze-dried and raw food lines) in cold storage.<br>"
-                "<b>How to read it:</b> The safe zone is between the two horizontal reference lines (2°C–6°C). "
-                "Any reading outside this band is a breach. Red/blue shaded zones = danger territory. Each line = one SKU.<br>"
-                "<b>What to act on:</b> Any spike above 8°C or below 0°C means the batch may be compromised — check units at risk of expiry immediately."
+                "<b>Top panel — Weekly average temperature per SKU:</b> Each coloured line = one cold-chain SKU. "
+                "Points are weekly averages (730 raw daily readings → ~104 weekly points) for a readable trend. "
+                "The shaded band around each line shows the weekly min–max range. "
+                "Dashed lines mark the safe zone boundaries: 0°C (min) and 6°C (max).<br>"
+                "<b>Bottom panel — Monthly breach count:</b> Each bar = number of days that month where temperature was outside the 0°C–6°C safe zone. "
+                "Tall bars = months with temperature control problems.<br>"
+                "<b>What to act on:</b> Any SKU with increasing breach counts, or a weekly average trending toward 6°C, needs immediate cold storage review."
             ),
             "Seasonal Demand Index": _interp_box(
                 "<b>What this chart shows:</b> A grouped bar chart showing how each of the top 6 categories' demand varies by month. "
@@ -5227,7 +5436,6 @@ def build_forecast_tab():
                 value="All Stores",
                 label="Store Filter",
                 scale=1,
-                info="Filter demand data to a specific store location",
             )
             sku_dd = gr.Dropdown(
                 choices=all_choices,
@@ -5328,28 +5536,31 @@ def build_forecast_tab():
 
         # ── Wire category + store filter → SKU list ──────────────────────
         def _update_sku_list(cat, store_val="All Stores"):
-            sid = (
-                _parse_store_id(store_val)
-                if store_val and store_val != "All Stores"
-                else None
-            )
+            sid = _parse_store_id(store_val)  # now module-level — always in scope
             if sid:
                 # Filter SKUs available at this specific store
                 try:
                     sdi_path = BASE_DIR / "data" / "store_daily_inventory.csv"
                     if sdi_path.exists():
-                        sdi = pd.read_csv(sdi_path)
+                        sdi = pd.read_csv(
+                            sdi_path,
+                            usecols=["store_id", "sku_id", "category"],
+                        )
                         store_skus = sdi[sdi["store_id"] == sid]["sku_id"].unique()
-                        sub = latest[latest["sku_id"].isin(store_skus)]
-                        if cat != "All":
-                            sub = sub[sub["category"] == cat]
-                        choices = [
-                            f"{r['sku_id']} — {r['name']}" for _, r in sub.iterrows()
-                        ]
-                        if choices:
-                            return gr.update(choices=choices, value=choices[0])
+                        if len(store_skus) > 0:
+                            sub = latest[latest["sku_id"].isin(store_skus)].copy()
+                            if cat != "All" and not sub.empty:
+                                cat_sub = sub[sub["category"] == cat]
+                                # If category not stocked at this store, show all store SKUs
+                                sub = cat_sub if not cat_sub.empty else sub
+                            choices = [
+                                f"{r['sku_id']} — {r['name']}"
+                                for _, r in sub.iterrows()
+                            ]
+                            if choices:
+                                return gr.update(choices=choices, value=choices[0])
                 except Exception:
-                    pass
+                    pass  # any failure → fall through to unfiltered list
             choices = _sku_choices(cat)
             return gr.update(choices=choices, value=choices[0] if choices else None)
 
@@ -5564,24 +5775,17 @@ def build_mlops_tab(
 
         gr.HTML(_engine_html)
 
-        # Training mode explanation
-        gr.HTML("""
-        <div style="background:#F1F5F9; border-radius:8px; padding:14px 18px;
-                    margin-bottom:14px; font-size:0.93rem; line-height:1.7;
-                    color:#1e293b;">
-            <b style="color:#1e40af;">Full TFT Retrain</b>
-            <span style="color:#334155;"> — Trains the Temporal Fusion Transformer from scratch on
-            all historical data. Uses GPU with BF16 mixed precision if available, CPU otherwise.
-            Takes ~20–40 minutes on GPU, longer on CPU. Run this weekly or when new SKUs are added.</span><br>
-            <b style="color:#1e40af;">Fine-tune TFT</b>
-            <span style="color:#334155;"> — Loads the existing TFT checkpoint and continues training
-            on the last 90 days of data. Takes ~3–8 minutes. Run this anytime new data arrives
-            or after a major promotion to update the model without full retraining.</span><br>
-            <b style="color:#1e40af;">CatBoost Fallback</b>
-            <span style="color:#334155;"> — Fast tabular model. Trains in ~2 minutes. Used
-            automatically when TFT is not yet trained. Includes promotion + festival features.</span>
-        </div>
-        """)
+        # Training mode explanation — native Gradio Markdown (no custom HTML)
+        gr.Markdown(
+            "**Full TFT Retrain** — Trains the Temporal Fusion Transformer from scratch on "
+            "all historical data. Uses GPU with BF16 mixed precision if available, CPU otherwise. "
+            "Takes ~20–40 minutes on GPU, longer on CPU. Run this weekly or when new SKUs are added.  \n"
+            "**Fine-tune TFT** — Loads the existing TFT checkpoint and continues training "
+            "on the last 90 days of data. Takes ~3–8 minutes. Run this anytime new data arrives "
+            "or after a major promotion to update the model without full retraining.  \n"
+            "**CatBoost Fallback** — Fast tabular model. Trains in ~2 minutes. Used "
+            "automatically when TFT is not yet trained. Includes promotion + festival features."
+        )
 
         with gr.Row():
             train_source = gr.Radio(
