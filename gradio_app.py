@@ -988,13 +988,17 @@ def build_inventory_heatmap(category_filter: str = "All") -> go.Figure:
         return _empty_fig(f"Error building heatmap: {exc}")
 
 
-def build_sales_by_channel(period_days: int = 90) -> go.Figure:
+def build_sales_by_channel(
+    period_days: int = 90, store_id: str | None = None
+) -> go.Figure:
     """
     Sales by Channel Over Time — Stacked area chart.
     Groups huft_sales_transactions.csv by week and channel.
     """
     try:
         txn = get_transactions()
+        if store_id:
+            txn = txn[txn["store_id"] == store_id]
         if txn.empty:
             return _empty_fig("Sales transaction data not available")
 
@@ -1044,15 +1048,18 @@ def build_brand_performance_bubble(
     category_filter: str = "All",
     channel_filter: str = "All",
     period_days: int = 365,
+    store_id: str | None = None,
 ) -> go.Figure:
     """
     Brand Performance — dual horizontal bar chart.
     Left bar = Revenue (₹), Right bar = Gross Margin %.
     Brands sorted by revenue descending. Color = Private Label vs Third Party.
-    Filters: category, channel, period.
+     Filters: category, channel, period, store_id.
     """
     try:
         txn = get_transactions()
+        if store_id:
+            txn = txn[txn["store_id"] == store_id]
         products = get_products_df()
         if txn.empty or products.empty:
             return _empty_fig("Transaction or product data not available")
@@ -1179,15 +1186,18 @@ def build_category_revenue_heatmap(
     category_filter: str = "All",
     channel_filter: str = "All",
     period_days: int = 365,
+    store_id: str | None = None,
 ) -> go.Figure:
     """
     Category Monthly Revenue Trend — multi-line chart.
     One line per category showing monthly revenue over time.
     Far more readable than a heatmap: peaks, troughs, and trends are immediately visible.
-    Filters: category (single line), channel, period.
+    Filters: category (single line), channel, period, store_id.
     """
     try:
         txn = get_transactions()
+        if store_id:
+            txn = txn[txn["store_id"] == store_id]
         if txn.empty:
             return _empty_fig("Sales transaction data not available")
 
@@ -1328,6 +1338,7 @@ def build_promotion_impact(
     promo_filter: str = "All",
     category_filter: str = "All",
     channel_filter: str = "All",
+    store_id: str | None = None,
 ) -> go.Figure:
     """
     Promotion Demand Lift Chart.
@@ -1345,10 +1356,15 @@ def build_promotion_impact(
         # BUG-015/016 fix: channel filter requires transactions CSV (demand CSV has no
         # channel column). When channel filter is active, aggregate transactions to
         # daily demand per category; otherwise use the faster demand CSV.
-        if channel_filter != "All":
+        if channel_filter != "All" or store_id:
             txn = get_transactions()
+            if not txn.empty:
+                if store_id:
+                    txn = txn[txn["store_id"] == store_id]
+                if channel_filter != "All" and "channel" in txn.columns:
+                    txn = txn[txn["channel"] == channel_filter]
             if not txn.empty and "channel" in txn.columns:
-                txn_filt = txn[txn["channel"] == channel_filter].copy()
+                txn_filt = txn.copy()
                 if category_filter != "All":
                     txn_filt = txn_filt[txn_filt["category"] == category_filter]
                 # Aggregate to daily total demand (quantity) per date+category
@@ -2584,13 +2600,15 @@ def build_financial_kpi_cards() -> str:
         return f"<div style='color:#EA4335;padding:12px;'>Error computing KPIs: {exc}</div>"
 
 
-def build_private_label_vs_third_party() -> go.Figure:
+def build_private_label_vs_third_party(store_id: str | None = None) -> go.Figure:
     """
     Private Label vs Third Party Revenue — stacked horizontal bar per category.
     Shows both absolute split and % share for each product category.
     """
     try:
         txn = get_transactions()
+        if store_id:
+            txn = txn[txn["store_id"] == store_id]
         products = get_products_df()
         if txn.empty or products.empty:
             return _empty_fig("Transaction or product data not available")
@@ -2662,12 +2680,14 @@ def build_private_label_vs_third_party() -> go.Figure:
         return _empty_fig(f"Error: {exc}")
 
 
-def build_mom_growth_chart(months: int = 12) -> go.Figure:
+def build_mom_growth_chart(months: int = 12, store_id: str | None = None) -> go.Figure:
     """
     Month-over-Month Growth Chart — revenue, units, margin indexed to 100.
     """
     try:
         txn = get_transactions()
+        if store_id:
+            txn = txn[txn["store_id"] == store_id]
         if txn.empty:
             return _empty_fig("Sales transaction data not available")
 
@@ -2813,14 +2833,17 @@ def build_customer_segment_donut(
     category_filter: str = "All",
     channel_filter: str = "All",
     period_days: int = 365,
+    store_id: str | None = None,
 ) -> go.Figure:
     """
     Customer Segment Revenue — stacked bar chart (more readable than donut).
     Shows revenue, units, and avg order value per segment.
-    Filters: category, channel, period.
+    Filters: category, channel, period, store_id.
     """
     try:
         txn = get_transactions()
+        if store_id:
+            txn = txn[txn["store_id"] == store_id]
         if txn.empty:
             return _empty_fig("Sales transaction data not available")
 
@@ -2938,12 +2961,15 @@ def build_top_skus_bar(
     category_filter: str = "All",
     channel_filter: str = "All",
     top_n: int = 10,
+    store_id: str | None = None,
 ) -> go.Figure:
     """
     Top N SKUs by Revenue — horizontal bar chart.
     """
     try:
         txn = get_transactions()
+        if store_id:
+            txn = txn[txn["store_id"] == store_id]
         if txn.empty:
             return _empty_fig("Sales transaction data not available")
 
@@ -3188,6 +3214,24 @@ def build_inventory_fig(category_filter: str):
     )
 
 
+def _get_store_choices() -> list[str]:
+    """Build store dropdown choices from store_daily_inventory.csv."""
+    try:
+        sdi_path = BASE_DIR / "data" / "store_daily_inventory.csv"
+        if sdi_path.exists():
+            stores = pd.read_csv(
+                sdi_path, usecols=["store_id", "city", "region", "store_type"]
+            )
+            stores = stores.drop_duplicates("store_id").sort_values("store_id")
+            return ["All Stores"] + [
+                f"{r['store_id']} — {r['city']} ({r['region']} · {r['store_type']})"
+                for _, r in stores.iterrows()
+            ]
+    except Exception:
+        pass
+    return ["All Stores"]
+
+
 def build_inventory_tab():
     with gr.TabItem("Inventory Dashboard"):
         gr.HTML("""
@@ -3198,6 +3242,7 @@ def build_inventory_tab():
             </div>
             <div style="color:rgba(255,255,255,0.9); font-size:0.96rem;">
                 Red = critical stock (below lead time). Yellow = warning. Green = healthy.
+                Select a specific store to see per-store inventory.
             </div>
         </div>
         """)
@@ -3231,6 +3276,12 @@ def build_inventory_tab():
                 label="Filter by Category",
                 scale=2,
             )
+            store_dd = gr.Dropdown(
+                choices=_get_store_choices(),
+                value="All Stores",
+                label="Filter by Store",
+                scale=2,
+            )
             refresh_btn = gr.Button("Refresh Dashboard", variant="primary", scale=1)
 
         # KPI cards as colored HTML boxes
@@ -3260,44 +3311,42 @@ def build_inventory_tab():
         """)
 
         chart_main = gr.Plot(label="Inventory View")
-        inv_interp = gr.HTML("")
+        inv_interp = gr.Markdown("")
 
         _INV_INTERP = {
             "Inventory Health Heatmap": (
-                "<b>What this shows:</b> Every SKU ranked from most critical (top, red) to well-stocked (bottom, green). Bar length = days of supply remaining.<br>"
-                "<b>How to read it:</b> Red = will stock out before the next delivery arrives (Days of Supply &lt; Lead Time). Amber = running low. Green = healthy.<br>"
-                "<b>Action:</b> Immediately reorder all red SKUs."
+                "**What this shows:** Every SKU ranked from most critical (top, red) to well-stocked (bottom, green). "
+                "Bar length = days of supply remaining.  \n"
+                "**How to read it:** Red = will stock out before the next delivery arrives (Days of Supply < Lead Time). "
+                "Amber = running low. Green = healthy.  \n"
+                "**Action:** Immediately reorder all red SKUs."
             ),
             "Days of Supply": (
-                "<b>What this shows:</b> Each bar = how many days the current stock will last at the current rate of sales. The dashed lines show the reorder threshold (2× lead time) and critical threshold (1× lead time).<br>"
-                "<b>Action:</b> Any bar below the critical line needs urgent ordering."
+                "**What this shows:** Each bar = how many days the current stock will last at the current rate of sales. "
+                "The dashed lines show the reorder threshold (2× lead time) and critical threshold (1× lead time).  \n"
+                "**Action:** Any bar below the critical line needs urgent ordering."
             ),
             "Inventory vs Demand": (
-                "<b>What this shows:</b> For each SKU, the blue bar = current inventory; the orange bar = total demand in the last 30 days.<br>"
-                "<b>How to read it:</b> When the orange bar is taller than the blue bar, you are selling faster than you have stock — stockout risk is high."
+                "**What this shows:** For each SKU, the blue bar = current inventory; the orange bar = total demand in the last 30 days.  \n"
+                "**How to read it:** When the orange bar is taller than the blue bar, you are selling faster than you have stock — stockout risk is high."
             ),
             "Stockout Risk Timeline": (
-                "<b>What this shows:</b> A timeline of when each at-risk SKU is predicted to hit zero stock, based on current inventory and recent daily sales rate.<br>"
-                "<b>How to read it:</b> Bars further left = stock out sooner. Red = will stock out before a new delivery can arrive (CRITICAL).<br>"
-                "<b>Action:</b> Order the leftmost SKUs immediately."
+                "**What this shows:** A timeline of when each at-risk SKU is predicted to hit zero stock, "
+                "based on current inventory and recent daily sales rate.  \n"
+                "**How to read it:** Bars further left = stock out sooner. "
+                "Red = will stock out before a new delivery can arrive (CRITICAL).  \n"
+                "**Action:** Order the leftmost SKUs immediately."
             ),
             "Dead Stock Analysis": (
-                "<b>What this shows:</b> For each SKU within each category, inventory value split into: Dead (no sales in 60+ days) shown in red, Slow-moving in amber, and Active stock in green. Values are in ₹INR (cost price).<br>"
-                "<b>Action:</b> Plan clearance discounts for red SKUs to free up working capital."
+                "**What this shows:** For each SKU within each category, inventory value split into: "
+                "Dead (no sales in 60+ days) shown in red, Slow-moving in amber, and Active stock in green. "
+                "Values are in ₹INR (cost price).  \n"
+                "**Action:** Plan clearance discounts for red SKUs to free up working capital."
             ),
         }
 
         def _fmt_inv_interp(view: str) -> str:
-            text = _INV_INTERP.get(view, "")
-            if not text:
-                return ""
-            return (
-                '<div style="background:#F1F5F9;border:1px solid #CBD5E1;border-radius:8px;'
-                "padding:12px 16px;margin-top:8px;font-size:0.85rem;color:#1e293b;"
-                'line-height:1.65;text-align:left;display:block;width:100%;box-sizing:border-box;">'
-                + text
-                + "</div>"
-            )
+            return _INV_INTERP.get(view, "")
 
         gr.HTML(
             '<div style="margin-top:12px; font-size:1.1rem; font-weight:700; color:#EA4335;">At-Risk SKUs (Critical + Warning)</div>'
@@ -3341,8 +3390,36 @@ def build_inventory_tab():
             wrap=True,
         )
 
-        def _pick_inv_chart(view: str, cat: str) -> go.Figure:
-            """Return the appropriate chart based on view selection."""
+        def _parse_store_id(store_val: str) -> str | None:
+            """Extract store_id from dropdown value like 'ST001 — Mumbai (West · Flagship)'."""
+            if not store_val or store_val == "All Stores":
+                return None
+            return store_val.split(" —")[0].strip()
+
+        def _get_store_df(store_id: str | None) -> pd.DataFrame | None:
+            """Load store_daily_inventory.csv filtered to one store, or None for all-store view."""
+            if store_id is None:
+                return None
+            try:
+                sdi_path = BASE_DIR / "data" / "store_daily_inventory.csv"
+                if not sdi_path.exists():
+                    return None
+                sdi = pd.read_csv(sdi_path, parse_dates=["date"])
+                sdi = sdi[sdi["store_id"] == store_id]
+                if sdi.empty:
+                    return None
+                latest = sdi["date"].max()
+                sdi = sdi[sdi["date"] == latest].copy()
+                # Rename to match the demand CSV schema expected by build_inventory_fig
+                sdi = sdi.rename(columns={"demand": "demand", "date": "date"})
+                return sdi
+            except Exception:
+                return None
+
+        def _pick_inv_chart(
+            view: str, cat: str, store_id: str | None = None
+        ) -> go.Figure:
+            """Return the appropriate chart, optionally filtered to a specific store."""
             if view == "Inventory Health Heatmap":
                 return build_inventory_heatmap(cat)
             elif view == "Stockout Risk Timeline":
@@ -3356,13 +3433,89 @@ def build_inventory_tab():
                 f1, *_ = build_inventory_fig(cat)
                 return f1
 
-        def update(view, cat):
-            # BUG-022 fix: call build_inventory_fig once, reuse result for both KPIs and chart
-            inv_result = build_inventory_fig(cat)
-            _, _, c, w, ok, dos, tbl_risk, tbl_full = inv_result
-            fig = _pick_inv_chart(view, cat)
-            n = len(tbl_full)
-            scope = f"{cat} — {n} SKUs" if cat != "All" else f"All {n} SKUs"
+        def update(view, cat, store_val):
+            store_id = _parse_store_id(store_val)
+
+            if store_id:
+                # ── Per-store view: load from store_daily_inventory.csv ──────
+                store_df = _get_store_df(store_id)
+                if store_df is not None and not store_df.empty:
+                    # Filter by category if needed
+                    sdf = (
+                        store_df
+                        if cat == "All"
+                        else store_df[store_df["category"] == cat]
+                    )
+                    if sdf.empty:
+                        sdf = store_df
+
+                    # Compute per-store stats
+                    sdf = sdf.copy()
+                    sdf["days_of_supply"] = sdf["days_of_supply"].fillna(0)
+                    c = int((sdf["risk_status"] == "CRITICAL").sum())
+                    w = int((sdf["risk_status"] == "WARNING").sum())
+                    ok = int((sdf["risk_status"] == "OK").sum())
+                    dos = f"{sdf['days_of_supply'].mean():.1f}d"
+
+                    # Build at-risk table
+                    at_risk_sdf = sdf[
+                        sdf["risk_status"].isin(["CRITICAL", "WARNING"])
+                    ].sort_values("days_of_supply")
+                    tbl_risk = at_risk_sdf[
+                        [
+                            "sku_id",
+                            "name",
+                            "category",
+                            "inventory",
+                            "days_of_supply",
+                            "lead_time_days",
+                            "risk_status",
+                        ]
+                    ].values.tolist()
+                    tbl_full = (
+                        sdf[
+                            [
+                                "sku_id",
+                                "name",
+                                "category",
+                                "inventory",
+                                "days_of_supply",
+                                "lead_time_days",
+                                "price_inr",
+                                "risk_status",
+                            ]
+                        ]
+                        .sort_values("days_of_supply")
+                        .values.tolist()
+                    )
+                    n = len(sdf["sku_id"].unique())
+                    store_label = (
+                        store_val.split(" —")[1].strip()
+                        if " —" in store_val
+                        else store_id
+                    )
+                    scope = (
+                        f"{store_label} · {cat} — {n} SKUs"
+                        if cat != "All"
+                        else f"{store_label} — {n} SKUs"
+                    )
+                else:
+                    # Fallback if CSV unavailable
+                    inv_result = build_inventory_fig(cat)
+                    _, _, c, w, ok, dos, tbl_risk, tbl_full = inv_result
+                    scope = f"All Stores · {cat}" if cat != "All" else "All Stores"
+                    n = len(tbl_full)
+            else:
+                # ── All-stores view: use aggregated demand CSV ───────────────
+                inv_result = build_inventory_fig(cat)
+                _, _, c, w, ok, dos, tbl_risk, tbl_full = inv_result
+                n = len(tbl_full)
+                scope = (
+                    f"{cat} — {n} SKUs" if cat != "All" else f"All Stores — {n} SKUs"
+                )
+
+            fig = _pick_inv_chart(view, cat, store_id)
+
             inv_hdr = (
                 f'<div style="margin-top:18px; font-size:1.1rem; font-weight:700; '
                 f'color:#4285F4;">Inventory Snapshot — {scope}</div>'
@@ -3402,9 +3555,12 @@ def build_inventory_tab():
             full_inv_table,
         ]
 
-        view_dd.change(update, inputs=[view_dd, category_dd], outputs=outs)
-        category_dd.change(update, inputs=[view_dd, category_dd], outputs=outs)
-        refresh_btn.click(update, inputs=[view_dd, category_dd], outputs=outs)
+        view_dd.change(update, inputs=[view_dd, category_dd, store_dd], outputs=outs)
+        category_dd.change(
+            update, inputs=[view_dd, category_dd, store_dd], outputs=outs
+        )
+        store_dd.change(update, inputs=[view_dd, category_dd, store_dd], outputs=outs)
+        refresh_btn.click(update, inputs=[view_dd, category_dd, store_dd], outputs=outs)
 
         _ret = (category_dd, outs, update)
 
@@ -3470,6 +3626,12 @@ def build_analytics_tab():
                 label="Channel Filter",
                 scale=1,
             )
+            mkt_store_dd = gr.Dropdown(
+                choices=_get_store_choices(),
+                value="All Stores",
+                label="Store Filter",
+                scale=1,
+            )
             mkt_period_sl = gr.Slider(
                 minimum=30,
                 maximum=365,
@@ -3482,17 +3644,21 @@ def build_analytics_tab():
 
         mkt_plot = gr.Plot(label="Marketing Chart", value=build_sales_by_channel(90))
 
-        # Chart interpretation panel — updates with the chart
-        mkt_interp = gr.HTML("")
+        # Chart interpretation panel — gr.Markdown for correct left-alignment
+        mkt_interp = gr.Markdown("")
 
-        # Chart interpretation texts
+        # Return plain Markdown strings — gr.Markdown renders them left-aligned natively
         def _interp_box(content: str) -> str:
+            # Convert simple HTML formatting to Markdown
             return (
-                '<div style="background:#F1F5F9;border:1px solid #CBD5E1;border-radius:8px;'
-                "padding:12px 16px;margin-top:10px;font-size:0.85rem;color:#1e293b;"
-                'line-height:1.65;text-align:left;display:block;width:100%;box-sizing:border-box;">'
-                + content
-                + "</div>"
+                content.replace("<b>", "**")
+                .replace("</b>", "**")
+                .replace("<br>", "  \n")
+                .replace("<i>", "*")
+                .replace("</i>", "*")
+                .replace("&nbsp;", " ")
+                .replace("&lt;", "<")
+                .replace("&gt;", ">")
             )
 
         _MKT_INTERP = {
@@ -3501,15 +3667,15 @@ def build_analytics_tab():
                 "Each coloured band = one sales channel (Online, Offline, App).<br>"
                 "<b>What to look for:</b> A growing Online band means digital sales are increasing. "
                 "Seasonal peaks = festival periods (Diwali, New Year). "
-                "Use the <b>Period slider</b> to zoom into a specific time window."
+                "Use the **Period slider** to zoom into a specific time window."
             ),
             "Brand Performance": _interp_box(
                 "<b>How to read this chart:</b> A horizontal bar chart ranking all brands by total revenue (bar length). "
                 "The green diamond marker on the secondary axis shows gross margin %.<br>"
-                "<b>Colours:</b> Blue = Pet Store Private Label &nbsp;|&nbsp; Red = Third Party brand.<br>"
+                "<b>Colours:</b> Blue = Pet Store Private Label | Red = Third Party brand.<br>"
                 "<b>What to look for:</b> Brands with long bars but low margin diamonds = high revenue but low profit. "
                 "Private Label brands (blue) at the top = healthy margin strategy. "
-                "Use <b>Category Filter</b> to drill into a specific category."
+                "Use **Category Filter** to drill into a specific category."
             ),
             "Category Revenue Heatmap": _interp_box(
                 "<b>How to read this chart:</b> A multi-line chart showing monthly revenue per category over time. "
@@ -3518,8 +3684,8 @@ def build_analytics_tab():
                 "Flat or declining lines = slow movers that may need promotions."
             ),
             "Promotion Impact": _interp_box(
-                "<b>How to read this chart:</b> Each horizontal bar shows how much demand changed <i>during</i> a promotion vs the 7-day baseline before it.<br>"
-                "<b>Bar colour:</b> Green = demand went UP &nbsp;|&nbsp; Red = demand went down or was flat.<br>"
+                "<b>How to read this chart:</b> Each horizontal bar shows how much demand changed *during* a promotion vs the 7-day baseline before it.<br>"
+                "<b>Bar colour:</b> Green = demand went UP | Red = demand went down or was flat.<br>"
                 "<b>Dot:</b> Shows whether demand stayed elevated 14 days AFTER the promo ended.<br>"
                 "<b>What to look for:</b> Long green bar + green dot = promotion created lasting habit (best outcome). "
                 "Long green bar + red/yellow dot = demand pull-forward only (spike then drop — less valuable)."
@@ -3528,40 +3694,56 @@ def build_analytics_tab():
                 "<b>How to read this chart:</b> Top 10 SKUs ranked by total revenue. Bar length = revenue. "
                 "Colour = product category for quick grouping.<br>"
                 "<b>What to look for:</b> SKUs with very high revenue should have healthy stock levels at all times. "
-                "Use <b>Category Filter</b> to find top sellers per category. "
-                "Use <b>Channel Filter</b> to see which products are online-only vs store bestsellers."
+                "Use **Category Filter** to find top sellers per category. "
+                "Use **Channel Filter** to see which products are online-only vs store bestsellers."
             ),
             "Customer Segments": _interp_box(
                 "<b>How to read this chart:</b> Revenue contribution by customer segment (bars) and average order value (dotted red line on right axis).<br>"
-                "<b>Segments:</b> Loyal Premium = high-LTV returners &nbsp;|&nbsp; New Pet Parent = recently acquired &nbsp;|&nbsp; "
-                "Budget Conscious = price-sensitive &nbsp;|&nbsp; Multi-Pet Household = largest basket size.<br>"
+                "<b>Segments:</b> Loyal Premium = high-LTV returners | New Pet Parent = recently acquired | "
+                "Budget Conscious = price-sensitive | Multi-Pet Household = largest basket size.<br>"
                 "<b>What to look for:</b> High revenue + low avg order value = frequent small purchases (loyalty-driven). "
                 "High avg order value + lower revenue = infrequent but high-value buyers (upsell opportunity)."
             ),
         }
 
-        def _update_mkt(chart_type, cat, channel, period):
-            """Route to the correct chart builder passing ALL filters."""
+        def _update_mkt(chart_type, cat, channel, store_val, period):
+            """Route to the correct chart builder passing ALL filters including store."""
             p = int(period)
+            sid = (
+                _parse_store_id(store_val)
+                if store_val and store_val != "All Stores"
+                else None
+            )
             if chart_type == "Sales by Channel":
-                fig = build_sales_by_channel(period_days=p)
+                fig = build_sales_by_channel(period_days=p, store_id=sid)
             elif chart_type == "Brand Performance":
                 fig = build_brand_performance_bubble(
-                    category_filter=cat, channel_filter=channel, period_days=p
+                    category_filter=cat,
+                    channel_filter=channel,
+                    period_days=p,
+                    store_id=sid,
                 )
             elif chart_type == "Category Revenue Heatmap":
                 fig = build_category_revenue_heatmap(
-                    category_filter=cat, channel_filter=channel, period_days=p
+                    category_filter=cat,
+                    channel_filter=channel,
+                    period_days=p,
+                    store_id=sid,
                 )
             elif chart_type == "Promotion Impact":
                 fig = build_promotion_impact(
-                    category_filter=cat, channel_filter=channel
+                    category_filter=cat, channel_filter=channel, store_id=sid
                 )
             elif chart_type == "Top SKUs by Revenue":
-                fig = build_top_skus_bar(category_filter=cat, channel_filter=channel)
+                fig = build_top_skus_bar(
+                    category_filter=cat, channel_filter=channel, store_id=sid
+                )
             elif chart_type == "Customer Segments":
                 fig = build_customer_segment_donut(
-                    category_filter=cat, channel_filter=channel, period_days=p
+                    category_filter=cat,
+                    channel_filter=channel,
+                    period_days=p,
+                    store_id=sid,
                 )
             else:
                 fig = _empty_fig("Select a chart type")
@@ -3569,12 +3751,24 @@ def build_analytics_tab():
             interp = _MKT_INTERP.get(chart_type, "")
             return fig, interp
 
-        _mkt_inputs = [mkt_chart_dd, mkt_cat_dd, mkt_channel_dd, mkt_period_sl]
+        _mkt_inputs = [
+            mkt_chart_dd,
+            mkt_cat_dd,
+            mkt_channel_dd,
+            mkt_store_dd,
+            mkt_period_sl,
+        ]
         _mkt_outputs = [mkt_plot, mkt_interp]
 
         mkt_run_btn.click(_update_mkt, inputs=_mkt_inputs, outputs=_mkt_outputs)
         # Wire ALL filter changes so the chart updates immediately
-        for _ctrl in [mkt_chart_dd, mkt_cat_dd, mkt_channel_dd, mkt_period_sl]:
+        for _ctrl in [
+            mkt_chart_dd,
+            mkt_cat_dd,
+            mkt_channel_dd,
+            mkt_store_dd,
+            mkt_period_sl,
+        ]:
             _ctrl.change(_update_mkt, inputs=_mkt_inputs, outputs=_mkt_outputs)
 
         gr.HTML('<div style="border-top:1.5px solid #E2E8F0; margin:20px 0;"></div>')
@@ -3600,7 +3794,7 @@ def build_analytics_tab():
             ops_run_btn = gr.Button("Update", variant="primary", scale=1)
 
         ops_plot = gr.Plot(label="Operational Chart", value=build_lead_time_scatter())
-        ops_interp = gr.HTML("")
+        ops_interp = gr.Markdown("")
 
         _OPS_INTERP = {
             "Lead Time Performance": _interp_box(
@@ -3682,14 +3876,20 @@ def build_analytics_tab():
                 ],
                 value="Private Label vs Third Party",
                 label="Chart Type",
-                scale=3,
+                scale=2,
+            )
+            mgmt_store_dd = gr.Dropdown(
+                choices=_get_store_choices(),
+                value="All Stores",
+                label="Store Filter",
+                scale=2,
             )
             mgmt_run_btn = gr.Button("Update", variant="primary", scale=1)
 
         mgmt_plot = gr.Plot(
             label="Management Chart", value=build_private_label_vs_third_party()
         )
-        mgmt_interp = gr.HTML("")
+        mgmt_interp = gr.Markdown("")
 
         _MGMT_INTERP = {
             "Private Label vs Third Party": _interp_box(
@@ -3714,30 +3914,63 @@ def build_analytics_tab():
             ),
         }
 
-        def _update_mgmt(chart_type):
+        def _update_mgmt(chart_type, store_val):
+            sid = (
+                _parse_store_id(store_val)
+                if store_val and store_val != "All Stores"
+                else None
+            )
             if chart_type == "Private Label vs Third Party":
-                fig = build_private_label_vs_third_party()
+                fig = build_private_label_vs_third_party(store_id=sid)
             elif chart_type == "Month-over-Month Growth":
-                fig = build_mom_growth_chart()
+                fig = build_mom_growth_chart(store_id=sid)
             elif chart_type == "Store Inventory Comparison":
                 fig = build_store_inventory_comparison()
             else:
                 fig = _empty_fig("Select a chart type")
             return fig, _MGMT_INTERP.get(chart_type, "")
 
+        _mgmt_inputs = [mgmt_chart_dd, mgmt_store_dd]
         mgmt_run_btn.click(
-            _update_mgmt, inputs=[mgmt_chart_dd], outputs=[mgmt_plot, mgmt_interp]
+            _update_mgmt, inputs=_mgmt_inputs, outputs=[mgmt_plot, mgmt_interp]
         )
-        mgmt_chart_dd.change(
-            _update_mgmt, inputs=[mgmt_chart_dd], outputs=[mgmt_plot, mgmt_interp]
-        )
+        for _ctrl in [mgmt_chart_dd, mgmt_store_dd]:
+            _ctrl.change(
+                _update_mgmt, inputs=_mgmt_inputs, outputs=[mgmt_plot, mgmt_interp]
+            )
 
 
 # Tab 3: Demand Forecast
 
 
-def build_forecast_fig(sku_id: str, horizon: int, compare_sku: str = "None"):
-    df = get_df()
+def build_forecast_fig(
+    sku_id: str, horizon: int, compare_sku: str = "None", store_id: str | None = None
+):
+    # When a store is selected, use store-level demand from store_daily_inventory.csv
+    # for more accurate per-store forecasting. Fall back to aggregated demand CSV.
+    if store_id:
+        try:
+            sdi_path = BASE_DIR / "data" / "store_daily_inventory.csv"
+            if sdi_path.exists():
+                sdi = pd.read_csv(sdi_path, parse_dates=["date"])
+                sku_id_clean = sku_id.split(" —")[0].strip()
+                store_sku = sdi[
+                    (sdi["store_id"] == store_id) & (sdi["sku_id"] == sku_id_clean)
+                ]
+                if not store_sku.empty:
+                    # Use store-level demand as the demand series
+                    df_src = store_sku.rename(columns={"date": "date"}).copy()
+                    df_src = df_src.sort_values("date")
+                else:
+                    df_src = get_df()
+            else:
+                df_src = get_df()
+        except Exception:
+            df_src = get_df()
+    else:
+        df_src = get_df()
+
+    df = df_src
     sku_id = sku_id.split(" —")[0].strip()
     sku_df = df[df["sku_id"] == sku_id].sort_values("date")
     if sku_df.empty:
@@ -4437,11 +4670,18 @@ def build_forecast_tab():
                 label="Category Filter",
                 scale=1,
             )
+            fcast_store_dd = gr.Dropdown(
+                choices=_get_store_choices(),
+                value="All Stores",
+                label="Store Filter",
+                scale=1,
+                info="Filter demand data to a specific store location",
+            )
             sku_dd = gr.Dropdown(
                 choices=all_choices,
                 value=all_choices[0] if all_choices else None,
                 label="Select SKU",
-                scale=3,
+                scale=2,
             )
             sku_dd2 = gr.Dropdown(
                 choices=["None"] + all_choices,
@@ -4498,28 +4738,21 @@ def build_forecast_tab():
         </div>
         """)
 
-        # ── Chart interpretation (always visible) ─────────────────────────
-        gr.HTML("""
-        <div style="background:#F1F5F9;border-radius:8px;padding:14px 18px;
-                    margin-bottom:10px;font-size:0.88rem;color:#1e293b;
-                    line-height:1.7;text-align:left;">
-            <b>How to read the Demand Forecast chart:</b><br>
-            The chart is split into two sections by a vertical dashed line.
-            <b>Left of the line</b> = the last 90 days of actual historical demand (blue line)
-            and inventory (grey dotted). <b>Right of the line</b> = the forecast period.
-            <br>
-            The <b>green line</b> (P50) is the expected demand — your best planning number.
-            The <b>shaded red band</b> between P10 and P90 shows the uncertainty range —
-            demand is expected to stay within this band 80% of the time.
-            <b>Orange shaded blocks</b> = active promotions during the forecast window
-            (expect higher demand during those periods).
-            <br>
-            The <b>KPI cards below</b> show the total forecast in units and estimated
-            revenue at the current price.
-            The <b>yellow dashed horizontal line</b> on the right Y-axis shows the
-            Reorder Point — if inventory drops below this, a purchase order is needed.
-        </div>
-        """)
+        # ── Chart interpretation — gr.Markdown for correct left-alignment ──
+        gr.Markdown(
+            "**How to read the Demand Forecast chart:**  \n"
+            "The chart is split into two sections by a vertical dashed line. "
+            "**Left of the line** = the last 90 days of actual historical demand (blue line) "
+            "and inventory (grey dotted). **Right of the line** = the forecast period.  \n"
+            "The **green line** (P50) is the expected demand — your best planning number. "
+            "The **shaded red band** between P10 and P90 shows the uncertainty range — "
+            "demand is expected to stay within this band 80% of the time. "
+            "**Orange shaded blocks** = active promotions during the forecast window "
+            "(expect higher demand during those periods).  \n"
+            "The **KPI cards below** show the total forecast in units and estimated revenue at the current price. "
+            "The **yellow dashed horizontal line** on the right Y-axis shows the "
+            "Reorder Point — if inventory drops below this, a purchase order is needed."
+        )
 
         # ── SKU accuracy indicator ────────────────────────────────────────
         accuracy_html = gr.HTML("")
@@ -4541,18 +4774,52 @@ def build_forecast_tab():
             export_btn = gr.Button("Export Forecast CSV", variant="secondary", scale=1)
             export_file = gr.File(label="Download", scale=2, visible=False)
 
-        # ── Wire category filter → SKU list ──────────────────────────────
-        def _update_sku_list(cat):
+        # ── Wire category + store filter → SKU list ──────────────────────
+        def _update_sku_list(cat, store_val="All Stores"):
+            sid = (
+                _parse_store_id(store_val)
+                if store_val and store_val != "All Stores"
+                else None
+            )
+            if sid:
+                # Filter SKUs available at this specific store
+                try:
+                    sdi_path = BASE_DIR / "data" / "store_daily_inventory.csv"
+                    if sdi_path.exists():
+                        sdi = pd.read_csv(sdi_path)
+                        store_skus = sdi[sdi["store_id"] == sid]["sku_id"].unique()
+                        sub = latest[latest["sku_id"].isin(store_skus)]
+                        if cat != "All":
+                            sub = sub[sub["category"] == cat]
+                        choices = [
+                            f"{r['sku_id']} — {r['name']}" for _, r in sub.iterrows()
+                        ]
+                        if choices:
+                            return gr.update(choices=choices, value=choices[0])
+                except Exception:
+                    pass
             choices = _sku_choices(cat)
             return gr.update(choices=choices, value=choices[0] if choices else None)
 
-        cat_filter.change(_update_sku_list, inputs=[cat_filter], outputs=[sku_dd])
+        cat_filter.change(
+            _update_sku_list, inputs=[cat_filter, fcast_store_dd], outputs=[sku_dd]
+        )
+        fcast_store_dd.change(
+            _update_sku_list, inputs=[cat_filter, fcast_store_dd], outputs=[sku_dd]
+        )
 
         # ── Horizon preset buttons (BUG-021 fix: also re-run forecast) ─────
-        _forecast_inputs = [sku_dd, sku_dd2, horizon_sl]
+        _forecast_inputs = [sku_dd, sku_dd2, horizon_sl, fcast_store_dd]
 
-        def _run_forecast(sku_raw, sku2_raw, horizon):
-            return build_forecast_fig(sku_raw, int(horizon), compare_sku=sku2_raw)
+        def _run_forecast(sku_raw, sku2_raw, horizon, store_val="All Stores"):
+            sid = (
+                _parse_store_id(store_val)
+                if store_val and store_val != "All Stores"
+                else None
+            )
+            return build_forecast_fig(
+                sku_raw, int(horizon), compare_sku=sku2_raw, store_id=sid
+            )
 
         _forecast_outputs = [fig_unified, fig_compare, accuracy_html, kpi_html, rec_box]
 
@@ -4566,10 +4833,18 @@ def build_forecast_tab():
             (preset_90, 90),
         ]:
             _preset_btn.click(
-                lambda sku_raw, sku2_raw, h=_h: (
-                    (h,) + build_forecast_fig(sku_raw, h, compare_sku=sku2_raw)
+                lambda sku_raw, sku2_raw, store_val, h=_h: (
+                    (h,)
+                    + build_forecast_fig(
+                        sku_raw,
+                        h,
+                        compare_sku=sku2_raw,
+                        store_id=_parse_store_id(store_val)
+                        if store_val and store_val != "All Stores"
+                        else None,
+                    )
                 ),
-                inputs=[sku_dd, sku_dd2],
+                inputs=[sku_dd, sku_dd2, fcast_store_dd],
                 outputs=[horizon_sl] + _forecast_outputs,
             )
 
@@ -4584,8 +4859,13 @@ def build_forecast_tab():
             inputs=_forecast_inputs,
             outputs=_forecast_outputs,
         )
-        # Auto-run when SKU changes
+        # Auto-run when SKU or store changes
         sku_dd.change(
+            _run_forecast,
+            inputs=_forecast_inputs,
+            outputs=_forecast_outputs,
+        )
+        fcast_store_dd.change(
             _run_forecast,
             inputs=_forecast_inputs,
             outputs=_forecast_outputs,
