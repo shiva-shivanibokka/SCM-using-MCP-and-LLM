@@ -1,0 +1,13 @@
+{
+  "mape": 12.7,
+  "mae": 15.76,
+  "rmse": 31.73,
+  "calibration_pct": 72.2,
+  "train_rows": 47515,
+  "n_skus": 65,
+  "mode": "full_retrain",
+  "epochs_trained": 11,
+  "data_source": "HUFT CSV",
+  "trained_at": "2026-04-17 16:48 UTC",
+  "engine": "TFT"
+}
