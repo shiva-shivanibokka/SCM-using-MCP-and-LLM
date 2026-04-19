@@ -3416,105 +3416,485 @@ def build_inventory_tab():
             except Exception:
                 return None
 
+        # ── Canonical risk computation used by BOTH KPIs and charts ────────
+        # Single source of truth: all KPI boxes are derived from the same
+        # merged DataFrame that the chart visualises, using the same risk
+        # thresholds (CRITICAL: dos < lead_time; WARNING: dos < 2×lead_time).
+
+        def _compute_inv_merged(cat: str, store_id: str | None) -> pd.DataFrame:
+            """
+            Return the canonical merged DataFrame for the given category and
+            optional store filter.  KPIs and charts BOTH read from this.
+            """
+            if store_id:
+                sdi_path = BASE_DIR / "data" / "store_daily_inventory.csv"
+                if sdi_path.exists():
+                    sdi = pd.read_csv(sdi_path, parse_dates=["date"])
+                    sdi = sdi[sdi["store_id"] == store_id]
+                    if not sdi.empty:
+                        latest = sdi["date"].max()
+                        sdi = sdi[sdi["date"] == latest].copy()
+                        sdi["days_of_supply"] = sdi["days_of_supply"].fillna(0)
+
+                        # Re-compute risk from the same formula used everywhere
+                        # (pre-stored risk_status may use different thresholds)
+                        def _risk(dos, lt):
+                            if dos < lt:
+                                return "CRITICAL"
+                            if dos < 2 * lt:
+                                return "WARNING"
+                            return "OK"
+
+                        sdi["risk"] = sdi.apply(
+                            lambda r: _risk(r["days_of_supply"], r["lead_time_days"]),
+                            axis=1,
+                        )
+                        if cat != "All":
+                            sdi = sdi[sdi["category"] == cat]
+                        # Normalise column names for downstream chart builders
+                        if "name" not in sdi.columns and "sku_name" in sdi.columns:
+                            sdi = sdi.rename(columns={"sku_name": "name"})
+                        if (
+                            "avg_daily_demand" not in sdi.columns
+                            and "demand" in sdi.columns
+                        ):
+                            sdi["avg_daily_demand"] = sdi["demand"]
+                        if "supplier" not in sdi.columns:
+                            sdi["supplier"] = "N/A"
+                        if "price_inr" not in sdi.columns:
+                            sdi["price_inr"] = 0.0
+                        return sdi
+            # All-stores: use aggregated demand CSV (same as build_inventory_fig)
+            df = get_df()
+            latest_date = df["date"].max()
+            latest = df[df["date"] == latest_date].copy()
+            cutoff = latest_date - pd.Timedelta(days=30)
+            recent = (
+                df[df["date"] >= cutoff]
+                .groupby("sku_id")["demand"]
+                .mean()
+                .reset_index()
+                .rename(columns={"demand": "avg_daily_demand"})
+            )
+            merged = latest.merge(recent, on="sku_id")
+            merged["days_of_supply"] = (
+                (merged["inventory"] / merged["avg_daily_demand"].replace(0, np.nan))
+                .fillna(0)
+                .round(1)
+            )
+
+            def _risk(dos, lt):
+                if dos < lt:
+                    return "CRITICAL"
+                if dos < 2 * lt:
+                    return "WARNING"
+                return "OK"
+
+            merged["risk"] = merged.apply(
+                lambda r: _risk(r["days_of_supply"], r["lead_time_days"]), axis=1
+            )
+            if cat != "All":
+                merged = merged[merged["category"] == cat]
+            if "supplier" not in merged.columns:
+                merged["supplier"] = "N/A"
+            if "price_inr" not in merged.columns:
+                merged["price_inr"] = 0.0
+            return merged
+
         def _pick_inv_chart(
-            view: str, cat: str, store_id: str | None = None
+            view: str, cat: str, store_id: str | None, merged: pd.DataFrame
         ) -> go.Figure:
-            """Return the appropriate chart, optionally filtered to a specific store."""
+            """
+            Build the correct chart for `view`, using the canonical merged
+            DataFrame so the chart and KPI boxes are always in sync.
+            The merged DataFrame is passed in — no second data load.
+            """
             if view == "Inventory Health Heatmap":
-                return build_inventory_heatmap(cat)
+                # Horizontal bar: one row per SKU, length = days_of_supply
+                return _build_heatmap_from_df(merged)
             elif view == "Stockout Risk Timeline":
-                return build_stockout_risk_timeline(days_ahead=30)
+                # Show only SKUs stocking out within 30 days
+                return _build_stockout_from_df(merged, days_ahead=30)
             elif view == "Dead Stock Analysis":
+                # Dead stock uses separate dead-stock logic; pass category filter
                 return build_dead_stock_bar(cat)
             elif view == "Inventory vs Demand":
-                _, f2, *_ = build_inventory_fig(cat)
-                return f2
+                # Grouped bar: current inventory vs 30-day demand
+                return _build_inv_vs_demand_from_df(merged)
             else:  # "Days of Supply" (default)
-                f1, *_ = build_inventory_fig(cat)
-                return f1
+                return _build_dos_from_df(merged)
+
+        def _build_dos_from_df(merged: pd.DataFrame) -> go.Figure:
+            """Days of Supply bar chart built from the canonical merged df."""
+            color_map = {"CRITICAL": "#EA4335", "WARNING": "#F9AB00", "OK": "#34A853"}
+            merged_s = merged.sort_values("days_of_supply").reset_index(drop=True)
+            cat_label = (
+                merged["category"].iloc[0]
+                if len(merged["category"].unique()) == 1
+                else "All"
+            )
+            fig = go.Figure()
+            for risk_val, color in color_map.items():
+                sub = merged_s[merged_s["risk"] == risk_val]
+                if sub.empty:
+                    continue
+                fig.add_trace(
+                    go.Bar(
+                        x=sub["sku_id"],
+                        y=sub["days_of_supply"],
+                        name=risk_val,
+                        marker_color=color,
+                        marker_line_color="#ffffff",
+                        marker_line_width=1,
+                        text=sub["days_of_supply"].round(1),
+                        textposition="outside",
+                        hovertemplate="<b>%{x}</b><br>Days of Supply: <b>%{y:.1f}d</b><extra></extra>",
+                    )
+                )
+            # Reference lines
+            avg_lt = float(merged_s["lead_time_days"].mean())
+            fig.add_hline(
+                y=avg_lt,
+                line_dash="dash",
+                line_color="#EA4335",
+                annotation_text=f"Critical ({avg_lt:.0f}d)",
+                annotation_font=dict(color="#EA4335", size=10),
+            )
+            fig.add_hline(
+                y=avg_lt * 2,
+                line_dash="dot",
+                line_color="#F9AB00",
+                annotation_text=f"Warning ({avg_lt * 2:.0f}d)",
+                annotation_font=dict(color="#B06000", size=10),
+            )
+            n_crit = int((merged_s["risk"] == "CRITICAL").sum())
+            n_warn = int((merged_s["risk"] == "WARNING").sum())
+            fig.update_layout(
+                **_CHART_LAYOUT,
+                title=dict(
+                    text=(
+                        f"Days of Supply by SKU — {cat_label}<br>"
+                        f"<sup style='color:#666'>{n_crit} Critical &nbsp;|&nbsp; "
+                        f"{n_warn} Warning &nbsp;|&nbsp; "
+                        f"{len(merged_s) - n_crit - n_warn} OK (of {len(merged_s)} SKUs)</sup>"
+                    ),
+                    font=dict(size=15, color="#4285F4"),
+                ),
+                xaxis_title="SKU ID",
+                yaxis_title="Days of Supply",
+                yaxis=dict(range=[0, merged_s["days_of_supply"].max() * 1.22]),
+                barmode="group",
+                height=440,
+                legend=dict(title="Risk Level", orientation="h", y=1.08, x=0),
+                xaxis=dict(tickangle=45, tickfont=dict(size=11)),
+                margin=dict(t=80, b=80),
+            )
+            return fig
+
+        def _build_heatmap_from_df(merged: pd.DataFrame) -> go.Figure:
+            """Inventory Health heatmap (horizontal bars) from the canonical df."""
+            color_map = {"CRITICAL": "#EA4335", "WARNING": "#F9AB00", "OK": "#34A853"}
+            risk_order = ["CRITICAL", "WARNING", "OK"]
+            merged_s = merged.sort_values("days_of_supply", ascending=True).reset_index(
+                drop=True
+            )
+            name_col = "name" if "name" in merged_s.columns else "sku_id"
+            merged_s["label"] = merged_s["sku_id"] + " — " + merged_s[name_col].str[:20]
+            avg_lt = float(merged_s["lead_time_days"].mean())
+            fig = go.Figure()
+            for risk in risk_order:
+                sub = merged_s[merged_s["risk"] == risk]
+                if sub.empty:
+                    continue
+                fig.add_trace(
+                    go.Bar(
+                        name=risk,
+                        x=sub["days_of_supply"],
+                        y=sub["label"],
+                        orientation="h",
+                        marker_color=color_map[risk],
+                        marker_opacity=0.88,
+                        text=[f"{d:.0f}d" for d in sub["days_of_supply"]],
+                        textposition="outside",
+                        textfont=dict(size=9),
+                        hovertemplate=(
+                            "<b>%{y}</b><br>Days of Supply: %{x:.1f}d<extra></extra>"
+                        ),
+                    )
+                )
+            fig.add_vline(
+                x=avg_lt,
+                line_dash="dash",
+                line_color="#EA4335",
+                line_width=1.5,
+                annotation_text=f"Critical ({avg_lt:.0f}d)",
+                annotation_font=dict(color="#EA4335", size=10),
+                annotation_position="top right",
+            )
+            fig.add_vline(
+                x=avg_lt * 2,
+                line_dash="dot",
+                line_color="#F9AB00",
+                line_width=1.5,
+                annotation_text=f"Warning ({avg_lt * 2:.0f}d)",
+                annotation_font=dict(color="#B06000", size=10),
+                annotation_position="top right",
+            )
+            n_crit = int((merged_s["risk"] == "CRITICAL").sum())
+            n_warn = int((merged_s["risk"] == "WARNING").sum())
+            cat_label = (
+                merged["category"].iloc[0]
+                if len(merged["category"].unique()) == 1
+                else "All"
+            )
+            fig.update_layout(
+                **_CHART_LAYOUT,
+                title=dict(
+                    text=(
+                        f"Inventory Health — {cat_label}<br>"
+                        f"<sup style='color:#666'>{n_crit} Critical &nbsp;|&nbsp; "
+                        f"{n_warn} Warning &nbsp;|&nbsp; "
+                        f"{len(merged_s) - n_crit - n_warn} OK (of {len(merged_s)} SKUs)</sup>"
+                    ),
+                    font=dict(size=14, color="#4285F4"),
+                ),
+                xaxis_title="Days of Supply remaining",
+                yaxis=dict(tickfont=dict(size=10), autorange="reversed"),
+                height=max(440, len(merged_s) * 22 + 160),
+                legend=dict(orientation="h", y=1.06, x=0, font=dict(size=11)),
+                margin=dict(t=90, b=60, l=190, r=100),
+                barmode="overlay",
+            )
+            return fig
+
+        def _build_inv_vs_demand_from_df(merged: pd.DataFrame) -> go.Figure:
+            """Inventory vs Demand grouped bar from the canonical df."""
+            # Show top 20 by demand so chart isn't too crowded
+            top20 = merged.sort_values("avg_daily_demand", ascending=False).head(20)
+            cat_label = (
+                merged["category"].iloc[0]
+                if len(merged["category"].unique()) == 1
+                else "All"
+            )
+            fig = go.Figure()
+            fig.add_trace(
+                go.Bar(
+                    name="Current Inventory",
+                    x=top20["sku_id"],
+                    y=top20["inventory"],
+                    marker_color="#4285F4",
+                    hovertemplate="<b>%{x}</b><br>Inventory: <b>%{y:,}</b><extra></extra>",
+                )
+            )
+            fig.add_trace(
+                go.Bar(
+                    name="30-Day Demand",
+                    x=top20["sku_id"],
+                    y=(top20["avg_daily_demand"] * 30).round(0),
+                    marker_color="#EA4335",
+                    hovertemplate="<b>%{x}</b><br>30-Day Demand: <b>%{y:,}</b><extra></extra>",
+                )
+            )
+            fig.update_layout(
+                **_CHART_LAYOUT,
+                title=dict(
+                    text=f"Inventory vs 30-Day Demand — Top 20 SKUs ({cat_label})",
+                    font=dict(size=15, color="#4285F4"),
+                ),
+                xaxis_title="SKU ID",
+                yaxis_title="Units",
+                barmode="group",
+                height=440,
+                legend=dict(orientation="h", y=1.08, x=0),
+                xaxis=dict(tickangle=45, tickfont=dict(size=11)),
+                margin=dict(t=80, b=80),
+            )
+            return fig
+
+        def _build_stockout_from_df(
+            merged: pd.DataFrame, days_ahead: int = 30
+        ) -> go.Figure:
+            """Stockout Risk Timeline from the canonical df."""
+            # days_of_supply IS days_until_stockout for this chart
+            at_risk = (
+                merged[merged["days_of_supply"] <= days_ahead]
+                .sort_values("days_of_supply")
+                .reset_index(drop=True)
+            )
+            if at_risk.empty:
+                return _empty_fig(
+                    f"No SKUs projected to stock out within {days_ahead} days — all well stocked!"
+                )
+            name_col = "name" if "name" in at_risk.columns else "sku_id"
+            at_risk["label"] = at_risk["sku_id"] + " — " + at_risk[name_col].str[:22]
+
+            def _color(d, lt):
+                if d < lt:
+                    return "#EA4335"
+                if d <= 14:
+                    return "#F9AB00"
+                return "#4285F4"
+
+            colors = [
+                _color(d, lt)
+                for d, lt in zip(at_risk["days_of_supply"], at_risk["lead_time_days"])
+            ]
+
+            fig = go.Figure()
+            urgency_groups = [
+                ("#EA4335", "CRITICAL — stocks out before reorder arrives"),
+                ("#F9AB00", "WARNING — reorder urgent"),
+                ("#4285F4", "MONITOR — some buffer remains"),
+            ]
+            for col, label in urgency_groups:
+                idxs = [i for i, c in enumerate(colors) if c == col]
+                if not idxs:
+                    continue
+                sub = at_risk.iloc[idxs]
+                fig.add_trace(
+                    go.Bar(
+                        name=label,
+                        x=sub["days_of_supply"],
+                        y=sub["label"],
+                        orientation="h",
+                        marker_color=col,
+                        marker_opacity=0.88,
+                        text=[f"{d:.0f}d" for d in sub["days_of_supply"]],
+                        textposition="outside",
+                        textfont=dict(size=9),
+                        hovertemplate=(
+                            "<b>%{y}</b><br>Days until stockout: <b>%{x:.0f}d</b><extra></extra>"
+                        ),
+                    )
+                )
+            avg_lt = float(at_risk["lead_time_days"].mean())
+            fig.add_vline(
+                x=avg_lt,
+                line_dash="dash",
+                line_color="#EA4335",
+                line_width=1.5,
+                annotation_text=f"Avg lead time ({avg_lt:.0f}d)",
+                annotation_font=dict(color="#EA4335", size=10),
+                annotation_position="top right",
+            )
+            crit = sum(1 for c in colors if c == "#EA4335")
+            fig.update_layout(
+                **_CHART_LAYOUT,
+                title=dict(
+                    text=(
+                        f"Stockout Risk — {len(at_risk)} SKUs running out within {days_ahead} days<br>"
+                        f"<sup style='color:#EA4335'>{crit} CRITICAL (stock out before reorder can arrive)</sup>"
+                    ),
+                    font=dict(size=14, color="#EA4335"),
+                ),
+                xaxis_title="Days Until Stockout",
+                yaxis=dict(tickfont=dict(size=10), autorange="reversed"),
+                height=max(420, len(at_risk) * 28 + 160),
+                legend=dict(orientation="h", y=1.06, x=0, font=dict(size=10)),
+                margin=dict(t=90, b=60, l=200, r=100),
+                barmode="overlay",
+            )
+            return fig
 
         def update(view, cat, store_val):
             store_id = _parse_store_id(store_val)
 
-            if store_id:
-                # ── Per-store view: load from store_daily_inventory.csv ──────
-                store_df = _get_store_df(store_id)
-                if store_df is not None and not store_df.empty:
-                    # Filter by category if needed
-                    sdf = (
-                        store_df
-                        if cat == "All"
-                        else store_df[store_df["category"] == cat]
-                    )
-                    if sdf.empty:
-                        sdf = store_df
+            # ── Single canonical DataFrame for BOTH KPIs and chart ───────────
+            # This guarantees KPI boxes always match exactly what the chart shows.
+            merged = _compute_inv_merged(cat, store_id)
 
-                    # Compute per-store stats
-                    sdf = sdf.copy()
-                    sdf["days_of_supply"] = sdf["days_of_supply"].fillna(0)
-                    c = int((sdf["risk_status"] == "CRITICAL").sum())
-                    w = int((sdf["risk_status"] == "WARNING").sum())
-                    ok = int((sdf["risk_status"] == "OK").sum())
-                    dos = f"{sdf['days_of_supply'].mean():.1f}d"
-
-                    # Build at-risk table
-                    at_risk_sdf = sdf[
-                        sdf["risk_status"].isin(["CRITICAL", "WARNING"])
-                    ].sort_values("days_of_supply")
-                    tbl_risk = at_risk_sdf[
-                        [
-                            "sku_id",
-                            "name",
-                            "category",
-                            "inventory",
-                            "days_of_supply",
-                            "lead_time_days",
-                            "risk_status",
-                        ]
-                    ].values.tolist()
-                    tbl_full = (
-                        sdf[
-                            [
-                                "sku_id",
-                                "name",
-                                "category",
-                                "inventory",
-                                "days_of_supply",
-                                "lead_time_days",
-                                "price_inr",
-                                "risk_status",
-                            ]
-                        ]
-                        .sort_values("days_of_supply")
-                        .values.tolist()
-                    )
-                    n = len(sdf["sku_id"].unique())
-                    store_label = (
-                        store_val.split(" —")[1].strip()
-                        if " —" in store_val
-                        else store_id
-                    )
-                    scope = (
-                        f"{store_label} · {cat} — {n} SKUs"
-                        if cat != "All"
-                        else f"{store_label} — {n} SKUs"
-                    )
-                else:
-                    # Fallback if CSV unavailable
-                    inv_result = build_inventory_fig(cat)
-                    _, _, c, w, ok, dos, tbl_risk, tbl_full = inv_result
-                    scope = f"All Stores · {cat}" if cat != "All" else "All Stores"
-                    n = len(tbl_full)
-            else:
-                # ── All-stores view: use aggregated demand CSV ───────────────
-                inv_result = build_inventory_fig(cat)
-                _, _, c, w, ok, dos, tbl_risk, tbl_full = inv_result
-                n = len(tbl_full)
-                scope = (
-                    f"{cat} — {n} SKUs" if cat != "All" else f"All Stores — {n} SKUs"
+            if merged is None or merged.empty:
+                scope = store_val if store_id else "No data"
+                return (
+                    _empty_fig("No data available for this selection"),
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    [],
+                    f'<div style="margin-top:18px;">No data</div>',
+                    [],
                 )
 
-            fig = _pick_inv_chart(view, cat, store_id)
+            # ── KPI counts — derived from same DataFrame as chart ────────────
+            c = int((merged["risk"] == "CRITICAL").sum())
+            w = int((merged["risk"] == "WARNING").sum())
+            ok = int((merged["risk"] == "OK").sum())
+            dos = f"{merged['days_of_supply'].mean():.1f}d"
+            n = (
+                len(merged["sku_id"].unique())
+                if "sku_id" in merged.columns
+                else len(merged)
+            )
+
+            # Scope label
+            store_label = (
+                (store_val.split(" —")[1].strip() if " —" in store_val else store_id)
+                if store_id
+                else None
+            )
+            if store_label and cat != "All":
+                scope = f"{store_label} · {cat} — {n} SKUs"
+            elif store_label:
+                scope = f"{store_label} — {n} SKUs"
+            elif cat != "All":
+                scope = f"{cat} — {n} SKUs"
+            else:
+                scope = f"All Stores — {n} SKUs"
+
+            # ── At-risk table — same DataFrame ───────────────────────────────
+            sup_col = "supplier" if "supplier" in merged.columns else "sku_id"
+            name_col = "name" if "name" in merged.columns else "sku_id"
+            adr = merged[merged["risk"] != "OK"].sort_values("days_of_supply")
+            tbl_risk = (
+                adr[
+                    [
+                        "sku_id",
+                        name_col,
+                        "category",
+                        sup_col,
+                        "inventory",
+                        "avg_daily_demand",
+                        "days_of_supply",
+                        "lead_time_days",
+                        "risk",
+                    ]
+                ]
+                .rename(columns={name_col: "name", sup_col: "supplier"})
+                .round({"avg_daily_demand": 1, "days_of_supply": 1})
+            )
+
+            # ── Full table — same DataFrame ───────────────────────────────────
+            full = merged.sort_values(["risk", "days_of_supply"])
+            price_col = "price_inr" if "price_inr" in full.columns else "inventory"
+            tbl_full = (
+                full[
+                    [
+                        "sku_id",
+                        name_col,
+                        "category",
+                        sup_col,
+                        "inventory",
+                        "avg_daily_demand",
+                        "days_of_supply",
+                        "lead_time_days",
+                        price_col,
+                        "risk",
+                    ]
+                ]
+                .rename(
+                    columns={
+                        name_col: "name",
+                        sup_col: "supplier",
+                        price_col: "price_inr",
+                    }
+                )
+                .round({"avg_daily_demand": 1, "days_of_supply": 1})
+            )
+
+            # ── Chart — same DataFrame ────────────────────────────────────────
+            fig = _pick_inv_chart(view, cat, store_id, merged)
 
             inv_hdr = (
                 f'<div style="margin-top:18px; font-size:1.1rem; font-weight:700; '
