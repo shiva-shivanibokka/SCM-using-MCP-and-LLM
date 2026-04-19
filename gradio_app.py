@@ -3315,16 +3315,27 @@ def build_inventory_tab():
 
         _INV_INTERP = {
             "Inventory Health Heatmap": (
-                "**What this shows:** Every SKU ranked from most critical (top, red) to well-stocked (bottom, green). "
-                "Bar length = days of supply remaining.  \n"
-                "**How to read it:** Red = will stock out before the next delivery arrives (Days of Supply < Lead Time). "
-                "Amber = running low. Green = healthy.  \n"
-                "**Action:** Immediately reorder all red SKUs."
+                "**What this shows:** Every SKU ranked by days of supply (shortest at top). "
+                "Bar length = days of stock remaining.  \n"
+                "**Colour = risk vs each SKU's OWN lead time:** "
+                "Red = stock out before reorder arrives (DoS < lead time). "
+                "Amber = running low (DoS < 2× lead time). Green = healthy.  \n"
+                "**◆ red diamond** on each bar = that SKU's critical threshold (its own lead time). "
+                "**▲ orange triangle** = warning threshold (2× lead time).  \n"
+                "**Key insight:** A short green bar is safe if its red ◆ marker is to its left. "
+                "SKUs with short lead times can safely hold less stock.  \n"
+                "**Action:** Reorder all red bars immediately."
             ),
             "Days of Supply": (
-                "**What this shows:** Each bar = how many days the current stock will last at the current rate of sales. "
-                "The dashed lines show the reorder threshold (2× lead time) and critical threshold (1× lead time).  \n"
-                "**Action:** Any bar below the critical line needs urgent ordering."
+                "**What this shows:** Each bar = how many days the current stock will last at the current rate of sales.  \n"
+                "**Colour = risk relative to each SKU's OWN lead time:** "
+                "Red = stock out before the next order arrives (DoS < lead time). "
+                "Amber = running low (DoS < 2× lead time). Green = healthy.  \n"
+                "**◆ red diamond** = that SKU's critical threshold (its own lead time). "
+                "**▲ orange triangle** = that SKU's warning threshold (2× lead time).  \n"
+                "**Important:** A short green bar is NOT a problem if the diamond marker is below it — "
+                "that SKU has a short lead time and is genuinely safe.  \n"
+                "**Action:** Reorder any red bar immediately."
             ),
             "Inventory vs Demand": (
                 "**What this shows:** For each SKU, the blue bar = current inventory; the orange bar = total demand in the last 30 days.  \n"
@@ -3525,7 +3536,18 @@ def build_inventory_tab():
                 return _build_dos_from_df(merged)
 
         def _build_dos_from_df(merged: pd.DataFrame) -> go.Figure:
-            """Days of Supply bar chart built from the canonical merged df."""
+            """
+            Days of Supply bar chart from the canonical merged df.
+
+            Key design decisions:
+            - Bar COLOUR encodes risk relative to each SKU's OWN lead time
+              (CRITICAL: dos < lt, WARNING: dos < 2×lt, OK otherwise).
+            - Per-SKU lead time is shown as a red diamond marker on each bar
+              so users can see exactly which threshold applies to that SKU.
+            - The old avg_lt reference lines are removed — they created false
+              alarms (a short bar below the average line but above its own lt
+              looked critical but was actually OK).
+            """
             color_map = {"CRITICAL": "#EA4335", "WARNING": "#F9AB00", "OK": "#34A853"}
             merged_s = merged.sort_values("days_of_supply").reset_index(drop=True)
             cat_label = (
@@ -3534,6 +3556,7 @@ def build_inventory_tab():
                 else "All"
             )
             fig = go.Figure()
+            # ── Coloured bars ─────────────────────────────────────────────────
             for risk_val, color in color_map.items():
                 sub = merged_s[merged_s["risk"] == risk_val]
                 if sub.empty:
@@ -3548,25 +3571,65 @@ def build_inventory_tab():
                         marker_line_width=1,
                         text=sub["days_of_supply"].round(1),
                         textposition="outside",
-                        hovertemplate="<b>%{x}</b><br>Days of Supply: <b>%{y:.1f}d</b><extra></extra>",
+                        customdata=sub[
+                            ["lead_time_days", "inventory", "avg_daily_demand"]
+                        ].values,
+                        hovertemplate=(
+                            "<b>%{x}</b><br>"
+                            "Days of Supply: <b>%{y:.1f}d</b><br>"
+                            "Lead Time: <b>%{customdata[0]:.0f}d</b><br>"
+                            "Critical if below: <b>%{customdata[0]:.0f}d</b> &nbsp; "
+                            "Warning if below: <b>%{customdata[0]:.0f}×2=%{customdata[0]:.0f}d</b><br>"
+                            "Inventory: %{customdata[1]:,} units &nbsp;|&nbsp; "
+                            "Avg demand: %{customdata[2]:.1f}/day"
+                            "<extra></extra>"
+                        ),
                     )
                 )
-            # Reference lines
-            avg_lt = float(merged_s["lead_time_days"].mean())
-            fig.add_hline(
-                y=avg_lt,
-                line_dash="dash",
-                line_color="#EA4335",
-                annotation_text=f"Critical ({avg_lt:.0f}d)",
-                annotation_font=dict(color="#EA4335", size=10),
+
+            # ── Per-SKU lead-time markers (red ◆ = critical threshold for that SKU) ──
+            # This replaces the single avg_lt line that was misleading.
+            fig.add_trace(
+                go.Scatter(
+                    x=merged_s["sku_id"],
+                    y=merged_s["lead_time_days"],
+                    mode="markers",
+                    name="Lead Time (critical threshold)",
+                    marker=dict(
+                        symbol="diamond",
+                        size=9,
+                        color="#C5221F",
+                        line=dict(color="#fff", width=1),
+                    ),
+                    hovertemplate=(
+                        "<b>%{x}</b><br>"
+                        "Lead Time: <b>%{y}d</b><br>"
+                        "CRITICAL if DoS drops below this<extra></extra>"
+                    ),
+                )
             )
-            fig.add_hline(
-                y=avg_lt * 2,
-                line_dash="dot",
-                line_color="#F9AB00",
-                annotation_text=f"Warning ({avg_lt * 2:.0f}d)",
-                annotation_font=dict(color="#B06000", size=10),
+
+            # ── Per-SKU warning markers (orange ▲ = warning threshold = 2×lt) ─
+            fig.add_trace(
+                go.Scatter(
+                    x=merged_s["sku_id"],
+                    y=merged_s["lead_time_days"] * 2,
+                    mode="markers",
+                    name="2×Lead Time (warning threshold)",
+                    marker=dict(
+                        symbol="triangle-up",
+                        size=8,
+                        color="#F9AB00",
+                        line=dict(color="#fff", width=1),
+                    ),
+                    hovertemplate=(
+                        "<b>%{x}</b><br>"
+                        "Warning threshold: <b>%{y}d</b> (2 × lead time)<br>"
+                        "WARNING if DoS drops below this<extra></extra>"
+                    ),
+                )
             )
+
             n_crit = int((merged_s["risk"] == "CRITICAL").sum())
             n_warn = int((merged_s["risk"] == "WARNING").sum())
             fig.update_layout(
@@ -3574,20 +3637,36 @@ def build_inventory_tab():
                 title=dict(
                     text=(
                         f"Days of Supply by SKU — {cat_label}<br>"
-                        f"<sup style='color:#666'>{n_crit} Critical &nbsp;|&nbsp; "
-                        f"{n_warn} Warning &nbsp;|&nbsp; "
-                        f"{len(merged_s) - n_crit - n_warn} OK (of {len(merged_s)} SKUs)</sup>"
+                        f"<sup style='color:#666'>"
+                        f"{n_crit} Critical &nbsp;|&nbsp; {n_warn} Warning &nbsp;|&nbsp; "
+                        f"{len(merged_s) - n_crit - n_warn} OK (of {len(merged_s)} SKUs) &nbsp;·&nbsp; "
+                        f"◆ = each SKU's own lead-time threshold</sup>"
                     ),
                     font=dict(size=15, color="#4285F4"),
                 ),
                 xaxis_title="SKU ID",
                 yaxis_title="Days of Supply",
-                yaxis=dict(range=[0, merged_s["days_of_supply"].max() * 1.22]),
+                yaxis=dict(
+                    range=[
+                        0,
+                        max(
+                            merged_s["days_of_supply"].max(),
+                            (merged_s["lead_time_days"] * 2).max(),
+                        )
+                        * 1.22,
+                    ]
+                ),
                 barmode="group",
                 height=440,
-                legend=dict(title="Risk Level", orientation="h", y=1.08, x=0),
+                legend=dict(
+                    title="",
+                    orientation="h",
+                    y=1.10,
+                    x=0,
+                    font=dict(size=10),
+                ),
                 xaxis=dict(tickangle=45, tickfont=dict(size=11)),
-                margin=dict(t=80, b=80),
+                margin=dict(t=90, b=80),
             )
             return fig
 
@@ -3617,29 +3696,58 @@ def build_inventory_tab():
                         text=[f"{d:.0f}d" for d in sub["days_of_supply"]],
                         textposition="outside",
                         textfont=dict(size=9),
+                        customdata=sub[
+                            ["lead_time_days", "inventory", "avg_daily_demand"]
+                        ].values,
                         hovertemplate=(
-                            "<b>%{y}</b><br>Days of Supply: %{x:.1f}d<extra></extra>"
+                            "<b>%{y}</b><br>"
+                            "Days of Supply: <b>%{x:.1f}d</b><br>"
+                            "Lead Time: <b>%{customdata[0]:.0f}d</b> "
+                            "(critical if < this, warning if < 2×this)<br>"
+                            "Inventory: %{customdata[1]:,} units &nbsp;|&nbsp; "
+                            "Avg demand: %{customdata[2]:.1f}/day"
+                            "<extra></extra>"
                         ),
                     )
                 )
-            fig.add_vline(
-                x=avg_lt,
-                line_dash="dash",
-                line_color="#EA4335",
-                line_width=1.5,
-                annotation_text=f"Critical ({avg_lt:.0f}d)",
-                annotation_font=dict(color="#EA4335", size=10),
-                annotation_position="top right",
+
+            # Per-SKU lead-time markers — red ◆ on the bar at each SKU's own threshold
+            fig.add_trace(
+                go.Scatter(
+                    x=merged_s["lead_time_days"],
+                    y=merged_s["label"],
+                    mode="markers",
+                    name="Lead Time (critical threshold)",
+                    marker=dict(
+                        symbol="diamond",
+                        size=9,
+                        color="#C5221F",
+                        line=dict(color="#fff", width=1),
+                    ),
+                    hovertemplate=(
+                        "<b>%{y}</b><br>Lead Time: <b>%{x}d</b> (critical threshold)<extra></extra>"
+                    ),
+                )
             )
-            fig.add_vline(
-                x=avg_lt * 2,
-                line_dash="dot",
-                line_color="#F9AB00",
-                line_width=1.5,
-                annotation_text=f"Warning ({avg_lt * 2:.0f}d)",
-                annotation_font=dict(color="#B06000", size=10),
-                annotation_position="top right",
+            # 2×lt warning markers — orange ▲
+            fig.add_trace(
+                go.Scatter(
+                    x=merged_s["lead_time_days"] * 2,
+                    y=merged_s["label"],
+                    mode="markers",
+                    name="2×Lead Time (warning threshold)",
+                    marker=dict(
+                        symbol="triangle-right",
+                        size=8,
+                        color="#F9AB00",
+                        line=dict(color="#fff", width=1),
+                    ),
+                    hovertemplate=(
+                        "<b>%{y}</b><br>Warning threshold: <b>%{x}d</b> (2 × lead time)<extra></extra>"
+                    ),
+                )
             )
+
             n_crit = int((merged_s["risk"] == "CRITICAL").sum())
             n_warn = int((merged_s["risk"] == "WARNING").sum())
             cat_label = (
@@ -3654,60 +3762,124 @@ def build_inventory_tab():
                         f"Inventory Health — {cat_label}<br>"
                         f"<sup style='color:#666'>{n_crit} Critical &nbsp;|&nbsp; "
                         f"{n_warn} Warning &nbsp;|&nbsp; "
-                        f"{len(merged_s) - n_crit - n_warn} OK (of {len(merged_s)} SKUs)</sup>"
+                        f"{len(merged_s) - n_crit - n_warn} OK (of {len(merged_s)} SKUs) "
+                        f"&nbsp;·&nbsp; ◆ = each SKU's own lead-time threshold</sup>"
                     ),
                     font=dict(size=14, color="#4285F4"),
                 ),
                 xaxis_title="Days of Supply remaining",
                 yaxis=dict(tickfont=dict(size=10), autorange="reversed"),
                 height=max(440, len(merged_s) * 22 + 160),
-                legend=dict(orientation="h", y=1.06, x=0, font=dict(size=11)),
+                legend=dict(orientation="h", y=1.06, x=0, font=dict(size=10)),
                 margin=dict(t=90, b=60, l=190, r=100),
                 barmode="overlay",
             )
             return fig
 
         def _build_inv_vs_demand_from_df(merged: pd.DataFrame) -> go.Figure:
-            """Inventory vs Demand grouped bar from the canonical df."""
-            # Show top 20 by demand so chart isn't too crowded
-            top20 = merged.sort_values("avg_daily_demand", ascending=False).head(20)
+            """
+            Inventory vs 30-Day Demand grouped bar from the canonical df.
+            Inventory bars are colour-coded by risk (same as other views).
+            A 'Reorder Buffer' marker shows the minimum safe inventory
+            (avg_daily_demand × lead_time_days) so users can see how much
+            headroom remains before reaching the critical threshold.
+            """
+            # Sort by demand desc, top 20 to keep chart readable
+            top20 = (
+                merged.sort_values("avg_daily_demand", ascending=False).head(20).copy()
+            )
+            top20["reorder_buffer"] = (
+                top20["avg_daily_demand"] * top20["lead_time_days"]
+            ).round(0)
             cat_label = (
                 merged["category"].iloc[0]
                 if len(merged["category"].unique()) == 1
                 else "All"
             )
+            color_map = {"CRITICAL": "#EA4335", "WARNING": "#F9AB00", "OK": "#34A853"}
+
             fig = go.Figure()
-            fig.add_trace(
-                go.Bar(
-                    name="Current Inventory",
-                    x=top20["sku_id"],
-                    y=top20["inventory"],
-                    marker_color="#4285F4",
-                    hovertemplate="<b>%{x}</b><br>Inventory: <b>%{y:,}</b><extra></extra>",
+            # Inventory bars — coloured by risk
+            for risk_val, color in color_map.items():
+                sub = top20[top20["risk"] == risk_val]
+                if sub.empty:
+                    continue
+                fig.add_trace(
+                    go.Bar(
+                        name=f"Inventory ({risk_val})",
+                        x=sub["sku_id"],
+                        y=sub["inventory"],
+                        marker_color=color,
+                        marker_opacity=0.85,
+                        customdata=sub[
+                            ["days_of_supply", "lead_time_days", "avg_daily_demand"]
+                        ].values,
+                        hovertemplate=(
+                            "<b>%{x}</b> [" + risk_val + "]<br>"
+                            "Inventory: <b>%{y:,} units</b><br>"
+                            "Days of Supply: <b>%{customdata[0]:.1f}d</b><br>"
+                            "Lead Time: %{customdata[1]:.0f}d<br>"
+                            "Avg Daily Demand: %{customdata[2]:.1f}/day"
+                            "<extra></extra>"
+                        ),
+                    )
                 )
-            )
+
+            # 30-Day Demand bars
             fig.add_trace(
                 go.Bar(
                     name="30-Day Demand",
                     x=top20["sku_id"],
                     y=(top20["avg_daily_demand"] * 30).round(0),
-                    marker_color="#EA4335",
-                    hovertemplate="<b>%{x}</b><br>30-Day Demand: <b>%{y:,}</b><extra></extra>",
+                    marker_color="#94A3B8",
+                    marker_opacity=0.6,
+                    hovertemplate="<b>%{x}</b><br>30-Day Demand: <b>%{y:,} units</b><extra></extra>",
                 )
             )
+
+            # Reorder buffer line — minimum safe inventory = avg_demand × lead_time
+            fig.add_trace(
+                go.Scatter(
+                    x=top20["sku_id"],
+                    y=top20["reorder_buffer"],
+                    mode="markers",
+                    name="Reorder Buffer (demand × lead time)",
+                    marker=dict(
+                        symbol="line-ew",
+                        size=16,
+                        color="#C5221F",
+                        line=dict(color="#C5221F", width=2),
+                    ),
+                    hovertemplate=(
+                        "<b>%{x}</b><br>"
+                        "Min safe inventory: <b>%{y:,} units</b><br>"
+                        "(avg demand × lead time — below this = CRITICAL)"
+                        "<extra></extra>"
+                    ),
+                )
+            )
+
+            n_crit = int((top20["risk"] == "CRITICAL").sum())
+            n_warn = int((top20["risk"] == "WARNING").sum())
             fig.update_layout(
                 **_CHART_LAYOUT,
                 title=dict(
-                    text=f"Inventory vs 30-Day Demand — Top 20 SKUs ({cat_label})",
+                    text=(
+                        f"Inventory vs 30-Day Demand — {cat_label}<br>"
+                        f"<sup style='color:#666'>{n_crit} Critical &nbsp;|&nbsp; "
+                        f"{n_warn} Warning &nbsp;|&nbsp; "
+                        f"{len(top20) - n_crit - n_warn} OK &nbsp;·&nbsp; "
+                        f"— = min safe stock (demand × lead time)</sup>"
+                    ),
                     font=dict(size=15, color="#4285F4"),
                 ),
                 xaxis_title="SKU ID",
                 yaxis_title="Units",
                 barmode="group",
-                height=440,
-                legend=dict(orientation="h", y=1.08, x=0),
+                height=460,
+                legend=dict(orientation="h", y=1.10, x=0, font=dict(size=10)),
                 xaxis=dict(tickangle=45, tickfont=dict(size=11)),
-                margin=dict(t=80, b=80),
+                margin=dict(t=90, b=80),
             )
             return fig
 
