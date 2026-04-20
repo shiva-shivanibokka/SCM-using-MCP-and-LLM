@@ -1,45 +1,21 @@
 """
 forecasting/ml_forecast.py
-──────────────────────────
-Production-grade demand forecasting for the Pet Store Supply Chain.
 
-Architecture
-────────────
-PRIMARY  — Temporal Fusion Transformer (TFT) via pytorch-forecasting
-           Trained once (full retrain, 20-40 min on RTX 4060).
-           Fine-tuned on demand on the last 90 days (2-4 min on RTX 4060).
-           Outputs probabilistic P10 / P50 / P90 forecasts natively.
+Demand forecasting for the Pet Store Supply Chain.
 
-FALLBACK — CatBoost Quantile Regression (3 models).
-           Used automatically when TFT is not yet trained or fails.
-           Matches the old interface exactly — zero downtime during migration.
+Primary  : TFT (pytorch-forecasting) — full retrain ~30 min, fine-tune ~5 min.
+           Outputs P10 / P50 / P90 probabilistic forecasts.
+Fallback : CatBoost quantile regression — trains in ~2 min on CPU.
+           Used automatically when TFT is not available.
 
-Scalability
-───────────
-  • Mixed precision (FP16) — ~40% less VRAM, larger effective batch
-  • Gradient accumulation — simulates batch_size=256 with 4×64 micro-batches
-  • Chunked DataLoader (num_workers=0 on Windows, pin_memory on GPU)
-  • Feature engineering in pandas — scales with data size, not VRAM
-  • TimeSeriesDataSet max_encoder_length=90 — fixed memory per sample
-    regardless of total dataset size (scales to millions of rows)
-
-Key features used by TFT
-─────────────────────────
-  Time-varying known (future visible):
-    day_of_week, month, quarter, is_weekend, is_diwali_season,
-    is_monsoon, is_winter, is_promo_active, promo_discount_pct,
-    days_to_next_promo, is_festival_week
-
-  Time-varying unknown (past only):
-    demand (target), log_demand, roll_mean_7, roll_mean_28,
-    roll_std_7, roll_std_28, lag_7, lag_28
-
-  Static categoricals (per-SKU metadata):
-    sku_id, category, subcategory, brand, brand_type, pet_type,
-    life_stage, supplier, is_cold_chain
-
-  Static reals:
-    log_price, lead_time_days, margin_pct, base_demand_norm
+TFT features:
+  Known future  — day_of_week, month, quarter, is_weekend, is_diwali_season,
+                  is_monsoon, is_winter, is_promo_active, promo_discount_pct,
+                  days_to_next_promo, is_festival_week
+  Unknown past  — demand, log_demand, roll_mean_7/28, roll_std_7/28, lag_7/28
+  Static cats   — sku_id, category, subcategory, brand, brand_type, pet_type,
+                  life_stage, supplier, is_cold_chain
+  Static reals  — log_price, lead_time_days, margin_pct, base_demand_norm
 """
 
 from __future__ import annotations
@@ -55,36 +31,22 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-# ── DataLoader num_workers warning suppression ───────────────────────────────
-# On Windows, PyTorch multiprocessing uses 'spawn' rather than 'fork'.
-# num_workers > 0 inside a Gradio app (no if __name__=="__main__" guard)
-# will deadlock or crash, so ALL DataLoaders here use num_workers=0 intentionally.
-#
-# PyTorch Lightning emits this on every predict() call via rank_zero_warn():
-#   "The 'predict_dataloader' does not have many workers which may be a
-#    bottleneck. Consider increasing num_workers to num_workers=23 ..."
-#
-# Lightning's own API is disable_possible_user_warnings() which calls
-# warnings.filterwarnings("ignore", category=PossibleUserWarning).
-# We use that directly here — it is the canonical suppression mechanism.
+# Suppress Lightning's num_workers warning — num_workers=0 is required on
+# Windows (spawn multiprocessing) when running inside Gradio.
 try:
     from lightning.fabric.utilities.warnings import (
         disable_possible_user_warnings as _disable_plw,
     )
 
-    _disable_plw()  # suppress all PossibleUserWarning from Lightning globally
+    _disable_plw()
 except ImportError:
-    # Fallback for older Lightning versions that don't have this helper
     warnings.filterwarnings("ignore", message=".*num_workers.*bottleneck.*")
     warnings.filterwarnings("ignore", message=".*predict_dataloader.*num_workers.*")
     warnings.filterwarnings("ignore", message=".*train_dataloader.*num_workers.*")
 
 logger = logging.getLogger(__name__)
 
-# Thread lock for model inference — PyTorch TFT is not thread-safe under
-# concurrent requests. All predict() calls acquire this lock so only one
-# inference runs at a time. Training also acquires it to prevent concurrent
-# read during a weight update.
+# Serialize TFT inference calls — not thread-safe under concurrent requests.
 _inference_lock = threading.Lock()
 
 # ── Cache directory ───────────────────────────────────────────────────────────
@@ -503,16 +465,7 @@ def _make_tft_dataset(df: pd.DataFrame, training: bool = True) -> Any:
 
 
 def _build_tft_model(dataset: Any) -> Any:
-    """
-    Build TFT model tuned for RTX 4060 8GB.
-    Architecture choices:
-      - hidden_size=128: good accuracy/VRAM tradeoff at 8GB
-      - attention_head_size=4: 4 attention heads, matches hidden_size well
-      - dropout=0.1: light regularisation for ~50K rows
-      - hidden_continuous_size=32: compact continuous embedding
-      - output_size=7: 7 quantiles (0.02,0.1,0.25,0.5,0.75,0.9,0.98)
-        → P10=idx1, P50=idx3, P90=idx5
-    """
+    """Build TFT model. 7 quantiles: P10=idx1, P50=idx3, P90=idx5."""
     from pytorch_forecasting import TemporalFusionTransformer
     from pytorch_forecasting.metrics import QuantileLoss
 
@@ -540,13 +493,7 @@ def _get_trainer(
     fast_dev_run: bool = False,
     ckpt_path: Path | None = None,
 ) -> Any:
-    """
-    Build a Lightning Trainer configured for RTX 4060 8GB.
-      - precision="16-mixed": FP16 mixed precision saves ~40% VRAM
-      - accumulate_grad_batches=4: effective batch = 4×64 = 256
-      - gradient_clip_val=0.1: prevents gradient explosions (important for TFT)
-      - devices=1: single GPU
-    """
+    """Build Lightning Trainer with mixed precision, gradient accumulation, and gradient clipping."""
     import lightning as L
     from lightning.pytorch.callbacks import (
         EarlyStopping,
@@ -693,7 +640,7 @@ def _train_tft(df: pd.DataFrame, fine_tune: bool = False) -> dict[str, Any]:
     if fine_tune and _TFT_CKPT.exists():
         from pytorch_forecasting import TemporalFusionTransformer
 
-        # BUG-027 fix: model.optimizers() is only valid inside a Lightning training
+        # Model.optimizers() is only valid inside a Lightning training
         # loop — calling it on a freshly loaded checkpoint raises RuntimeError.
         # Instead, pass the reduced learning rate as an hparam override when loading.
         model = TemporalFusionTransformer.load_from_checkpoint(
@@ -746,7 +693,7 @@ def _train_tft(df: pd.DataFrame, fine_tune: bool = False) -> dict[str, Any]:
     except Exception as exc:
         # Fallback: run predict without return_y, compute metrics from
         # trainer's logged val_loss instead
-        # BUG-040 fix: use val_loss directly for MAPE; do not fabricate MAE/RMSE
+        # Use val_loss directly for MAPE; do not fabricate MAE/RMSE
         # from val_loss via arbitrary multipliers. Mark them as unavailable instead.
         logger.warning(f"[TFT] predict() metrics failed ({exc}), using logged val_loss")
         val_loss = trainer.callback_metrics.get("val_loss", None)
@@ -856,7 +803,7 @@ def _forecast_tft(
 
         enriched["time_idx"] = enriched.groupby("sku_id").cumcount().astype("int64")
 
-        # BUG-finfo fix: demand and all real columns must be float32 before
+        # Demand and all real columns must be float32 before
         # from_dataset / GroupNormalizer (softplus) runs torch.finfo() on the dtype.
         # _enrich_demand_df does not guarantee float32 for single-SKU DataFrames.
         _float_cast = ["demand"] + _STATIC_REALS + _TV_KNOWN_REALS + _TV_UNKNOWN_REALS
@@ -946,18 +893,9 @@ def _save_tft_meta() -> None:
 
 def _rebuild_tft_dataset(df: pd.DataFrame, meta: dict):
     """
-    BUG-026 fix (updated): re-create the TimeSeriesDataSet from saved training
-    metadata so TFT inference works after a process restart.
-
-    CRITICAL: must use exactly the same column set that _make_tft_dataset used
-    during training — i.e. _STATIC_CATS / _STATIC_REALS / _TV_KNOWN_* /
-    _TV_UNKNOWN_REALS — all produced by _enrich_demand_df().
-
-    Previous version used hardcoded stale columns ("isoweek", "days_to_festival",
-    "festival_active", "price_inr" as a static real, only 3 static cats) that do
-    not exist in the enriched DataFrame, causing KeyError: 'supplier' and similar.
-
-    Returns the dataset or None if TFT dependencies are unavailable.
+    Rebuild the TimeSeriesDataSet from saved metadata so TFT inference works after restart.
+    Uses the same column set as _make_tft_dataset (produced by _enrich_demand_df).
+    Returns None if TFT dependencies are unavailable.
     """
     try:
         from pytorch_forecasting import TimeSeriesDataSet
@@ -1046,7 +984,7 @@ def _load_tft() -> bool:
         }
         _tft_trained_at = meta.get("trained_at", "cached")
 
-        # BUG-026 fix: _tft_dataset is required by _forecast_tft() but is not
+        # _tft_dataset is required by _forecast_tft() but is not
         # persisted. Rebuild it from CSV + saved metadata so TFT inference works
         # after a process restart. Fall back to CatBoost if rebuild fails.
         try:
@@ -1341,7 +1279,7 @@ def _forecast_catboost(
     last = sku_df.iloc[-1]
     last_date = sku_df["date"].iloc[-1]
     demand_hist = list(sku_df["demand"].values.astype(float))
-    # BUG-005 fix: unknown SKU silently maps to code 0 (same as first training SKU).
+    # Unknown SKU silently maps to code 0 (same as first training SKU).
     # Raise explicitly so the caller falls back to the statistical method.
     if sku_id not in _cb_sku_encoder:
         raise RuntimeError(

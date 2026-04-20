@@ -87,12 +87,12 @@ def get_prediction_log(limit: int = 200) -> pd.DataFrame:
         return pd.DataFrame(columns=PRED_COLS)
     with _lock:
         try:
-            # BUG-031 fix: use context manager to avoid file handle leak on Windows
+            # Use context manager to avoid file handle leak on Windows
             with open(PRED_LOG_PATH, encoding="utf-8") as _fh:
                 total_lines = sum(1 for _ in _fh)
             skip = max(1, total_lines - limit - 1)  # keep header (line 0) + last N rows
             if skip > 1:
-                # BUG-14 fix: header=0 already preserves column names — no need
+                # Header=0 already preserves column names — no need
                 # for a second pd.read_csv call to re-read the header (was redundant I/O).
                 df = pd.read_csv(PRED_LOG_PATH, skiprows=list(range(1, skip)), header=0)
             else:
@@ -155,7 +155,7 @@ def get_sku_accuracy_chart(
 
     demand_df = pd.read_csv(data_csv_path, parse_dates=["date"])
 
-    # M-03 fix: compare each forecast against the 30d window FOLLOWING its logged_at,
+    # Compare each forecast against the 30d window FOLLOWING its logged_at,
     # not the most recent 30 days (which could be months after the forecast was made).
     latest_preds["logged_at"] = pd.to_datetime(latest_preds["logged_at"])
     actuals_rows = []
@@ -331,7 +331,7 @@ def compute_drift_metrics(data_csv_path: str | Path | None = None) -> dict[str, 
     baseline_mae = float(abs(recent_demand["actual_daily_avg"] - global_mean).mean())
 
     # Calibration: % of actuals within p10-p90 band
-    # BUG-21 fix: fillna before clip so NaN horizon entries don't deflate calibration_pct
+    # Fillna before clip so NaN horizon entries don't deflate calibration_pct
     horizon = merged["horizon_days"].fillna(30).clip(lower=1)
     in_band = (merged["actual_daily_avg"] >= merged["p10_total"] / horizon) & (
         merged["actual_daily_avg"] <= merged["p90_total"] / horizon

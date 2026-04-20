@@ -120,7 +120,7 @@ COLD_CHAIN_CSV = HUFT_DATA_DIR / "huft_cold_chain.csv"
 # DB config from env
 MCP_AUTH_TOKEN = os.getenv("MCP_AUTH_TOKEN", "")
 
-# BUG-048 fix: use ContextVar so each request/thread gets its own credential copy,
+# Use ContextVar so each request/thread gets its own credential copy,
 # eliminating the race condition where User A's set_session_creds() overwrites User B's.
 _ctx_mysql_creds: contextvars.ContextVar[dict] = contextvars.ContextVar(
     "_ctx_mysql_creds", default={}
@@ -574,7 +574,7 @@ async def pg_execute(sql: str, args: tuple = (), creds: dict | None = None) -> s
             "Fill in the PostgreSQL settings panel in the UI, "
             "or set PG_HOST and PG_PASSWORD in the .env file."
         )
-    # BUG-4 fix: close connection in finally so it always releases even on SQL errors
+    # Close connection in finally so it always releases even on SQL errors
     conn = None
     try:
         dsn = _resolve_pg_dsn(creds)
@@ -864,7 +864,7 @@ def tool_get_supply_chain_dashboard() -> str:
     # Top critical SKUs
     top_crit = m[m["risk"] == "CRITICAL"].sort_values("days_of_supply").head(5)
 
-    # BUG-030 fix: ensure percentages sum to 100% by using total as denominator
+    # Ensure percentages sum to 100% by using total as denominator
     _total_safe = max(total, 1)
     lines = [
         f"╔══ SUPPLY CHAIN DASHBOARD (as of {latest_date.date()}) ══╗\n",
@@ -1112,7 +1112,7 @@ def tool_get_reorder_list() -> str:
         .round(0)
         .astype(int)
     )
-    # BUG-009 fix: use cost_inr (landed cost) not retail price for PO cost estimate
+    # Use cost_inr (landed cost) not retail price for PO cost estimate
     cost_col = (
         "cost_inr"
         if "cost_inr" in m.columns and m["cost_inr"].gt(0).any()
@@ -1155,7 +1155,7 @@ def tool_get_demand_trends(days: int = 90) -> str:
     latest_date = df["date"].max()
     cutoff = latest_date - pd.Timedelta(days=days)
     period = df[df["date"] >= cutoff].copy()
-    # BUG-024 fix: split exactly at the midpoint of the date range (not len//2)
+    # Split exactly at the midpoint of the date range (not len//2)
     mid = cutoff + pd.Timedelta(days=days / 2)
 
     h1 = (
@@ -1269,7 +1269,7 @@ def tool_get_demand_forecast(sku_id: str, horizon_days: int = 30) -> str:
     p90_total = float(p90.sum())
     p50_daily = float(p50.mean())
 
-    # BUG-013 fix: use 90-day sigma consistently with tool_get_sku_360
+    # Use 90-day sigma consistently with tool_get_sku_360
     sigma = float(np.std(sku_df["demand"].values[-90:]))
     safety_stock = 1.65 * sigma * float(np.sqrt(lead_time))
     reorder_point = p50_daily * lead_time + safety_stock
@@ -1823,7 +1823,7 @@ async def tool_get_monthly_kpis(sku_id: str | None = None, months: int = 6) -> s
         """
         rows = await pg_query(sql, (sku_id.upper(), months))
     else:
-        # BUG-006 fix: COALESCE handles both setup.py schema (revenue_est_usd)
+        # COALESCE handles both setup.py schema (revenue_est_usd)
         # and migrate_huft.py schema (revenue_est_inr)
         sql = """
             SELECT year_month,
@@ -2715,7 +2715,7 @@ def tool_get_cold_chain_monitor(days_ahead: int = 7) -> str:
     except FileNotFoundError as e:
         return f"Cold chain data not available: {e}"
 
-    # BUG-043 fix: use dataset's own max date (not system today) so breach
+    # Use dataset's own max date (not system today) so breach
     # detection works even when the data is historical (e.g., 2023-2024 CSV
     # running on a server in 2026 would otherwise always show 0 breaches).
     data_latest = cc["date"].max()
@@ -2752,7 +2752,7 @@ def tool_get_cold_chain_monitor(days_ahead: int = 7) -> str:
         else 0
     )
 
-    # BUG-16 fix: 'today' was never defined in this function; use data_latest
+    # 'today' was never defined in this function; use data_latest
     today = data_latest
     lines = [f"=== Cold Chain Monitor — {today.date()} (data as of) ===\n"]
 
@@ -2797,7 +2797,7 @@ def tool_get_cold_chain_monitor(days_ahead: int = 7) -> str:
     lines.append(
         f"\n── Summary ──\n"
         f"  Total breach events (7d): {len(breaches)}\n"
-        # BUG-036 fix: units_at_risk_of_expiry is 0 in 92% of rows (sparse synthetic field).
+        # Units_at_risk_of_expiry is 0 in 92% of rows (sparse synthetic field).
         # Use units_in_cold_storage for rows in the expiry window as the risk count.
         f"  Units at expiry risk: {int(at_expiry['units_in_cold_storage'].sum()) if not at_expiry.empty and 'units_in_cold_storage' in at_expiry.columns else int(at_expiry.get('units_at_risk_of_expiry', pd.Series([0])).sum())}\n"
         f"  Estimated waste value: ₹{total_waste:,.0f}\n"
@@ -3082,7 +3082,7 @@ def tool_get_dead_stock_analysis(days_no_movement: int = 60) -> str:
 
     dead_df = pd.DataFrame(dead).sort_values("locked_value_inr", ascending=False)
 
-    # BUG-10 fix: warn when cost_inr is 0 (missing from MySQL legacy schema)
+    # Warn when cost_inr is 0 (missing from MySQL legacy schema)
     if dead_df.empty is False and dead_df["locked_value_inr"].sum() == 0:
         return (
             "⚠️ WARNING: cost_inr is 0 for all SKUs — locked value cannot be calculated.\n"
@@ -3277,7 +3277,7 @@ def tool_get_customer_segmentation_insights(segment: str | None = None) -> str:
         .sort_values("avg_ltv_inr", ascending=False)
     )
 
-    # BUG-034 fix: AOV = total revenue / number of unique orders (txn_id),
+    # AOV = total revenue / number of unique orders (txn_id),
     # not mean(revenue per line-item). A 3-SKU basket should count as 1 order.
     txn_agg = (
         txn.groupby("customer_segment")
@@ -3356,8 +3356,8 @@ def tool_generate_purchase_order(
     latest["avg30"] = latest["sku_id"].map(avg30).fillna(0)
     latest["avg90"] = latest["sku_id"].map(avg90).fillna(0)
 
-    # BUG-002 fix: correct safety-stock formula  SS = Z × σ × √(LT)  (Z=1.65 → 95%)
-    # BUG-003 fix: order_qty covers forecast-period demand + safety_stock - usable_inv
+    # Correct safety-stock formula  SS = Z × σ × √(LT)  (Z=1.65 → 95%)
+    # Order_qty covers forecast-period demand + safety_stock - usable_inv
     std90 = dem[dem["date"] >= cutoff90].groupby("sku_id")["demand"].std().fillna(0)
     latest["sigma"] = latest["sku_id"].map(std90).fillna(latest["avg30"] * 0.25)
     latest["safety_stock"] = (
@@ -3477,7 +3477,7 @@ def tool_get_promotion_inventory_impact(
             f"  Category : {cat} | Discount: {promo.get('discount_pct', 'N/A')}% | "
             f"Channel: {promo.get('channel', 'N/A')}\n"
             f"  Period   : {start.date()} → {end.date()} "
-            # BUG-056 fix: duration_days may be NaN even when the key exists;
+            # Duration_days may be NaN even when the key exists;
             # fall back to computed duration when it is missing or NaN.
             f"({int(promo['duration_days']) if pd.notna(promo.get('duration_days')) else (end - start).days} days)\n"
             f"  Demand (pre/during/post): {avg_pre:.1f} / {avg_during:.1f} / {avg_post:.1f} units/day\n"
@@ -3580,7 +3580,7 @@ def tool_get_markdown_optimization(category: str | None = None) -> str:
         .fillna(9999)
         .round(0)
     )
-    # BUG-014 fix: overstock = > 3 months forward demand (90 days), not 270 days
+    # Overstock = > 3 months forward demand (90 days), not 270 days
     latest["overstock_flag"] = latest["inventory"] > 3 * (latest["avg90_demand"] * 30)
 
     if category:
@@ -3671,8 +3671,8 @@ def tool_get_marketing_campaign_recommendations(months_ahead: int = 3) -> str:
     cat_stats["is_overstocked"] = cat_stats["days_of_supply"] > 60
     cat_stats["is_understocked"] = cat_stats["days_of_supply"] < 14
 
-    # BUG-018 fix: look ahead 3 months (not 2) for seasonal planning
-    # BUG-20 fix: use months_ahead parameter instead of hardcoded range(3)
+    # Look ahead 3 months (not 2) for seasonal planning
+    # Use months_ahead parameter instead of hardcoded range(3)
     current_month = pd.Timestamp.today().month
     upcoming_months = [(current_month + i - 1) % 12 + 1 for i in range(months_ahead)]
     dem_copy = dem.copy()
@@ -3762,7 +3762,7 @@ def tool_get_inventory_financial_summary(period: str = "current") -> str:
     total_retail_value = (latest["inventory"] * latest["price_inr"]).sum()
     potential_gross_margin = total_retail_value - total_inventory_value
 
-    # BUG-011: warn when cost/margin data is missing (defaults to 0 from _normalise_demand_df)
+    # Warn when cost/margin data is missing (defaults to 0 from _normalise_demand_df)
     _data_quality_note = ""
     if total_inventory_value == 0 and latest["inventory"].sum() > 0:
         _data_quality_note = (
@@ -3787,7 +3787,7 @@ def tool_get_inventory_financial_summary(period: str = "current") -> str:
     stockout_days = recent[(recent["inventory"] == 0) & (recent["demand"] > 0)]
     stockout_lost = (stockout_days["demand"] * stockout_days["price_inr"]).sum()
 
-    # BUG-006 fix: working capital days = avg inventory value / avg daily revenue
+    # Working capital days = avg inventory value / avg daily revenue
     # Use average daily inventory value (not snapshot) divided by average daily revenue
     dem_recent = dem[dem["date"] >= cutoff30]
     avg_daily_inv_value = (
@@ -3927,7 +3927,7 @@ def tool_get_store_level_demand_intelligence(
         txn = txn[txn["city"].str.contains(city, case=False, na=False)]
         stores = stores[stores["city"].str.contains(city, case=False, na=False)]
 
-    # BUG-028 fix: national average = avg daily total units sold per category,
+    # National average = avg daily total units sold per category,
     # not avg transaction line-item quantity (which is always ~1.5-2).
     date_col = "date" if "date" in txn.columns else "txn_date"
     national_cat = (
@@ -4082,7 +4082,7 @@ def tool_get_supplier_negotiation_brief(supplier_name: str | None = None) -> str
             score += 1.0
         if stockout_incidents > 20:
             score += 1.0
-        # BUG-9 fix: declining volume → supplier needs our business more → MORE buyer leverage
+        # Declining volume → supplier needs our business more → MORE buyer leverage
         if yoy_growth < 0:
             score += (
                 1.0  # supplier needs us more when we're buying less → higher leverage
@@ -4279,7 +4279,7 @@ async def tool_get_store_inventory_breakdown(
     Falls back to CSV if DB unavailable.
     """
     # Build fully-parameterised WHERE clauses (no f-string interpolation into SQL)
-    # BUG-004 fix: days_of_supply and LIMIT are now parameters, not f-string literals
+    # Days_of_supply and LIMIT are now parameters, not f-string literals
     conditions = ["days_of_supply <= %s"]
     params: list = [float(max_days_of_supply)]
 
@@ -6345,7 +6345,7 @@ def tool_get_transfer_recommendations(
             sku = need_row["sku_id"]
             donors = overstocked[overstocked["sku_id"] == sku]
             for _, donor in donors.iterrows():
-                # BUG-003 fix: use actual daily demand not days_of_supply
+                # Use actual daily demand not days_of_supply
                 # days_of_supply = inventory/demand (a ratio), not demand itself
                 avg_d = max(float(need_row.get("demand", 1)), 1.0)
                 # Give receiving store 14 days of buffer stock
@@ -6439,7 +6439,7 @@ def tool_get_abc_xyz_analysis(
                 recent["category"].str.contains(category, case=False, na=False)
             ]
 
-        # BUG-002 fix: pre-compute revenue column before groupby to avoid
+        # Pre-compute revenue column before groupby to avoid
         # lambda index misalignment when recent has been filtered/re-indexed
         recent["_revenue"] = recent["demand"] * recent["price_inr"]
         sku_stats = (
@@ -6521,7 +6521,7 @@ def tool_get_supplier_fill_rate_trend(
     try:
         sp = (
             get_supplier_perf()
-        )  # BUG-001 fix: server.py uses get_supplier_perf() not get_supplier_perf_df()
+        )  # Server.py uses get_supplier_perf() not get_supplier_perf_df()
         if sp.empty:
             return "No supplier performance data available."
 
@@ -6632,7 +6632,7 @@ def tool_get_basket_analysis(
         if category:
             txn = txn[txn["category"].str.contains(category, case=False, na=False)]
 
-        # BUG-023 fix: generated data has 1 SKU per txn_id (unique txn per row),
+        # Generated data has 1 SKU per txn_id (unique txn per row),
         # so groupby("txn_id") always gives single-item baskets.
         # Use store+date+customer_segment as a proxy basket: items bought at the
         # same store on the same day by customers of the same type are likely
@@ -6737,7 +6737,7 @@ def tool_get_price_elasticity_analysis(
         txn = get_transactions()
         promos = (
             get_promotions()
-        )  # BUG-001 fix: server.py uses get_promotions() not get_promotions_df()
+        )  # Server.py uses get_promotions() not get_promotions_df()
         dem = get_df()
         if txn.empty or promos.empty:
             return "Transaction or promotion data unavailable for elasticity analysis."

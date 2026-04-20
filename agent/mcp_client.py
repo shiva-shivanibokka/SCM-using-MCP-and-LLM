@@ -133,7 +133,7 @@ async def call_tool(tool_name: str, arguments: dict) -> str:
 
 async def list_tools() -> list[dict]:
     """Return all available MCP tools.
-    BUG-007 fix: log the exception before returning [] so failures are diagnosable.
+    log the exception before returning [] so failures are diagnosable.
     """
     try:
         if BYPASS_MCP_HTTP:

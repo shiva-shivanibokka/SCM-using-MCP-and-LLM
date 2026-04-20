@@ -356,15 +356,8 @@ When a tool returns a list of stores, SKUs, cities, suppliers, or any tabular da
 
 MAX_ITERATIONS = 20
 
-# ── Sliding Window Memory ─────────────────────────────────────────────────────
-# When the accumulated message history grows too large, the oldest tool-call /
-# tool-result pairs are compressed into a compact summary injected as a single
-# user message.  This prevents unbounded context growth while preserving the
-# reasoning chain.
-#
-# Token estimation: we use a conservative character ÷ 4 heuristic (4 chars ≈ 1
-# token on average for English prose/JSON).  No tokeniser dependency required.
-
+# Sliding window: compress old tool-call/result pairs into a summary
+# when the history grows too large. Token count estimated as chars ÷ 4.
 MAX_HISTORY_TOKENS = 24_000  # trigger compression above this estimate
 KEEP_RECENT_MESSAGES = 6  # always keep the last N messages uncompressed
 
@@ -377,23 +370,11 @@ def _estimate_tokens(messages: list[dict]) -> int:
 
 def _compress_history(messages: list[dict]) -> list[dict]:
     """
-    Compress the oldest tool-call/result pairs in the message history into a
-    single summary message to stay within MAX_HISTORY_TOKENS.
-
-    Strategy
-    --------
-    1. Always keep messages[0] (the original user question).
-    2. Identify the oldest tool-result pairs in the middle of the history.
-    3. Extract key facts from each result (first 200 chars) into a compact
-       "prior context" summary injected as an assistant message.
-    4. Drop the original verbose tool blocks, keep the compressed summary.
-    5. Always keep the last KEEP_RECENT_MESSAGES messages intact so the LLM
-       has full context for its next decision.
-
-    BUG-012 fix: tail always starts at a complete assistant+user pair boundary
-    to avoid leaving unmatched tool_use blocks for Anthropic's API.
-    BUG-023 fix: summary injected as "assistant" role (not "user") so it doesn't
-    create consecutive user messages with OpenAI/Groq.
+    Compress the oldest tool-call/result pairs into a summary to stay within
+    MAX_HISTORY_TOKENS. Keeps messages[0] (original question) and the last
+    KEEP_RECENT_MESSAGES messages intact. Tail starts at a turn boundary to
+    avoid orphaned tool_use blocks (Anthropic). Summary uses "assistant" role
+    to avoid consecutive user messages (OpenAI/Groq).
     """
     if len(messages) <= KEEP_RECENT_MESSAGES + 1:
         return messages  # nothing to compress
@@ -402,7 +383,7 @@ def _compress_history(messages: list[dict]) -> list[dict]:
     # tool_use → tool_result pair. Walk forward from the cut point to find
     # the first message that is a clean turn boundary.
     #
-    # BUG-016 fix: for OpenAI/Groq, tool results use role="tool" (not role="user").
+    # For OpenAI/Groq, tool results use role="tool" (not role="user").
     # The boundary scan must skip role="tool" messages too, otherwise a tool_call
     # in the previous assistant message gets orphaned (no matching tool_result),
     # causing OpenAI API error: "tool_calls must be followed by tool messages".
@@ -487,7 +468,7 @@ def _compress_history(messages: list[dict]) -> list[dict]:
         + "\n".join(facts)
         + "\n\nThese results are summarised. The full data was used in prior reasoning steps."
     )
-    # BUG-023 fix: use "assistant" role so we never produce consecutive "user" messages.
+    # Use "assistant" role so we never produce consecutive "user" messages.
     # The summary looks like the assistant is recapping what it already knows.
     summary_msg = {"role": "assistant", "content": summary_content}
 
@@ -656,7 +637,7 @@ async def _call_gemini(
         system_instruction=SYSTEM_PROMPT,
         tools=_mcp_tools_to_gemini(mcp_tools),
     )
-    # BUG-052 fix: build a lookup from tool_use_id → tool name so that
+    # Build a lookup from tool_use_id → tool name so that
     # tool_result parts can reference the correct function name for Gemini.
     tool_id_to_name: dict[str, str] = {}
     for m in messages:
@@ -717,7 +698,7 @@ async def _call_gemini(
             text = part.text
         if hasattr(part, "function_call") and part.function_call:
             fc = part.function_call
-            # BUG-051 fix: generate a unique ID per call so duplicate same-tool calls
+            # Generate a unique ID per call so duplicate same-tool calls
             # can be matched correctly when results come back.
             tool_calls.append(
                 {
@@ -1036,10 +1017,7 @@ async def run_agent_with_steps(
             # Sliding window: compress history if it exceeds the token budget
             messages = _maybe_compress(messages)
 
-        # ── Max iterations reached — synthesise from accumulated context ──────
-        # Calling the LLM with an EMPTY tools list forces it to produce a
-        # plain text final answer from everything it has already gathered.
-        # This guarantees a useful response instead of a hard failure.
+        # Max iterations reached: call LLM with no tools to force a final plain-text answer.
         yield {
             "type": "thinking",
             "text": "Synthesising best answer from gathered data…",
@@ -1088,7 +1066,7 @@ async def run_agent_with_steps(
         }
     except Exception as exc:
         traceback.print_exc()
-        # Never surface a raw traceback to the user
+        # Return a user-friendly error instead of a raw traceback
         yield {
             "type": "error",
             "text": (

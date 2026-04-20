@@ -49,7 +49,7 @@ BASE_DIR = Path(__file__).parent
 CSV_PATH = BASE_DIR / "data" / "huft_daily_demand.csv"
 
 _df_cache: pd.DataFrame | None = None
-# BUG-047 fix: track file modification times so caches auto-invalidate when CSVs change
+# Track file modification times so caches auto-invalidate when CSVs change
 _df_cache_mtime: float = 0.0
 import threading as _threading
 
@@ -89,7 +89,7 @@ def get_df() -> pd.DataFrame:
         if _df_cache is None or current_mtime != _df_cache_mtime:
             if CSV_PATH.exists():
                 df_raw = pd.read_csv(CSV_PATH, parse_dates=["date"])
-                # BUG-028 fix: normalize missing columns so charts never get KeyError
+                # Normalize missing columns so charts never get KeyError
                 if "price_inr" in df_raw.columns and "price_usd" not in df_raw.columns:
                     df_raw["price_usd"] = df_raw["price_inr"]
                 elif (
@@ -190,7 +190,7 @@ def get_cold_chain_df() -> pd.DataFrame:
     p = DATA_DIR / "huft_cold_chain.csv"
     mt = _csv_mtime(p)
     if _cold_chain_cache is None or mt != _cold_chain_cache_mtime:
-        # BUG-008 fix: parse expiry_date as datetime too (consistent with server.py)
+        # Parse expiry_date as datetime too (consistent with server.py)
         _cold_chain_cache = (
             pd.read_csv(p, parse_dates=["date", "expiry_date"])
             if p.exists()
@@ -291,7 +291,7 @@ def _fmt_inr_short(val: float) -> str:
     return f"{sign}₹{v:,.0f}"
 
 
-# BUG-033 fix: declare globals at module level to prevent NameError if any
+# Declare globals at module level to prevent NameError if any
 # UI component reads them before the background _init_ml thread sets them.
 _ml_ready: bool = False
 _ml_metrics: dict = {}
@@ -1212,7 +1212,7 @@ def build_brand_performance_bubble(
                 f"No data for: {' / '.join(parts) if parts else 'selected filters'}"
             )
 
-        # BUG-009 fix: drop rows where brand is NaN before groupby to avoid a
+        # Drop rows where brand is NaN before groupby to avoid a
         # spurious "NaN" brand row in the output.
         merged = merged.dropna(subset=["brand"])
         agg = (
@@ -1638,7 +1638,7 @@ def build_promotion_impact(
                 .sum()
                 .reset_index()
             )
-            # BUG-22 fix: use per-day total demand (not per-row mean) as baseline.
+            # Use per-day total demand (not per-row mean) as baseline.
             # The channel-filter path produces one row per SKU per day, so .mean()
             # gives avg per-SKU demand, not total daily demand. .sum().mean() gives
             # the correct mean total daily demand for the pre-promo window.
@@ -2570,7 +2570,7 @@ def build_reorder_events_timeline() -> go.Figure:
 
         df_sorted = df.sort_values(["sku_id", "date"])
         df_sorted["inv_delta"] = df_sorted.groupby("sku_id")["inventory"].diff()
-        # BUG-033 fix: only count significant inventory increases (≥ avg lead-time
+        # Only count significant inventory increases (≥ avg lead-time
         # demand) as reorder events, filtering out small corrections/adjustments.
         avg_daily = df_sorted.groupby("sku_id")["demand"].transform("mean")
         lead_time_days = df_sorted["lead_time_days"]
@@ -2676,7 +2676,7 @@ def build_dead_stock_bar(category_filter: str = "All") -> go.Figure:
             .rename(columns={"demand": "overall_avg_demand"})
         )
 
-        # BUG-017 fix: also compute per-category average so "Slow Moving" threshold
+        # Also compute per-category average so "Slow Moving" threshold
         # is relative to the category norm, not a single global number.
         cat_avg = (
             df.groupby(["sku_id", "category"])["demand"]
@@ -2855,7 +2855,7 @@ def build_seasonal_demand_radar() -> go.Figure:
             return _empty_fig("No demand data available")
 
         df["month_num"] = df["date"].dt.month
-        # BUG-015 fix: use mean not sum so months with different day counts
+        # Use mean not sum so months with different day counts
         # (Feb=28, Mar=31) are not penalised for having fewer rows.
         monthly = df.groupby(["category", "month_num"])["demand"].mean().reset_index()
         annual_avg = (
@@ -2872,7 +2872,7 @@ def build_seasonal_demand_radar() -> go.Figure:
         ).round(1)
 
         # Top 6 categories by total mean demand
-        # BUG-1 fix: 'annual' was never defined — compute it from annual_avg
+        # 'annual' was never defined — compute it from annual_avg
         annual = (
             df.groupby("category")["demand"]
             .mean()
@@ -3025,7 +3025,7 @@ def build_financial_kpi_cards() -> str:
             * merged2[merged2["demand_60d"] == 0]["cost_inr"]
         ).sum()
 
-        # BUG-004 fix: only count stockout days in the last 30 days, not all-time
+        # Only count stockout days in the last 30 days, not all-time
         cutoff30_kpi = latest_date - pd.Timedelta(days=30)
         recent30 = df[df["date"] >= cutoff30_kpi].copy()
         zero_inv_days = (
@@ -3820,7 +3820,7 @@ def build_inventory_fig(category_filter: str):
     n_ok = int((merged["risk"] == "OK").sum())
     avg_dos = float(merged["days_of_supply"].mean())
 
-    # BUG-022 fix: guard supplier column so headers always align with data
+    # Guard supplier column so headers always align with data
     if "supplier" not in merged.columns:
         merged["supplier"] = "N/A"
 
@@ -3844,7 +3844,7 @@ def build_inventory_fig(category_filter: str):
     )
 
     # Full inventory table — all SKUs
-    # BUG-046 fix: always include price_inr so column count matches the 10-column
+    # Always include price_inr so column count matches the 10-column
     # headers declaration; fill with 0 when the column doesn't exist.
     if "price_inr" not in merged.columns:
         merged["price_inr"] = 0
@@ -4362,7 +4362,7 @@ def build_inventory_tab():
             )
             name_col = "name" if "name" in merged_s.columns else "sku_id"
             merged_s["label"] = merged_s["sku_id"] + " — " + merged_s[name_col].str[:20]
-            # BUG-020: removed dead variable avg_lt (was computed but never used after
+            # Removed dead variable avg_lt (was computed but never used after
             # replacing single vline with per-SKU markers in a prior fix)
             fig = go.Figure()
             for risk in risk_order:
@@ -4642,7 +4642,7 @@ def build_inventory_tab():
             merged = _compute_inv_merged(cat, store_id)
 
             if merged is None or merged.empty:
-                # BUG-005 fix: must return exactly 6 values matching outs list
+                # Must return exactly 6 values matching outs list
                 return (
                     _empty_fig("No data available for this selection"),
                     "",
@@ -5319,7 +5319,7 @@ def build_forecast_fig(
     supplier = sku_df["supplier"].iloc[-1]
     category = sku_df["category"].iloc[-1]
     lead_time = int(sku_df["lead_time_days"].iloc[-1])
-    # BUG-045 fix: use .iloc[-1] (most recent row) not .iloc[0] (oldest row) for price
+    # Use .iloc[-1] (most recent row) not .iloc[0] (oldest row) for price
     if "price_inr" in sku_df.columns:
         price = float(sku_df["price_inr"].iloc[-1])
     elif "price_usd" in sku_df.columns:
@@ -5362,7 +5362,7 @@ def build_forecast_fig(
         else:
             raise RuntimeError("not trained")
     except Exception:
-        # BUG-036/038 fix: uncertainty bands widen with √t (proper forecast interval),
+        # Uncertainty bands widen with √t (proper forecast interval),
         # and trend is computed from actual recent data rather than fixed +5%.
         recent = sku_df["demand"].values[-60:]
         avg = float(np.mean(recent))
@@ -5637,7 +5637,7 @@ def build_forecast_fig(
         accuracy_html = ""
 
     # ── Styled KPI cards ─────────────────────────────────────────────────
-    # BUG-010 fix: use .iloc[-1] (most recent price), not .iloc[0] (oldest price)
+    # Use .iloc[-1] (most recent price), not .iloc[0] (oldest price)
     if "price_inr" in sku_df.columns:
         price_inr = float(sku_df["price_inr"].iloc[-1])
     elif "price_usd" in sku_df.columns:
@@ -5945,7 +5945,7 @@ def build_forecast_tab():
             _update_sku_list, inputs=[cat_filter, fcast_store_dd], outputs=[sku_dd]
         )
 
-        # ── Horizon preset buttons (BUG-021 fix: also re-run forecast) ─────
+        # ── Horizon preset buttons (also re-run forecast) ─────
         _forecast_inputs = [sku_dd, sku_dd2, horizon_sl, fcast_store_dd]
 
         def _run_forecast(sku_raw, sku2_raw, horizon, store_val="All Stores"):
@@ -5989,7 +5989,7 @@ def build_forecast_tab():
             inputs=_forecast_inputs,
             outputs=_forecast_outputs,
         )
-        # BUG-020 fix: wire horizon slider change to re-run forecast
+        # Wire horizon slider change to re-run forecast
         horizon_sl.change(
             _run_forecast,
             inputs=_forecast_inputs,
