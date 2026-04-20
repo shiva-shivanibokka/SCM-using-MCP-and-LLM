@@ -836,3 +836,53 @@ The app always has a working forecast regardless of training status — CatBoost
 - **`forecasting/ml_forecast.py`** — TFT + CatBoost implementation with GPU optimisations
 - **`mcp_server/server.py`** — Complete MCP server with all 50 tool implementations
 - **`agent/agent.py`** — ReAct agent with full system prompt and graceful degradation logic
+
+---
+
+## Roadmap — Next Upgrades
+
+The architecture patterns in this project are solid. The following are the most critical improvements needed before this could be considered enterprise-ready.
+
+### 1. Containerisation (Docker)
+The app currently runs as a single Python process with no isolation. A production deployment needs:
+```
+Dockerfile              ← app container (Gradio + agent + MCP server)
+docker-compose.yml      ← orchestrates app + MySQL + PostgreSQL + volumes
+.dockerignore
+```
+All environment variables injected at runtime via `docker run --env-file .env`, never baked into the image.
+
+### 2. CI/CD Pipeline
+No automated testing or deployment exists today. Minimum viable pipeline:
+```yaml
+# .github/workflows/ci.yml
+- Lint (ruff)
+- Unit tests for MCP tool handlers (pytest)
+- Integration test: run one full agent query against CSV data
+- Build Docker image
+- Push to registry on merge to main
+```
+
+### 3. Authentication
+The Gradio app is currently open to anyone with the URL. Needs:
+- Session-based login (Gradio's `auth=` parameter as a minimum)
+- API key storage in a secrets manager (AWS Secrets Manager / HashiCorp Vault) instead of `.env` files and UI text boxes
+
+### 4. Secrets Management
+API keys are currently passed through the UI or stored in `.env` files. In production:
+- All secrets go into a secrets manager
+- The app reads them at startup via SDK — never from user input or committed files
+- `.env` is for local development only and must stay in `.gitignore`
+
+### 5. Observability
+Current logging is CSV-based and manual. Needs:
+- Structured JSON logs (replace `logging.getLogger` with a structured logger like `structlog`)
+- Log shipping to a centralised platform (Datadog, CloudWatch, or Grafana Loki)
+- Continuous drift monitoring — model accuracy checked on a schedule, not only on demand
+- Distributed tracing across the agent → MCP → database call chain
+
+### 6. Horizontal Scaling
+The TFT inference lock (`threading.Lock`) means only one forecast runs at a time. At scale:
+- Separate the forecasting service from the web app (independent FastAPI service)
+- Run multiple Gradio workers behind a load balancer
+- Move TFT inference to a dedicated GPU worker queue (Celery + Redis)
