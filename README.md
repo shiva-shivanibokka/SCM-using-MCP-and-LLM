@@ -1,7 +1,7 @@
 # Pet Store Supply Chain Intelligence Platform
 ### Model Context Protocol · Temporal Fusion Transformer · Multi-LLM ReAct Agent · Real-Time Analytics
 
-A production-grade, end-to-end **AI-powered supply chain intelligence system** built for a premium Indian pet retail company with 67 stores across India. The system combines a **44-tool MCP server**, a **multi-provider ReAct agent**, a **Temporal Fusion Transformer (TFT)** demand forecasting model, and a **17-chart interactive analytics dashboard** — all served through a polished Gradio web application.
+A production-grade, end-to-end **AI-powered supply chain intelligence system** built for a premium Indian pet retail company with 67 stores across India. The system combines a **50-tool MCP server**, a **multi-provider ReAct agent**, a **Temporal Fusion Transformer (TFT)** demand forecasting model, and an **18-chart interactive analytics dashboard** — all served through a polished Gradio web application.
 
 ---
 
@@ -342,6 +342,7 @@ All data is synthetically generated to match HUFT's actual product catalog, stor
 | `huft_returns.csv` | 1,500 | Return log with reasons (~3% return rate) |
 | `huft_supplier_performance.csv` | 624 | Monthly supplier scorecards for 26 HUFT suppliers |
 | `huft_cold_chain.csv` | 2,193 | Temperature monitoring + expiry tracking for cold-chain SKUs (freeze-dried and raw food lines) |
+| `store_daily_inventory.csv` | ~39,150 | Per-store daily demand + inventory snapshot for all 65 SKUs × 60 physical stores × 90 days. Used by the Demand Forecast store filter and Store Inventory Comparison chart |
 
 **65 real HUFT SKUs across 15 categories:**
 Royal Canin, Pedigree, Farmina, Drools, Whiskas, Temptations, NexGard, Frontline, Bravecto, Virbac, KONG, Trixie, Ruffwear, Wahl, Cats Best — plus HUFT private labels: **Sara's Wholesome** (fresh food, cold chain), **Hearty**, **Meowsi**, **Dash Dog**, **HUFT branded** accessories, grooming, toys, clothing, bedding.
@@ -351,7 +352,7 @@ Diwali (+45% demand spike), Navratri, Dussehra, Holi, Independence Day, Republic
 
 ---
 
-### 5. Interactive Analytics Dashboard — 17 Switchable Charts
+### 5. Interactive Analytics Dashboard — 18 Switchable Charts
 
 A fully dynamic **5-tab Gradio application** where every chart is controlled by dropdowns and updates instantly without reloading the page.
 
@@ -366,22 +367,22 @@ A fully dynamic **5-tab Gradio application** where every chart is controlled by 
 
 #### Tab 2 — Analytics Dashboard (Marketing + Operational + Management)
 
-**Marketing Analytics** (6 switchable charts):
+**Marketing Analytics** (6 switchable charts, all filters include store):
 | Chart | Description |
 |---|---|
-| Sales by Channel | Stacked area — Online vs Offline vs App revenue over time |
-| Brand Performance | Bubble chart — Revenue × Margin % × Return rate per brand |
-| Category Revenue Heatmap | 12-month × N-category heatmap showing seasonal peaks |
-| Promotion Impact | Before/during/after demand comparison per campaign |
-| Top SKUs by Revenue | Horizontal bar, filterable by category and channel |
-| Customer Segments | Donut chart — Revenue contribution per customer segment |
+| Sales by Channel | Stacked area (all channels) or single-channel revenue line. Filters: category, channel, store, period |
+| Brand Performance | Dual horizontal bar — Revenue + Gross Margin % per brand, filtered by category/channel/store |
+| Category Revenue Trend | Multi-line monthly revenue per category with festival overlays. Renamed from "Category Revenue Heatmap" |
+| Promotion Impact | Before/during/after demand lift per campaign. **New:** SKU filter — select any SKU to see lift for that specific product across all promotions. Combine with store filter for per-store, per-SKU lift |
+| Top SKUs by Revenue | Horizontal bar, filterable by category, channel, store, and period |
+| Customer Segments | Stacked bar — Revenue, units, and avg order value per customer segment |
 
 **Operational Analytics** (4 switchable charts):
 | Chart | Description |
 |---|---|
 | Lead Time Performance | Scatter — Actual vs promised lead time per supplier (diagonal = perfect) |
-| Cold Chain Monitor | Multi-line temperature trend with danger zone shading |
-| Seasonal Demand Index | Radar/polar chart — 12-month demand index per category |
+| Cold Chain Monitor | **3-panel bar chart** — Avg temperature + error bars (min–max range), breach rate %, and units at expiry risk per SKU. Replaced the previous unreadable 2-row subplot |
+| Seasonal Demand Index | Grouped bar — 12-month demand index per category (above-average months = full colour, below-average = muted) |
 | Reorder Events Timeline | Monthly stacked bar — purchasing activity by category |
 
 **Management Dashboard** (3 switchable charts + always-visible KPI cards):
@@ -393,10 +394,10 @@ A fully dynamic **5-tab Gradio application** where every chart is controlled by 
 | Store Inventory Comparison | Horizontal bar — all 67 stores ranked by inventory health score |
 
 #### Tab 3 — Demand Forecast
-Per-SKU probabilistic forecast with P10/P50/P90 fan chart, 90-day inventory history with risk zone shading, reorder point and safety stock lines, and quantile recommendations.
+Per-SKU probabilistic forecast showing **forecast window only** (no historical data). P10/P50/P90 fan chart with confidence band, reorder point line, promotion overlays, and quantile-based reorder recommendations. Store filter uses per-store demand from `store_daily_inventory.csv` merged with the national demand base so all TFT static features remain available.
 
 #### Tab 4 — MLOps Monitor
-Model training (Full TFT / Fine-tune / CatBoost), forecast accuracy by SKU (MAPE, MAE, RMSE, calibration), drift detection, agent query log.
+Model training (Full TFT / Fine-tune / CatBoost). Current model status shown as a **`gr.Dataframe` table** (Engine, Mode, MAPE, MAE, RMSE, Calibration, SKUs, Trained At). Forecast accuracy per SKU shown as a **sortable `gr.Dataframe` table** (worst errors at top) — scales to any number of SKUs without chart crowding. Drift detection, prediction log, agent query log.
 
 ---
 
@@ -418,8 +419,9 @@ Beyond supply chain queries, the agent handles:
 ```
 SCM-using-MCP-and-LLM/
 │
-├── gradio_app.py                  ← Main app (5 tabs, 17 charts, full UI)
+├── gradio_app.py                  ← Main app (5 tabs, 18 charts, full UI)
 ├── requirements.txt
+├── setup_databases.py             ← One-command DB setup (MySQL + PostgreSQL)
 ├── TOOLS_README.md                ← Plain-English guide to all 50 tools
 │
 ├── agent/
@@ -434,7 +436,7 @@ SCM-using-MCP-and-LLM/
 │   └── data_loader.py             ← Multi-source loader (MySQL/PostgreSQL/CSV)
 │
 ├── data/
-│   ├── generate_data.py           ← HUFT synthetic data generator (9 CSVs)
+│   ├── generate_data.py           ← HUFT synthetic data generator (10 CSVs)
 │   ├── huft_daily_demand.csv      ← 47,515 rows · 65 SKUs · 730 days
 │   ├── huft_sales_transactions.csv← 50,000 transactions
 │   ├── huft_customers.csv         ← 5,000 customers
@@ -443,17 +445,21 @@ SCM-using-MCP-and-LLM/
 │   ├── huft_promotions.csv        ← 24 HUFT promotions
 │   ├── huft_returns.csv           ← 1,500 returns
 │   ├── huft_supplier_performance.csv ← 624 supplier scorecards
-│   └── huft_cold_chain.csv        ← 2,193 cold chain records
+│   ├── huft_cold_chain.csv        ← 2,193 cold chain records
+│   └── store_daily_inventory.csv  ← ~39,150 rows · per-store daily demand snapshot
 │
 ├── db/
 │   ├── mysql_schema.sql           ← MySQL schema + supplier seed data
-│   └── postgres_schema.sql        ← PostgreSQL schema + views
+│   ├── postgres_schema.sql        ← PostgreSQL schema + views
+│   ├── migrate_huft.py            ← Data migration helper
+│   └── setup.py                   ← DB setup utilities
 │
 ├── mlops/
 │   └── monitor.py                 ← Prediction logging, drift detection, query log
 │
 ├── knowledge/                     ← Policy documents for the knowledge base tool
-└── logs/                          ← Auto-created: predictions.csv, query_log.csv
+└── logs/                          ← Auto-created: predictions.csv, query_log.csv,
+                                      drift_metrics.csv
 ```
 
 ---
@@ -610,13 +616,14 @@ Real-time inventory risk for all 65 SKUs.
 Three sections, each with switchable charts:
 
 **Marketing Analytics:**
-- Select a chart type from the dropdown (Sales by Channel, Brand Performance, etc.)
-- Use the **Category** and **Channel** filters to drill down
+- Select a chart type from the dropdown (Sales by Channel, Brand Performance, Category Revenue Trend, Promotion Impact, Top SKUs by Revenue, Customer Segments)
+- Use the **Category**, **Channel**, **Store**, and **Period** filters — all are fully wired; the chart title always shows which filters are active
+- For **Promotion Impact**: a **SKU Filter** dropdown appears — select any product to see how every promotion affected that specific SKU's demand. Combine with the Store Filter for per-store, per-SKU lift analysis
 - The interpretation box below each chart explains what to look for
 
 **Operational Analytics:**
 - Lead Time Performance, Cold Chain Monitor, Seasonal Demand Index, Reorder Events
-- The Cold Chain Monitor shows temperature breaches and expiry risk for cold-chain SKUs
+- The **Cold Chain Monitor** shows a 3-panel summary per cold-chain SKU: average temperature with min–max range, breach rate %, and units at expiry risk — much clearer than the old multi-line trend
 
 **Management Dashboard:**
 - Financial KPI cards are always visible at the top
@@ -627,20 +634,23 @@ Three sections, each with switchable charts:
 
 ### Tab 4 — Demand Forecast
 
-Per-SKU probabilistic demand forecasting.
+Per-SKU probabilistic demand forecasting — **forecast window only** (no historical data shown).
 
-1. Select a **SKU** from the dropdown (e.g. `DOG_001 — Royal Canin Adult`)
-2. Optionally select a second SKU to compare
-3. Set the **forecast horizon** using the slider (7 / 14 / 30 / 90 days) or preset buttons
-4. Click **Run Forecast** — or the horizon slider auto-triggers a re-run
-5. Read the chart:
-   - **Blue line** (left of dashed divider) = last 90 days of actual demand
-   - **Green line** (right of divider) = P50 (median) forecast
-   - **Red shaded band** = P10–P90 uncertainty range (80% confidence)
-   - **Yellow dashed line** = Reorder Point — order when inventory drops below this
-   - **Orange shaded blocks** = active promotions in the forecast window
-6. The KPI cards below show total forecast in units and estimated ₹INR revenue
-7. The **Recommendation** box shows whether to reorder now and suggested quantity
+1. Optionally select a **Category Filter** and **Store Filter** to scope the SKU list
+2. Select a **SKU** from the dropdown
+3. Optionally select a second SKU to compare
+4. Set the **forecast horizon** using the preset buttons (1 Week / 2 Weeks / 1 Month / 3 Months) or the custom slider (7–90 days)
+5. Click **Run Forecast**
+6. Read the chart:
+   - **Green line** = P50 (median) forecast — your best daily planning number
+   - **Pink shaded band** = P10–P90 uncertainty range (80% confidence interval)
+   - **Blue dotted line** = P10 (pessimistic) — use for safety stock
+   - **Red dotted line** = P90 (optimistic) — use for maximum order sizing
+   - **Yellow dashed line** = Reorder Point — trigger a purchase order if current inventory is near or below this
+   - **Orange shaded blocks** = active promotions in the forecast window (expect higher demand)
+7. The KPI cards below show total forecast in units and estimated ₹INR revenue
+8. The **Recommendation** box shows whether to reorder now and the suggested quantity
+9. The **Model Accuracy** line above the chart shows Absolute Error % and grade for this SKU
 
 ---
 
@@ -657,10 +667,14 @@ Model training, forecast accuracy, and drift detection.
 3. Optionally tick **Fine-tune after full retrain** to do both in sequence
 4. Click the training button — progress streams in the log box in real time
 
+**Checking model status:**
+- The **Current Model Status** table (just below the training buttons) shows Engine, Mode, MAPE, MAE, RMSE, Calibration, SKUs, and Trained At in a clean row — updated immediately after each training run
+
 **Checking forecast accuracy:**
-- The **Forecast Accuracy by SKU** table shows MAPE, MAE, and a grade (A/B/C/D) for every SKU
-- Click **Run Drift Check** to compute whether model calibration has degraded
-- The drift chart shows MAE over time vs baseline
+- The **Forecast Accuracy by SKU** table shows Forecast P50/day, Actual Avg/day, Error %, and Grade (Excellent <10% / Good <20% / Fair <35% / Poor ≥35%) for every SKU that has been forecasted
+- Rows are sorted by Error % descending — worst-performing SKUs appear at the top
+- Scales to any number of SKUs (no chart crowding)
+- Click **Run Drift Check** to compute whether model calibration has degraded since training
 
 **Query log:**
 - Every AI Assistant query is logged here (provider, model, tools called, duration)

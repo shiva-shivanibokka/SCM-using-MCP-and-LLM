@@ -248,7 +248,7 @@ def _empty_fig(msg: str = "Data not available") -> go.Figure:
 
 
 def _fmt_inr(val: float) -> str:
-    """Format a value as Indian Rupee string (e.g. ₹12,34,567)."""
+    """Full Indian Rupee format with lakh/crore comma grouping: ₹12,34,567."""
     val = int(round(val))
     if val < 0:
         return f"-₹{_fmt_inr(-val)[1:]}"
@@ -265,6 +265,30 @@ def _fmt_inr(val: float) -> str:
         parts.append(rest)
     parts.reverse()
     return f"₹{','.join(parts)},{last3}"
+
+
+def _fmt_inr_short(val: float) -> str:
+    """
+    Compact Indian Rupee format for chart labels and axis ticks.
+    Uses the Indian unit system: K (thousand), L (lakh = 1,00,000), Cr (crore = 1,00,00,000).
+
+    Examples:
+        500        → ₹500
+        5,000      → ₹5.0K
+        75,000     → ₹75.0K
+        1,50,000   → ₹1.50L
+        25,00,000  → ₹25.0L
+        1,50,00,000→ ₹1.50Cr
+    """
+    v = abs(float(val))
+    sign = "-" if float(val) < 0 else ""
+    if v >= 1e7:  # 1 crore+
+        return f"{sign}₹{v / 1e7:.2f}Cr"
+    if v >= 1e5:  # 1 lakh+
+        return f"{sign}₹{v / 1e5:.2f}L"
+    if v >= 1e3:  # 1 thousand+
+        return f"{sign}₹{v / 1e3:.1f}K"
+    return f"{sign}₹{v:,.0f}"
 
 
 # BUG-033 fix: declare globals at module level to prevent NameError if any
@@ -1017,47 +1041,115 @@ def build_inventory_heatmap(category_filter: str = "All") -> go.Figure:
 
 
 def build_sales_by_channel(
-    period_days: int = 90, store_id: str | None = None
+    period_days: int = 90,
+    category_filter: str = "All",
+    channel_filter: str = "All",
+    store_id: str | None = None,
 ) -> go.Figure:
     """
-    Sales by Channel Over Time — Stacked area chart.
+    Sales by Channel Over Time — Stacked area chart (all channels) or single-channel
+    revenue line (when channel_filter is set).
     Groups huft_sales_transactions.csv by week and channel.
+    Filters: period_days, category_filter, channel_filter, store_id.
     """
     try:
         txn = get_transactions()
-        if store_id:
-            txn = txn[txn["store_id"] == store_id]
         if txn.empty:
             return _empty_fig("Sales transaction data not available")
 
+        # ── Apply filters ────────────────────────────────────────────────
+        if store_id:
+            txn = txn[txn["store_id"] == store_id]
+        if category_filter != "All" and "category" in txn.columns:
+            txn = txn[txn["category"] == category_filter]
+        if channel_filter != "All" and "channel" in txn.columns:
+            txn = txn[txn["channel"] == channel_filter]
+
+        # Build a reusable filter label for both error messages and chart titles
+        def _filter_label() -> str:
+            parts = []
+            if store_id:
+                parts.append(f"Store: {store_id}")
+            if category_filter != "All":
+                parts.append(category_filter)
+            if channel_filter != "All":
+                parts.append(f"{channel_filter} channel")
+            return " · ".join(parts) if parts else "All"
+
+        if txn.empty:
+            return _empty_fig(f"No transaction data for: {_filter_label()}")
+
         cutoff = txn["date"].max() - pd.Timedelta(days=period_days)
         txn = txn[txn["date"] >= cutoff].copy()
-        txn["week"] = txn["date"].dt.to_period("W").dt.start_time
-        weekly = txn.groupby(["week", "channel"])["net_revenue_inr"].sum().reset_index()
 
-        channels = weekly["channel"].unique().tolist()
+        if txn.empty:
+            return _empty_fig(
+                f"No data in the last {period_days} days for: {_filter_label()}"
+            )
+
+        txn["week"] = txn["date"].dt.to_period("W").dt.start_time
         channel_colors = {"Online": "#4285F4", "Offline": "#34A853", "App": "#EA4335"}
 
         fig = go.Figure()
-        for ch in sorted(channels):
-            sub = weekly[weekly["channel"] == ch].sort_values("week")
+
+        if channel_filter != "All":
+            # Single channel selected — show one revenue line (not stacked)
+            weekly = (
+                txn.groupby("week")["net_revenue_inr"]
+                .sum()
+                .reset_index()
+                .sort_values("week")
+            )
+            color = channel_colors.get(channel_filter, "#9CA3AF")
+            r = int(color[1:3], 16)
+            g = int(color[3:5], 16)
+            b = int(color[5:7], 16)
+            fill_color = f"rgba({r},{g},{b},0.15)"
             fig.add_trace(
                 go.Scatter(
-                    x=sub["week"],
-                    y=sub["net_revenue_inr"],
-                    name=ch,
+                    x=weekly["week"],
+                    y=weekly["net_revenue_inr"],
+                    name=channel_filter,
                     mode="lines",
-                    stackgroup="one",
-                    fillcolor=channel_colors.get(ch, "#9CA3AF"),
-                    line=dict(color=channel_colors.get(ch, "#9CA3AF"), width=2),
-                    hovertemplate=f"<b>{ch}</b><br>Week: %{{x|%b %d}}<br>Revenue: ₹%{{y:,.0f}}<extra></extra>",
+                    fill="tozeroy",
+                    fillcolor=fill_color,
+                    line=dict(color=color, width=2.5),
+                    hovertemplate=f"<b>{channel_filter}</b><br>Week: %{{x|%b %d}}<br>Revenue: ₹%{{y:,.0f}}<extra></extra>",
                 )
             )
+        else:
+            # All channels — stacked area
+            weekly = (
+                txn.groupby(["week", "channel"])["net_revenue_inr"].sum().reset_index()
+            )
+            channels = sorted(weekly["channel"].unique().tolist())
+            for ch in channels:
+                sub = weekly[weekly["channel"] == ch].sort_values("week")
+                fig.add_trace(
+                    go.Scatter(
+                        x=sub["week"],
+                        y=sub["net_revenue_inr"],
+                        name=ch,
+                        mode="lines",
+                        stackgroup="one",
+                        fillcolor=channel_colors.get(ch, "#9CA3AF"),
+                        line=dict(color=channel_colors.get(ch, "#9CA3AF"), width=2),
+                        hovertemplate=f"<b>{ch}</b><br>Week: %{{x|%b %d}}<br>Revenue: ₹%{{y:,.0f}}<extra></extra>",
+                    )
+                )
+
+        title_suffix = (
+            _filter_label()
+            if _filter_label() != "All"
+            else f"Last {period_days} Days (Weekly)"
+        )
+        if store_id and f"Last {period_days}" not in title_suffix:
+            title_suffix = f"Last {period_days} Days (Weekly) · {title_suffix}"
 
         fig.update_layout(
             **_CHART_LAYOUT,
             title=dict(
-                text=f"Sales by Channel — Last {period_days} Days (Weekly)",
+                text=f"Sales by Channel — {title_suffix}",
                 font=dict(size=16, color="#4285F4"),
             ),
             xaxis_title="Week",
@@ -1107,7 +1199,18 @@ def build_brand_performance_bubble(
             merged = merged[merged["channel"] == channel_filter]
 
         if merged.empty:
-            return _empty_fig(f"No data for {category_filter} / {channel_filter}")
+            parts = [
+                x
+                for x in [
+                    store_id,
+                    category_filter if category_filter != "All" else None,
+                    channel_filter if channel_filter != "All" else None,
+                ]
+                if x
+            ]
+            return _empty_fig(
+                f"No data for: {' / '.join(parts) if parts else 'selected filters'}"
+            )
 
         # BUG-009 fix: drop rows where brand is NaN before groupby to avoid a
         # spurious "NaN" brand row in the output.
@@ -1131,7 +1234,35 @@ def build_brand_performance_bubble(
 
         fig = go.Figure()
 
-        # Revenue bars
+        def _fmt_inr_short(v: float) -> str:
+            """Format a rupee value in Indian short form: ₹1.5K, ₹2.3L, ₹1.8Cr."""
+            v = abs(float(v))
+            if v >= 1e7:
+                return f"₹{v / 1e7:.2f}Cr"
+            if v >= 1e5:
+                return f"₹{v / 1e5:.2f}L"
+            if v >= 1e3:
+                return f"₹{v / 1e3:.1f}K"
+            return f"₹{v:,.0f}"
+
+        def _fmt_inr_full(v: float) -> str:
+            """Full Indian number format with lakhs/crore comma grouping."""
+            v = int(round(abs(float(v))))
+            s = str(v)
+            if len(s) <= 3:
+                return f"₹{s}"
+            last3 = s[-3:]
+            rest = s[:-3]
+            parts = []
+            while len(rest) > 2:
+                parts.append(rest[-2:])
+                rest = rest[:-2]
+            if rest:
+                parts.append(rest)
+            parts.reverse()
+            return f"₹{','.join(parts)},{last3}"
+
+        # Revenue bars — labels in Indian short form (₹1.5K, ₹2.3L, ₹1.8Cr)
         fig.add_trace(
             go.Bar(
                 name="Revenue (₹)",
@@ -1141,12 +1272,19 @@ def build_brand_performance_bubble(
                 marker_color=bar_colors,
                 marker_opacity=0.85,
                 text=[
-                    f"₹{v / 1e6:.2f}M | {m:.0f}% margin"
+                    f"{_fmt_inr_short(v)} | {m:.0f}% margin"
                     for v, m in zip(agg["revenue"], agg["margin_pct_actual"])
                 ],
                 textposition="outside",
                 textfont=dict(size=10),
-                hovertemplate="<b>%{y}</b><br>Revenue: ₹%{x:,.0f}<extra></extra>",
+                customdata=[
+                    [_fmt_inr_full(v), u] for v, u in zip(agg["revenue"], agg["units"])
+                ],
+                hovertemplate=(
+                    "<b>%{y}</b><br>"
+                    "Revenue: <b>%{customdata[0]}</b><br>"
+                    "Units sold: %{customdata[1]:,}<extra></extra>"
+                ),
                 xaxis="x1",
             )
         )
@@ -1182,15 +1320,42 @@ def build_brand_performance_bubble(
                 )
             )
 
+        # Build Indian-system x-axis tick labels
+        max_rev = float(agg["revenue"].max()) if not agg.empty else 1
+        # Generate ~6 tick values spanning 0 → max_rev
+        import math
+
+        tick_step = max(1, 10 ** math.floor(math.log10(max_rev / 5))) * round(
+            max_rev / 5 / (10 ** math.floor(math.log10(max_rev / 5)))
+        )
+        tick_step = max(tick_step, 1000)
+        tick_vals = [
+            i * tick_step
+            for i in range(int(max_rev / tick_step) + 2)
+            if i * tick_step <= max_rev * 1.15
+        ]
+        tick_text = [_fmt_inr_short(v) for v in tick_vals]
+
         n = len(agg)
+        title_parts_bp = [category_filter]
+        if channel_filter != "All":
+            title_parts_bp.append(channel_filter)
+        if store_id:
+            title_parts_bp.append(f"Store: {store_id}")
         fig.update_layout(
             **_CHART_LAYOUT,
             title=dict(
-                text=f"Brand Performance — {category_filter}"
-                + (f" | {channel_filter}" if channel_filter != "All" else ""),
+                text="Brand Performance — " + " · ".join(title_parts_bp),
                 font=dict(size=16, color="#4285F4"),
             ),
-            xaxis=dict(title="Total Revenue (₹)", domain=[0, 0.78], showgrid=True),
+            xaxis=dict(
+                title="Total Revenue (₹)",
+                domain=[0, 0.78],
+                showgrid=True,
+                tickvals=tick_vals,
+                ticktext=tick_text,
+                tickfont=dict(size=10),
+            ),
             xaxis2=dict(
                 title="Gross Margin %",
                 overlaying="x",
@@ -1198,6 +1363,7 @@ def build_brand_performance_bubble(
                 range=[0, 100],
                 domain=[0, 0.78],
                 showgrid=False,
+                ticksuffix="%",
             ),
             yaxis=dict(tickfont=dict(size=11)),
             height=max(420, n * 34 + 120),
@@ -1237,7 +1403,16 @@ def build_category_revenue_heatmap(
             txn = txn[txn["category"] == category_filter]
 
         if txn.empty:
-            return _empty_fig("No data for selected filters")
+            _fl = " / ".join(
+                x
+                for x in [
+                    store_id,
+                    category_filter if category_filter != "All" else None,
+                    channel_filter if channel_filter != "All" else None,
+                ]
+                if x
+            )
+            return _empty_fig(f"No data for: {_fl or 'selected filters'}")
 
         # Monthly aggregation per category
         txn["month_dt"] = txn["date"].dt.to_period("M").dt.to_timestamp()
@@ -1274,8 +1449,12 @@ def build_category_revenue_heatmap(
         for i, cat in enumerate(categories):
             cat_df = monthly[monthly["category"] == cat].sort_values("month_dt")
             color = palette[i % len(palette)]
+            # Build rgba fill from 6-digit hex (palette entries are always #RRGGBB)
+            r = int(color[1:3], 16)
+            g = int(color[3:5], 16)
+            b = int(color[5:7], 16)
+            fill_color = f"rgba({r},{g},{b},0.10)"
 
-            # Add shaded area under each line for easier reading
             fig.add_trace(
                 go.Scatter(
                     x=cat_df["month_dt"],
@@ -1285,9 +1464,7 @@ def build_category_revenue_heatmap(
                     line=dict(color=color, width=2.2),
                     marker=dict(size=5, color=color),
                     fill="tozeroy" if len(categories) == 1 else "none",
-                    fillcolor=color.replace(")", ",0.08)").replace("rgb(", "rgba(")
-                    if "rgb" in color
-                    else color + "14",
+                    fillcolor=fill_color,
                     hovertemplate=(
                         f"<b>{cat}</b><br>"
                         "Month: %{x|%b %Y}<br>"
@@ -1328,11 +1505,15 @@ def build_category_revenue_heatmap(
                     annotation_font_color="#92400E",
                 )
 
-        subtitle = (
-            (category_filter if category_filter != "All" else "All Categories")
-            + (f" | {channel_filter}" if channel_filter != "All" else "")
-            + f" | Last {period_days} days"
-        )
+        subtitle_parts = [
+            category_filter if category_filter != "All" else "All Categories"
+        ]
+        if channel_filter != "All":
+            subtitle_parts.append(channel_filter)
+        if store_id:
+            subtitle_parts.append(f"Store: {store_id}")
+        subtitle_parts.append(f"Last {period_days} days")
+        subtitle = " · ".join(subtitle_parts)
         fig.update_layout(
             **_CHART_LAYOUT,
             title=dict(
@@ -1367,13 +1548,23 @@ def build_promotion_impact(
     category_filter: str = "All",
     channel_filter: str = "All",
     store_id: str | None = None,
+    sku_filter: str = "All",
 ) -> go.Figure:
     """
     Promotion Demand Lift Chart.
-    Shows % lift in daily demand During vs 7-day baseline Before each promotion.
-    Positive = promotion boosted demand. Negative = demand fell (e.g. donation drive).
-    Sorted by lift % so best-performing promotions are immediately visible.
-    Also shows 14-day post-promo retention: did demand hold after the sale ended?
+
+    When sku_filter is set: shows lift for a single SKU across all promos
+    (uses the demand CSV which has full daily history per SKU).
+
+    When sku_filter is 'All': shows aggregate lift across all SKUs
+    (or filtered to category/channel/store as before).
+
+    Store filter applies via transactions: overlays per-store demand onto the
+    national demand CSV so lift is computed from store-specific sales volumes.
+
+    Lift formula: (avg_daily_demand_during - avg_daily_demand_7d_before) /
+                  avg_daily_demand_7d_before × 100
+    Also shows 14-day post-promo retention lift.
     """
     try:
         promos = get_promotions_df()
@@ -1381,10 +1572,26 @@ def build_promotion_impact(
         if promos.empty or demand_df.empty:
             return _empty_fig("Promotion or demand data not available")
 
-        # BUG-015/016 fix: channel filter requires transactions CSV (demand CSV has no
-        # channel column). When channel filter is active, aggregate transactions to
-        # daily demand per category; otherwise use the faster demand CSV.
-        if channel_filter != "All" or store_id:
+        # ── Build the demand series to use for lift computation ──────────
+        # Priority: SKU-specific > store-specific > channel-specific > category > all
+        if sku_filter and sku_filter != "All":
+            # Single SKU: use demand CSV directly (full daily history)
+            sku_id_clean = sku_filter.split(" —")[0].strip()
+            demand_filt = demand_df[demand_df["sku_id"] == sku_id_clean].copy()
+            if demand_filt.empty:
+                return _empty_fig(f"No demand data for SKU: {sku_id_clean}")
+            # If store filter is also set, scale demand by store's share of
+            # total transactions for this SKU
+            if store_id:
+                txn = get_transactions()
+                txn_sku = txn[txn["sku_id"] == sku_id_clean]
+                total_qty = txn_sku["quantity"].sum()
+                store_qty = txn_sku[txn_sku["store_id"] == store_id]["quantity"].sum()
+                store_share = (store_qty / total_qty) if total_qty > 0 else 1.0
+                demand_filt = demand_filt.copy()
+                demand_filt["demand"] = demand_filt["demand"] * store_share
+        elif channel_filter != "All" or store_id:
+            # Channel/store filter: aggregate transactions to daily demand
             txn = get_transactions()
             if not txn.empty:
                 if store_id:
@@ -1395,7 +1602,6 @@ def build_promotion_impact(
                 txn_filt = txn.copy()
                 if category_filter != "All":
                     txn_filt = txn_filt[txn_filt["category"] == category_filter]
-                # Aggregate to daily total demand (quantity) per date+category
                 demand_filt = (
                     txn_filt.groupby(["date", "sku_id", "category"])["quantity"]
                     .sum()
@@ -1503,33 +1709,48 @@ def build_promotion_impact(
             return fig
 
         # All promotions — Demand Lift % horizontal bar
+        # demand_filt is already correctly scoped (SKU / store / channel / category).
+        # Use it directly — no need to re-filter.
+        promo_demand = demand_filt
+
         results = []
         for _, row in promos.iterrows():
             start = pd.to_datetime(row["start_date"])
             end = pd.to_datetime(row["end_date"])
-            before_mask = (demand_filt["date"] >= start - pd.Timedelta(days=7)) & (
-                demand_filt["date"] < start
+            before_mask = (promo_demand["date"] >= start - pd.Timedelta(days=7)) & (
+                promo_demand["date"] < start
             )
-            during_mask = (demand_filt["date"] >= start) & (demand_filt["date"] <= end)
-            after_mask = (demand_filt["date"] > end) & (
-                demand_filt["date"] <= end + pd.Timedelta(days=14)
+            during_mask = (promo_demand["date"] >= start) & (
+                promo_demand["date"] <= end
             )
-
-            # BUG-22 fix: use mean of daily totals, not mean of per-row values
-            before = float(
-                demand_filt[before_mask].groupby("date")["demand"].sum().mean() or 0
-            )
-            during = float(
-                demand_filt[during_mask].groupby("date")["demand"].sum().mean() or 0
-            )
-            after = float(
-                demand_filt[after_mask].groupby("date")["demand"].sum().mean() or 0
+            after_mask = (promo_demand["date"] > end) & (
+                promo_demand["date"] <= end + pd.Timedelta(days=14)
             )
 
-            if before < 1:
+            # Use mean of daily totals per window
+            before_series = promo_demand[before_mask].groupby("date")["demand"].sum()
+            during_series = promo_demand[during_mask].groupby("date")["demand"].sum()
+            after_series = promo_demand[after_mask].groupby("date")["demand"].sum()
+
+            before = (
+                float(before_series.mean()) if not before_series.empty else float("nan")
+            )
+            during = (
+                float(during_series.mean()) if not during_series.empty else float("nan")
+            )
+            after = (
+                float(after_series.mean()) if not after_series.empty else float("nan")
+            )
+
+            # Skip promotions with no usable baseline (NaN or zero)
+            if pd.isna(before) or before < 1:
                 continue
-            lift_during = (during - before) / before * 100
-            lift_after = (after - before) / before * 100
+            lift_during = (
+                (during - before) / before * 100 if pd.notna(during) else float("nan")
+            )
+            lift_after = (
+                (after - before) / before * 100 if pd.notna(after) else float("nan")
+            )
 
             results.append(
                 {
@@ -1543,7 +1764,18 @@ def build_promotion_impact(
             )
 
         if not results:
-            return _empty_fig("No data available for selected filters")
+            _promo_fl = " / ".join(
+                x
+                for x in [
+                    store_id,
+                    category_filter if category_filter != "All" else None,
+                    channel_filter if channel_filter != "All" else None,
+                ]
+                if x
+            )
+            return _empty_fig(
+                f"No promotion data for: {_promo_fl or 'selected filters'}"
+            )
 
         res_df = pd.DataFrame(results).sort_values("lift_during", ascending=True)
 
@@ -1600,11 +1832,23 @@ def build_promotion_impact(
         # Zero reference line
         fig.add_vline(x=0, line_color="#9E9E9E", line_width=1.5, line_dash="solid")
 
-        cat_label = f" | {category_filter}" if category_filter != "All" else ""
+        filter_parts = []
+        if sku_filter and sku_filter != "All":
+            _sku_label = (
+                sku_filter if " —" in sku_filter else sku_filter.split(" —")[0].strip()
+            )
+            filter_parts.append(f"SKU: {_sku_label}")
+        if category_filter != "All":
+            filter_parts.append(category_filter)
+        if channel_filter != "All":
+            filter_parts.append(channel_filter)
+        if store_id:
+            filter_parts.append(f"Store: {store_id}")
+        filter_label = (" | " + " · ".join(filter_parts)) if filter_parts else ""
         fig.update_layout(
             **_CHART_LAYOUT,
             title=dict(
-                text=f"Promotion Demand Lift{cat_label}<br>"
+                text=f"Promotion Demand Lift{filter_label}<br>"
                 "<sup style='color:#666'>Bar = lift during promo · Dot = 14-day post-promo retention · Green = positive lift</sup>",
                 font=dict(size=15, color="#4285F4"),
             ),
@@ -1630,33 +1874,68 @@ def build_store_inventory_comparison(
 ) -> go.Figure:
     """
     Category Inventory Health — avg days of supply per product category.
-    Correctly named: this chart shows CATEGORY-level averages, not store comparisons.
-    Thresholds use per-category avg lead time (consistent with the rest of the app)
-    instead of the old fixed 7d/14d values.
+    When store_id is provided, uses store_daily_inventory.csv filtered to that store.
+    Falls back to the national demand CSV when no store is selected.
+    Thresholds use per-category avg lead time (consistent with the rest of the app).
     """
     try:
-        demand_df = get_df()
+        # ── Data source: per-store or national ───────────────────────────
+        if store_id:
+            sdi_path = BASE_DIR / "data" / "store_daily_inventory.csv"
+            if sdi_path.exists():
+                sdi = pd.read_csv(sdi_path, parse_dates=["date"])
+                sdi = sdi[sdi["store_id"] == store_id]
+                if not sdi.empty:
+                    latest_date = sdi["date"].max()
+                    latest = sdi[sdi["date"] == latest_date].copy()
+                    cutoff = latest_date - pd.Timedelta(days=30)
+                    recent_avg = (
+                        sdi[sdi["date"] >= cutoff]
+                        .groupby("sku_id")["demand"]
+                        .mean()
+                        .reset_index()
+                        .rename(columns={"demand": "avg_daily_demand"})
+                    )
+                    merged = latest.merge(recent_avg, on="sku_id", how="left")
+                    merged["avg_daily_demand"] = merged["avg_daily_demand"].fillna(0)
+                    merged["days_of_supply"] = (
+                        merged["inventory"]
+                        / merged["avg_daily_demand"].replace(0, np.nan)
+                    ).fillna(0)
+                    # Ensure required columns exist (lead_time_days, category)
+                    if (
+                        "lead_time_days" not in merged.columns
+                        or "category" not in merged.columns
+                    ):
+                        demand_df = get_df()
+                        slim = demand_df[demand_df["date"] == demand_df["date"].max()][
+                            ["sku_id", "category", "lead_time_days"]
+                        ].drop_duplicates("sku_id")
+                        merged = merged.merge(slim, on="sku_id", how="left")
+                else:
+                    store_id = None  # fall through to national data
+
+        if not store_id:
+            demand_df = get_df()
+            if demand_df.empty:
+                return _empty_fig("Demand data not available")
+            latest_date = demand_df["date"].max()
+            latest = demand_df[demand_df["date"] == latest_date].copy()
+            cutoff = latest_date - pd.Timedelta(days=30)
+            recent_avg = (
+                demand_df[demand_df["date"] >= cutoff]
+                .groupby("sku_id")["demand"]
+                .mean()
+                .reset_index()
+                .rename(columns={"demand": "avg_daily_demand"})
+            )
+            merged = latest.merge(recent_avg, on="sku_id")
+            merged["days_of_supply"] = (
+                merged["inventory"] / merged["avg_daily_demand"].replace(0, np.nan)
+            ).fillna(0)
+
         stores = get_stores_df()
-        if demand_df.empty:
-            return _empty_fig("Demand data not available")
-
-        latest_date = demand_df["date"].max()
-        latest = demand_df[demand_df["date"] == latest_date].copy()
-        cutoff = latest_date - pd.Timedelta(days=30)
-        recent_avg = (
-            demand_df[demand_df["date"] >= cutoff]
-            .groupby("sku_id")["demand"]
-            .mean()
-            .reset_index()
-            .rename(columns={"demand": "avg_daily_demand"})
-        )
-        merged = latest.merge(recent_avg, on="sku_id")
-        merged["days_of_supply"] = (
-            merged["inventory"] / merged["avg_daily_demand"].replace(0, np.nan)
-        ).fillna(0)
-
-        # BUG-013 fix: region filter now actually works by joining transactions with
-        # stores on city → region, then filtering to matching SKUs.
+        # Region filter: joins transactions → city → region, filters to matching SKUs
         txn = get_transactions()
         if (
             region_filter != "All"
@@ -1763,7 +2042,12 @@ def build_store_inventory_comparison(
 
         n_crit = int((cat_dos["risk"] == "CRITICAL").sum())
         n_warn = int((cat_dos["risk"] == "WARNING").sum())
-        scope_label = f" | Region: {region_filter}" if region_filter != "All" else ""
+        scope_parts = []
+        if store_id:
+            scope_parts.append(f"Store: {store_id}")
+        if region_filter != "All":
+            scope_parts.append(f"Region: {region_filter}")
+        scope_label = (" | " + " · ".join(scope_parts)) if scope_parts else ""
 
         fig.update_layout(
             **_CHART_LAYOUT,
@@ -2099,17 +2383,14 @@ def build_lead_time_scatter() -> go.Figure:
 
 def build_cold_chain_trend(sku_filter: str | None = None) -> go.Figure:
     """
-    Cold Chain Monitor — two-row subplot layout.
+    Cold Chain Monitor — clear SKU-level summary dashboard.
 
-    Row 1: Weekly-average temperature per SKU (smooth lines).
-           730 raw daily points → ~104 weekly points = readable.
-           Reference lines at 0°C and 6°C mark the safe zone boundaries.
+    Shows three side-by-side grouped bar charts (one group per SKU):
+      • Average temperature vs safe zone (0–6°C target)
+      • Temperature range (min–max band as error bars)
+      • Units at risk of expiry
 
-    Row 2: Monthly breach count per SKU (grouped bars).
-           A breach = any day where temp_celsius < 0 or > 6.
-
-    Replaces the raw daily line chart where 3 SKUs × 730 days
-    produced an unreadable noise band.
+    Replaces the unreadable 2-row subplot that was impossible to interpret.
     """
     try:
         cc = get_cold_chain_df()
@@ -2123,176 +2404,155 @@ def build_cold_chain_trend(sku_filter: str | None = None) -> go.Figure:
 
         cc = cc.copy()
         cc["date"] = pd.to_datetime(cc["date"])
+        cc["is_breach"] = cc["temp_breach"].astype(str).str.lower() == "true"
 
-        # ── Week-level aggregation ─────────────────────────────────────────
-        cc["week"] = cc["date"].dt.to_period("W").dt.start_time
-        weekly = (
-            cc.groupby(["sku_id", "week"])
+        # ── Per-SKU aggregated stats ──────────────────────────────────────
+        agg = (
+            cc.groupby(["sku_id", "name"])
             .agg(
                 avg_temp=("temp_celsius", "mean"),
                 min_temp=("temp_celsius", "min"),
                 max_temp=("temp_celsius", "max"),
-                breach_days=(
-                    "temp_breach",
-                    lambda x: (x.astype(str).str.lower() == "true").sum(),
-                ),
-                name=("name", "first"),
+                breach_days=("is_breach", "sum"),
+                total_days=("date", "count"),
+                avg_units=("units_in_cold_storage", "mean"),
+                avg_at_risk=("units_at_risk_of_expiry", "mean"),
+                target_min=("target_min_c", "first"),
+                target_max=("target_max_c", "first"),
             )
             .reset_index()
         )
-
-        # ── Monthly breach count ───────────────────────────────────────────
-        cc["month"] = cc["date"].dt.to_period("M").dt.start_time
-        monthly_breach = (
-            cc[cc["temp_breach"].astype(str).str.lower() == "true"]
-            .groupby(["sku_id", "month"])
-            .size()
-            .reset_index(name="breach_count")
+        agg["breach_rate_pct"] = (agg["breach_days"] / agg["total_days"] * 100).round(2)
+        agg["label"] = agg["name"].str[:30]
+        agg["temp_color"] = agg["avg_temp"].apply(
+            lambda t: "#34A853" if 0 <= t <= 6 else "#EA4335"
         )
-        # Add name
-        sku_names = cc.drop_duplicates("sku_id")[["sku_id", "name"]].set_index(
-            "sku_id"
-        )["name"]
-        monthly_breach["name"] = monthly_breach["sku_id"].map(sku_names).str[:25]
-
-        skus = cc["sku_id"].unique()
-        palette = ["#4285F4", "#EA4335", "#34A853", "#F9AB00", "#7C3AED"]
+        agg["breach_color"] = agg["breach_rate_pct"].apply(
+            lambda b: "#34A853" if b == 0 else ("#F9AB00" if b < 1 else "#EA4335")
+        )
 
         from plotly.subplots import make_subplots
 
         fig = make_subplots(
-            rows=2,
-            cols=1,
-            row_heights=[0.65, 0.35],
-            shared_xaxes=True,
-            vertical_spacing=0.08,
+            rows=1,
+            cols=3,
             subplot_titles=(
-                "Weekly Average Temperature per SKU",
-                "Monthly Breach Count",
+                "Avg Temperature vs Safe Zone",
+                "Breach Rate (%)",
+                "Avg Units at Expiry Risk",
             ),
+            horizontal_spacing=0.12,
         )
 
-        # ── Row 1: weekly temperature lines ───────────────────────────────
-        for i, sku in enumerate(skus):
-            sub = weekly[weekly["sku_id"] == sku].sort_values("week")
-            name_label = sub["name"].iloc[0][:25] if not sub.empty else sku
-            color = palette[i % len(palette)]
-            # Shade the uncertainty band (min–max)
-            fig.add_trace(
-                go.Scatter(
-                    x=pd.concat([sub["week"], sub["week"].iloc[::-1]]),
-                    y=pd.concat([sub["max_temp"], sub["min_temp"].iloc[::-1]]),
-                    fill="toself",
-                    # BUG-013 fix: proper hex→rgba conversion
-                    fillcolor=(
-                        lambda h, a=0.10: (
-                            f"rgba({int(h[1:3], 16)},{int(h[3:5], 16)},{int(h[5:7], 16)},{a})"
-                        )
-                    )(color)
-                    if color.startswith("#")
-                    else color,
-                    line=dict(width=0),
-                    showlegend=False,
-                    hoverinfo="skip",
-                    name=f"{name_label} range",
+        # ── Panel 1: Avg temperature with error bars (min–max) ────────────
+        fig.add_trace(
+            go.Bar(
+                x=agg["label"],
+                y=agg["avg_temp"],
+                name="Avg Temp (°C)",
+                marker_color=agg["temp_color"],
+                marker_opacity=0.85,
+                error_y=dict(
+                    type="data",
+                    symmetric=False,
+                    array=(agg["max_temp"] - agg["avg_temp"]).tolist(),
+                    arrayminus=(agg["avg_temp"] - agg["min_temp"]).tolist(),
+                    color="#9CA3AF",
+                    thickness=2,
+                    width=6,
                 ),
-                row=1,
-                col=1,
-            )
-            # Weekly avg line
-            fig.add_trace(
-                go.Scatter(
-                    x=sub["week"],
-                    y=sub["avg_temp"],
-                    mode="lines+markers",
-                    name=name_label,
-                    line=dict(color=color, width=2),
-                    marker=dict(size=4),
-                    customdata=sub[["min_temp", "max_temp", "breach_days"]].values,
-                    hovertemplate=(
-                        f"<b>{name_label}</b><br>"
-                        "%{x|%b %d %Y}<br>"
-                        "Avg: <b>%{y:.1f}°C</b><br>"
-                        "Range: %{customdata[0]:.1f}°C – %{customdata[1]:.1f}°C<br>"
-                        "Breach days this week: %{customdata[2]}"
-                        "<extra></extra>"
-                    ),
+                text=[f"{v:.1f}°C" for v in agg["avg_temp"]],
+                textposition="outside",
+                textfont=dict(size=11, color="#111"),
+                customdata=agg[["min_temp", "max_temp", "breach_days"]].values,
+                hovertemplate=(
+                    "<b>%{x}</b><br>"
+                    "Avg temp: <b>%{y:.1f}°C</b><br>"
+                    "Range: %{customdata[0]:.1f}°C – %{customdata[1]:.1f}°C<br>"
+                    "Breach days: %{customdata[2]:.0f}"
+                    "<extra></extra>"
                 ),
-                row=1,
-                col=1,
-            )
-
-        # Safe zone reference lines (cleaner than filled rects)
-        for y_val, label, color in [
-            (0, "Min safe (0°C)", "#4285F4"),
-            (6, "Max safe (6°C)", "#EA4335"),
-        ]:
-            fig.add_hline(
-                y=y_val,
-                line_dash="dash",
-                line_color=color,
-                line_width=1.2,
-                annotation_text=label,
-                annotation_font=dict(size=9, color=color),
-                annotation_position="left",
-                row=1,
-                col=1,
-            )
-
-        # ── Row 2: monthly breach bars ─────────────────────────────────────
-        for i, sku in enumerate(skus):
-            sub = monthly_breach[monthly_breach["sku_id"] == sku].sort_values("month")
-            if sub.empty:
-                continue
-            name_label = sub["name"].iloc[0] if not sub.empty else sku
-            fig.add_trace(
-                go.Bar(
-                    x=sub["month"],
-                    y=sub["breach_count"],
-                    name=f"{name_label} breaches",
-                    marker_color=palette[i % len(palette)],
-                    marker_opacity=0.75,
-                    showlegend=False,
-                    hovertemplate=(
-                        f"<b>{name_label}</b><br>"
-                        "%{x|%b %Y}: <b>%{y} breach days</b><extra></extra>"
-                    ),
-                ),
-                row=2,
-                col=1,
-            )
-
-        total_breaches = int(
-            (cc["temp_breach"].astype(str).str.lower() == "true").sum()
+                showlegend=False,
+            ),
+            row=1,
+            col=1,
         )
-        scope = sku_names.get(sku_filter, sku_filter) if sku_filter else "All SKUs"
+        # Safe zone band as shapes
+        fig.add_hrect(
+            y0=0, y1=6, fillcolor="rgba(52,168,83,0.08)", line_width=0, row=1, col=1
+        )
+        fig.add_hline(
+            y=0, line_dash="dash", line_color="#4285F4", line_width=1, row=1, col=1
+        )
+        fig.add_hline(
+            y=6, line_dash="dash", line_color="#EA4335", line_width=1, row=1, col=1
+        )
+
+        # ── Panel 2: Breach rate ───────────────────────────────────────────
+        fig.add_trace(
+            go.Bar(
+                x=agg["label"],
+                y=agg["breach_rate_pct"],
+                name="Breach Rate %",
+                marker_color=agg["breach_color"],
+                marker_opacity=0.85,
+                text=[f"{v:.2f}%" for v in agg["breach_rate_pct"]],
+                textposition="outside",
+                textfont=dict(size=11),
+                hovertemplate=(
+                    "<b>%{x}</b><br>Breach rate: <b>%{y:.2f}%</b><extra></extra>"
+                ),
+                showlegend=False,
+            ),
+            row=1,
+            col=2,
+        )
+
+        # ── Panel 3: Units at expiry risk ─────────────────────────────────
+        fig.add_trace(
+            go.Bar(
+                x=agg["label"],
+                y=agg["avg_at_risk"],
+                name="Units at Risk",
+                marker_color="#F9AB00",
+                marker_opacity=0.85,
+                text=[f"{v:.0f}" for v in agg["avg_at_risk"]],
+                textposition="outside",
+                textfont=dict(size=11),
+                customdata=agg[["avg_units"]].values,
+                hovertemplate=(
+                    "<b>%{x}</b><br>"
+                    "Avg units at expiry risk: <b>%{y:.0f}</b><br>"
+                    "Avg total in cold storage: %{customdata[0]:.0f}"
+                    "<extra></extra>"
+                ),
+                showlegend=False,
+            ),
+            row=1,
+            col=3,
+        )
+
+        total_breaches = int(agg["breach_days"].sum())
+        all_ok = total_breaches == 0
 
         fig.update_layout(
             **_CHART_LAYOUT,
             title=dict(
                 text=(
-                    f"Cold Chain Monitor — {scope}<br>"
-                    f"<sup style='color:#666'>{total_breaches} total breach days across full period &nbsp;·&nbsp; "
-                    f"Safe zone: 0°C – 6°C</sup>"
+                    "Cold Chain Monitor — SKU Summary<br>"
+                    f"<sup style='color:{'#137333' if all_ok else '#EA4335'}'>"
+                    f"{'✓ All SKUs within safe zone (0°C–6°C)' if all_ok else f'{total_breaches} total breach days detected'}"
+                    f" &nbsp;·&nbsp; Green bars = within safe zone &nbsp;·&nbsp; "
+                    f"Error bars = temperature range (min–max)</sup>"
                 ),
                 font=dict(size=14, color="#4285F4"),
             ),
-            height=600,
-            legend=dict(orientation="h", y=1.06, x=0, font=dict(size=10)),
-            margin=dict(t=100, b=60, l=60, r=40),
-            hovermode="x unified",
-            barmode="group",
+            height=460,
+            margin=dict(t=110, b=80, l=60, r=40),
         )
-        fig.update_yaxes(title_text="Temp (°C)", range=[-3, 10], row=1, col=1)
-        fig.update_yaxes(title_text="Breach Days", row=2, col=1)
-        fig.update_xaxes(
-            title_text="Month",
-            tickformat="%b %Y",
-            tickangle=30,
-            tickfont=dict(size=10),
-            row=2,
-            col=1,
-        )
+        fig.update_yaxes(title_text="Temperature (°C)", row=1, col=1)
+        fig.update_yaxes(title_text="Breach Rate (%)", row=1, col=2)
+        fig.update_yaxes(title_text="Avg Units", row=1, col=3)
         return fig
     except Exception as exc:
         return _empty_fig(f"Error: {exc}")
@@ -2372,9 +2632,9 @@ def build_reorder_events_timeline() -> go.Figure:
             ),
             yaxis_title="Number of Reorder Events",
             barmode="stack",
-            height=480,
-            legend=dict(orientation="h", y=1.06, x=0, font=dict(size=10)),
-            margin=dict(t=90, b=80),
+            height=520,
+            legend=dict(orientation="h", y=-0.18, x=0, font=dict(size=10)),
+            margin=dict(t=110, b=120, l=60, r=40),
             hovermode="x unified",
         )
         return fig
@@ -2645,6 +2905,11 @@ def build_seasonal_demand_radar() -> go.Figure:
             "#0891B2",
         ]
 
+        def _hex_to_rgba(h: str, alpha: float) -> str:
+            """Convert #RRGGBB hex to rgba(r,g,b,alpha) string."""
+            r, g, b = int(h[1:3], 16), int(h[3:5], 16), int(h[5:7], 16)
+            return f"rgba({r},{g},{b},{alpha})"
+
         fig = go.Figure()
         for i, cat in enumerate(top6):
             sub = monthly[monthly["category"] == cat].sort_values("month_num")
@@ -2653,23 +2918,18 @@ def build_seasonal_demand_radar() -> go.Figure:
                 .reindex(range(1, 13), fill_value=100)
                 .tolist()
             )
-            # Colour bars: peak months brighter, below-average muted
-            # bar_colors: brighter for above-average months, muted for below-average
-            # Applied per-bar so peak months are visually prominent
             base_color = palette[i % len(palette)]
+            # Plotly does NOT accept 8-digit hex (#RRGGBBAA) as marker_color list items.
+            # Use proper rgba() strings: full opacity for peak months, 40% for below-avg.
             bar_colors = [
-                base_color
-                if v >= 100
-                else base_color + "66"  # 40% opacity for below-average months
-                for v in vals
+                base_color if v >= 100 else _hex_to_rgba(base_color, 0.4) for v in vals
             ]
             fig.add_trace(
                 go.Bar(
                     name=cat,
                     x=month_names,
                     y=vals,
-                    marker_color=bar_colors,  # now correctly applied per-bar
-                    marker_opacity=1.0,  # opacity handled via hex alpha above
+                    marker_color=bar_colors,
                     hovertemplate=(
                         f"<b>{cat}</b><br>"
                         "Month: %{x}<br>"
@@ -2820,15 +3080,15 @@ def build_financial_kpi_cards() -> str:
                 "#EA4335",
                 "#FCE8E6",
                 "Dead Stock Value",
-                _fmt_inr(dead_value),
-                "0 demand 60d",
+                _fmt_inr(dead_value) if dead_value > 0 else "₹0",
+                "SKUs with zero demand in last 60 days",
             ),
             (
                 "#FBBC05",
                 "#FEF9E0",
                 "Est. Lost Revenue",
-                _fmt_inr(lost_revenue),
-                "Stockout days (last 30d)",
+                _fmt_inr(lost_revenue) if lost_revenue > 0 else "₹0",
+                "Stockouts × avg demand × price (last 30d)",
             ),
             (
                 "#7C3AED",
@@ -3110,7 +3370,16 @@ def build_customer_segment_donut(
             txn = txn[txn["channel"] == channel_filter]
 
         if txn.empty:
-            return _empty_fig("No data for selected filters")
+            _fl = " / ".join(
+                x
+                for x in [
+                    store_id,
+                    category_filter if category_filter != "All" else None,
+                    channel_filter if channel_filter != "All" else None,
+                ]
+                if x
+            )
+            return _empty_fig(f"No data for: {_fl or 'selected filters'}")
 
         agg = (
             txn.groupby("customer_segment")
@@ -3180,11 +3449,19 @@ def build_customer_segment_donut(
             )
         )
 
-        subtitle = (
-            (f"{category_filter}" if category_filter != "All" else "All Categories")
-            + (f" | {channel_filter}" if channel_filter != "All" else "")
-            + f" | Last {period_days} days"
-        )
+        # Give 30% headroom above tallest bar so outside text labels aren't clipped
+        max_rev = float(agg["revenue"].max()) if not agg.empty else 1
+        max_aov = float(agg["avg_order_value"].max()) if not agg.empty else 1
+
+        subtitle_parts_cs = [
+            category_filter if category_filter != "All" else "All Categories"
+        ]
+        if channel_filter != "All":
+            subtitle_parts_cs.append(channel_filter)
+        if store_id:
+            subtitle_parts_cs.append(f"Store: {store_id}")
+        subtitle_parts_cs.append(f"Last {period_days} days")
+        subtitle = " · ".join(subtitle_parts_cs)
         fig.update_layout(
             **_CHART_LAYOUT,
             title=dict(
@@ -3192,16 +3469,21 @@ def build_customer_segment_donut(
                 font=dict(size=15, color="#4285F4"),
             ),
             xaxis=dict(title="Customer Segment", tickfont=dict(size=11)),
-            yaxis=dict(title="Total Revenue (₹)", side="left"),
+            yaxis=dict(
+                title="Total Revenue (₹)",
+                side="left",
+                range=[0, max_rev * 1.30],  # 30% headroom so outside labels fit
+            ),
             yaxis2=dict(
                 title="Avg Order Value (₹)",
                 overlaying="y",
                 side="right",
                 showgrid=False,
+                range=[0, max_aov * 1.30],
             ),
-            height=480,
-            legend=dict(orientation="h", y=1.08, x=0, font=dict(size=11)),
-            margin=dict(t=90, b=80, r=80),
+            height=500,
+            legend=dict(orientation="h", y=1.06, x=0, font=dict(size=11)),
+            margin=dict(t=100, b=80, r=80),  # t=100 gives room for legend + title
             bargap=0.25,
         )
         return fig
@@ -3214,9 +3496,12 @@ def build_top_skus_bar(
     channel_filter: str = "All",
     top_n: int = 10,
     store_id: str | None = None,
+    period_days: int = 365,
 ) -> go.Figure:
     """
     Top N SKUs by Revenue — horizontal bar chart.
+    Revenue is the TOTAL accumulated over the selected period_days window.
+    Title and subtitle clearly state the time period.
     """
     try:
         txn = get_transactions()
@@ -3225,17 +3510,34 @@ def build_top_skus_bar(
         if txn.empty:
             return _empty_fig("Sales transaction data not available")
 
-        filtered = txn.copy()
+        # Apply period filter — this is what makes it "last N days"
+        cutoff = txn["date"].max() - pd.Timedelta(days=period_days)
+        date_from = txn["date"].max() - pd.Timedelta(days=period_days)
+        date_to = txn["date"].max()
+        txn = txn[txn["date"] >= cutoff].copy()
+
         if category_filter != "All":
-            filtered = filtered[filtered["category"] == category_filter]
+            txn = txn[txn["category"] == category_filter]
         if channel_filter != "All":
-            filtered = filtered[filtered["channel"] == channel_filter]
+            txn = txn[txn["channel"] == channel_filter]
+
+        if txn.empty:
+            _fl = " / ".join(
+                x
+                for x in [
+                    store_id,
+                    category_filter if category_filter != "All" else None,
+                    channel_filter if channel_filter != "All" else None,
+                ]
+                if x
+            )
+            return _empty_fig(f"No data for: {_fl or 'selected filters'}")
 
         sku_rev = (
-            filtered.groupby(["sku_id", "category"])["net_revenue_inr"]
-            .sum()
+            txn.groupby(["sku_id", "category"])
+            .agg(revenue=("net_revenue_inr", "sum"), units=("quantity", "sum"))
             .reset_index()
-            .sort_values("net_revenue_inr", ascending=False)
+            .sort_values("revenue", ascending=False)
             .head(top_n)
         )
 
@@ -3244,35 +3546,107 @@ def build_top_skus_bar(
                 f"No data for filters: {category_filter} / {channel_filter}"
             )
 
-        sku_rev = sku_rev.sort_values("net_revenue_inr", ascending=True)
-        cats = sku_rev["category"].unique().tolist()
-        cat_colors = dict(zip(sorted(cats), px.colors.qualitative.Set2))
+        sku_rev = sku_rev.sort_values("revenue", ascending=True)
+
+        # Fixed hex palette — avoid px.colors which returns CSS names not hex
+        _CAT_PALETTE = [
+            "#4285F4",
+            "#EA4335",
+            "#34A853",
+            "#F9AB00",
+            "#7C3AED",
+            "#0891B2",
+            "#F97316",
+            "#EC4899",
+            "#14B8A6",
+            "#84CC16",
+        ]
+        cats = sorted(sku_rev["category"].unique().tolist())
+        cat_colors = {
+            c: _CAT_PALETTE[i % len(_CAT_PALETTE)] for i, c in enumerate(cats)
+        }
         bar_colors = [cat_colors.get(c, "#9CA3AF") for c in sku_rev["category"]]
+
+        # Indian-format tick values for x-axis
+        max_rev = float(sku_rev["revenue"].max()) if not sku_rev.empty else 1
+        import math as _math
+
+        raw_step = max_rev / 5
+        magnitude = 10 ** _math.floor(_math.log10(max(raw_step, 1)))
+        tick_step = max(magnitude * round(raw_step / magnitude), 1000)
+        tick_vals = [
+            i * tick_step
+            for i in range(int(max_rev / tick_step) + 2)
+            if i * tick_step <= max_rev * 1.2
+        ]
+        tick_text = [_fmt_inr_short(v) for v in tick_vals]
 
         fig = go.Figure(
             go.Bar(
-                x=sku_rev["net_revenue_inr"],
+                x=sku_rev["revenue"],
                 y=sku_rev["sku_id"],
                 orientation="h",
                 marker_color=bar_colors,
-                text=sku_rev["net_revenue_inr"].apply(_fmt_inr),
+                text=[_fmt_inr_short(v) for v in sku_rev["revenue"]],
                 textposition="outside",
-                hovertemplate="<b>%{y}</b><br>Revenue: ₹%{x:,.0f}<extra></extra>",
+                textfont=dict(size=10),
+                customdata=sku_rev[["units", "category"]].values,
+                hovertemplate=(
+                    "<b>%{y}</b><br>"
+                    "Category: %{customdata[1]}<br>"
+                    "Revenue: <b>" +
+                    # Can't use _fmt_inr_short in template — use customdata trick
+                    "</b><br>"
+                    "Units sold: %{customdata[0]:,}<extra></extra>"
+                ),
             )
+        )
+
+        # Build rich hover using customdata with pre-formatted strings
+        fig.data[0].customdata = [
+            [_fmt_inr(v), int(u), c]
+            for v, u, c in zip(
+                sku_rev["revenue"], sku_rev["units"], sku_rev["category"]
+            )
+        ]
+        fig.data[0].hovertemplate = (
+            "<b>%{y}</b><br>"
+            "Category: %{customdata[2]}<br>"
+            "Revenue: <b>%{customdata[0]}</b><br>"
+            "Units sold: %{customdata[1]:,}"
+            "<extra></extra>"
+        )
+
+        period_label = (
+            f"Last {period_days} days"
+            f" ({date_from.strftime('%d %b %Y')} – {date_to.strftime('%d %b %Y')})"
         )
         title_parts = [f"Top {top_n} SKUs by Revenue"]
         if category_filter != "All":
             title_parts.append(category_filter)
         if channel_filter != "All":
             title_parts.append(channel_filter)
+        if store_id:
+            title_parts.append(f"Store: {store_id}")
+
         fig.update_layout(
             **_CHART_LAYOUT,
             title=dict(
-                text=" — ".join(title_parts), font=dict(size=15, color="#4285F4")
+                text=(
+                    " — ".join(title_parts) + "<br>"
+                    f"<sup style='color:#666'>Total revenue · {period_label}</sup>"
+                ),
+                font=dict(size=15, color="#4285F4"),
             ),
-            xaxis_title="Net Revenue (₹)",
-            height=max(380, top_n * 36 + 120),
-            margin=dict(t=80, b=60, l=120, r=120),
+            xaxis=dict(
+                title="Total Revenue (₹) — accumulated over period",
+                tickvals=tick_vals,
+                ticktext=tick_text,
+                tickfont=dict(size=10),
+            ),
+            yaxis=dict(tickfont=dict(size=11)),
+            height=max(400, top_n * 40 + 160),
+            margin=dict(t=100, b=60, l=120, r=140),
         )
         return fig
     except Exception as exc:
@@ -4436,7 +4810,7 @@ def build_analytics_tab():
                 choices=[
                     "Sales by Channel",
                     "Brand Performance",
-                    "Category Revenue Heatmap",
+                    "Category Revenue Trend",
                     "Promotion Impact",
                     "Top SKUs by Revenue",
                     "Customer Segments",
@@ -4445,18 +4819,23 @@ def build_analytics_tab():
                 label="Chart Type",
                 scale=2,
             )
-            mkt_cat_dd = gr.Dropdown(
-                choices=[
-                    "All",
+            # Build category list dynamically from the transactions CSV so it always
+            # matches what's actually in the data (not a stale hardcoded list).
+            try:
+                _txn_cats = sorted(
+                    get_transactions()["category"].dropna().unique().tolist()
+                )
+            except Exception:
+                _txn_cats = [
                     "Dog Food",
                     "Dog Treats",
                     "Cat Food",
                     "Cat Treats",
                     "Cat Supplies",
                     "Health",
-                    "Accessories",
-                    "Toys",
-                ],
+                ]
+            mkt_cat_dd = gr.Dropdown(
+                choices=["All"] + _txn_cats,
                 value="All",
                 label="Category Filter",
                 scale=1,
@@ -4481,7 +4860,33 @@ def build_analytics_tab():
                 label="Period (days)",
                 scale=1,
             )
+
             mkt_run_btn = gr.Button("Update", variant="primary", scale=1)
+
+        # SKU dropdown row — only shown when Promotion Impact is selected
+        try:
+            _all_skus = sorted(
+                get_df()[["sku_id", "name"]]
+                .drop_duplicates("sku_id")
+                .apply(lambda r: f"{r['sku_id']} — {r['name']}", axis=1)
+                .tolist()
+            )
+        except Exception:
+            _all_skus = []
+
+        with gr.Row():
+            mkt_sku_dd = gr.Dropdown(
+                choices=["All"] + _all_skus,
+                value="All",
+                label="SKU Filter (Promotion Impact only)",
+                scale=3,
+                visible=False,
+            )
+            mkt_sku_hint = gr.Markdown(
+                "Select a SKU to see how each promotion affected **that specific product's** "
+                "demand. Combine with Store Filter to get per-store, per-SKU lift.",
+                visible=False,
+            )
 
         mkt_plot = gr.Plot(label="Marketing Chart", value=build_sales_by_channel(90))
 
@@ -4518,7 +4923,7 @@ def build_analytics_tab():
                 "Private Label brands (blue) at the top = healthy margin strategy. "
                 "Use **Category Filter** to drill into a specific category."
             ),
-            "Category Revenue Heatmap": _interp_box(
+            "Category Revenue Trend": _interp_box(
                 "<b>How to read this chart:</b> A multi-line chart showing monthly revenue per category over time. "
                 "Each coloured line = one product category. Yellow shaded bands = festival periods.<br>"
                 "<b>What to look for:</b> Lines spiking upward during festivals = seasonal demand peaks — pre-stock those categories. "
@@ -4547,12 +4952,21 @@ def build_analytics_tab():
             ),
         }
 
-        def _update_mkt(chart_type, cat, channel, store_val, period):
-            """Route to the correct chart builder passing ALL filters including store."""
+        def _update_mkt(chart_type, cat, channel, store_val, period, sku_val="All"):
+            """Route to the correct chart builder passing ALL filters including store + SKU."""
             p = int(period)
-            sid = _parse_store_id(store_val)  # module-level — handles None/All Stores
+            sid = _parse_store_id(store_val)
+            is_promo = chart_type == "Promotion Impact"
+            # Show/hide the SKU row based on chart type
+            sku_visible = gr.update(visible=is_promo)
+
             if chart_type == "Sales by Channel":
-                fig = build_sales_by_channel(period_days=p, store_id=sid)
+                fig = build_sales_by_channel(
+                    period_days=p,
+                    category_filter=cat,
+                    channel_filter=channel,
+                    store_id=sid,
+                )
             elif chart_type == "Brand Performance":
                 fig = build_brand_performance_bubble(
                     category_filter=cat,
@@ -4560,7 +4974,7 @@ def build_analytics_tab():
                     period_days=p,
                     store_id=sid,
                 )
-            elif chart_type == "Category Revenue Heatmap":
+            elif chart_type == "Category Revenue Trend":
                 fig = build_category_revenue_heatmap(
                     category_filter=cat,
                     channel_filter=channel,
@@ -4569,11 +4983,17 @@ def build_analytics_tab():
                 )
             elif chart_type == "Promotion Impact":
                 fig = build_promotion_impact(
-                    category_filter=cat, channel_filter=channel, store_id=sid
+                    category_filter=cat,
+                    channel_filter=channel,
+                    store_id=sid,
+                    sku_filter=sku_val or "All",
                 )
             elif chart_type == "Top SKUs by Revenue":
                 fig = build_top_skus_bar(
-                    category_filter=cat, channel_filter=channel, store_id=sid
+                    category_filter=cat,
+                    channel_filter=channel,
+                    period_days=p,
+                    store_id=sid,
                 )
             elif chart_type == "Customer Segments":
                 fig = build_customer_segment_donut(
@@ -4586,7 +5006,7 @@ def build_analytics_tab():
                 fig = _empty_fig("Select a chart type")
 
             interp = _MKT_INTERP.get(chart_type, "")
-            return fig, interp
+            return fig, interp, sku_visible, sku_visible
 
         _mkt_inputs = [
             mkt_chart_dd,
@@ -4594,17 +5014,18 @@ def build_analytics_tab():
             mkt_channel_dd,
             mkt_store_dd,
             mkt_period_sl,
+            mkt_sku_dd,
         ]
-        _mkt_outputs = [mkt_plot, mkt_interp]
+        _mkt_outputs = [mkt_plot, mkt_interp, mkt_sku_dd, mkt_sku_hint]
 
         mkt_run_btn.click(_update_mkt, inputs=_mkt_inputs, outputs=_mkt_outputs)
-        # Wire ALL filter changes so the chart updates immediately
         for _ctrl in [
             mkt_chart_dd,
             mkt_cat_dd,
             mkt_channel_dd,
             mkt_store_dd,
             mkt_period_sl,
+            mkt_sku_dd,
         ]:
             _ctrl.change(_update_mkt, inputs=_mkt_inputs, outputs=_mkt_outputs)
 
@@ -4707,6 +5128,19 @@ def build_analytics_tab():
             )
         fin_kpi_html = gr.HTML(_fin_kpi_initial)
 
+        gr.Markdown(
+            "**Total Inventory Value** — current stock units × cost price per unit across all SKUs. "
+            "This is the working capital tied up in inventory.  \n"
+            "**Potential Retail Value** — current stock units × MRP (selling price). "
+            "The gap between this and Total Inventory Value is your gross margin buffer.  \n"
+            "**Dead Stock Value** — inventory cost of SKUs that had zero sales in the last 60 days. "
+            "₹0 means all SKUs are actively selling — no capital is locked in unsellable stock.  \n"
+            "**Est. Lost Revenue** — estimated revenue lost to stockouts in the last 30 days "
+            "(stockout days × avg daily demand × price). ₹0 means no stockouts occurred.  \n"
+            "**Days Inventory Outstanding (DIO)** — average inventory value ÷ average daily revenue. "
+            "Lower = faster inventory turns. Industry benchmark for pet retail: 20–30 days."
+        )
+
         with gr.Row():
             mgmt_chart_dd = gr.Dropdown(
                 choices=[
@@ -4792,30 +5226,79 @@ def build_forecast_fig(
     # for more accurate per-store forecasting. Fall back to aggregated demand CSV.
     if store_id:
         try:
+            sku_id_clean = sku_id.split(" —")[0].strip()
+            # Always load the national demand CSV as the base — it has all static
+            # columns (supplier, brand_type, pet_type, subcategory, etc.) that the
+            # TFT model requires. We then override demand/inventory with store values.
+            base = get_df()
+            base_sku = base[base["sku_id"] == sku_id_clean].sort_values("date").copy()
+
+            df_src = None
+
+            # Try store_daily_inventory.csv first (has per-store demand + inventory)
             sdi_path = BASE_DIR / "data" / "store_daily_inventory.csv"
             if sdi_path.exists():
                 sdi = pd.read_csv(sdi_path, parse_dates=["date"])
-                sku_id_clean = sku_id.split(" —")[0].strip()
                 store_sku = sdi[
                     (sdi["store_id"] == store_id) & (sdi["sku_id"] == sku_id_clean)
-                ]
-                # Need at least 90 days of history for the forecast model encoder window.
-                # store_daily_inventory.csv typically has only 1 snapshot per store per SKU.
-                # Fall back to full demand CSV which has the full 730-day history.
-                if not store_sku.empty and len(store_sku) >= 90:
-                    df_src = store_sku.copy().sort_values("date")
+                ].sort_values("date")
+                if not store_sku.empty and len(store_sku) >= 30:
+                    # Merge store demand/inventory over the national base so all
+                    # static columns (supplier, brand_type, etc.) are present
+                    sdi_slim = store_sku[["date", "demand", "inventory"]].rename(
+                        columns={"demand": "demand_store", "inventory": "inv_store"}
+                    )
+                    merged_src = base_sku.merge(sdi_slim, on="date", how="left")
+                    merged_src["demand"] = merged_src["demand_store"].fillna(
+                        merged_src["demand"]
+                    )
+                    merged_src["inventory"] = merged_src["inv_store"].fillna(
+                        merged_src["inventory"]
+                    )
+                    merged_src = merged_src.drop(
+                        columns=["demand_store", "inv_store"], errors="ignore"
+                    )
+                    df_src = merged_src
                     logger.info(
-                        f"[forecast] Using store {store_id} data ({len(store_sku)} rows)"
+                        f"[forecast] Store {store_id}/{sku_id_clean}: "
+                        f"{len(store_sku)} rows from SDI merged onto national base"
                     )
-                else:
-                    df_src = get_df()
-                    # BUG-007: surface the fallback so user knows store data was insufficient
-                    logger.warning(
-                        f"[forecast] Store {store_id} has <90 rows for {sku_id}; using national demand data"
+
+            # Fallback: aggregate transactions for this store → daily demand
+            if df_src is None:
+                txn = get_transactions()
+                store_txn = txn[
+                    (txn["store_id"] == store_id) & (txn["sku_id"] == sku_id_clean)
+                ]
+                if not store_txn.empty:
+                    daily_qty = (
+                        store_txn.groupby("date")["quantity"]
+                        .sum()
+                        .reset_index()
+                        .rename(columns={"quantity": "demand_store"})
                     )
-            else:
-                df_src = get_df()
-        except Exception:
+                    daily_qty["date"] = pd.to_datetime(daily_qty["date"])
+                    merged_src = base_sku.merge(daily_qty, on="date", how="left")
+                    merged_src["demand"] = merged_src["demand_store"].fillna(
+                        merged_src["demand"]
+                    )
+                    merged_src = merged_src.drop(
+                        columns=["demand_store"], errors="ignore"
+                    )
+                    df_src = merged_src
+                    logger.info(
+                        f"[forecast] Store {store_id}/{sku_id_clean}: "
+                        f"built from transactions"
+                    )
+
+            if df_src is None:
+                df_src = base
+                logger.warning(
+                    f"[forecast] No store-specific data for {store_id}/{sku_id_clean}; "
+                    "using national demand"
+                )
+        except Exception as _e:
+            logger.warning(f"[forecast] Store data lookup failed: {_e}")
             df_src = get_df()
     else:
         df_src = get_df()
@@ -4845,167 +5328,37 @@ def build_forecast_fig(
         price = 0.0
     inv = int(sku_df["inventory"].iloc[-1])
 
-    # ── History: three separate figures so nothing is cramped ────────────
-    # fig_hist  → Inventory area + risk zones + Reorder Point + Safety Stock
-    # fig_demand → Daily demand bars + 14-day rolling average (full width below)
-    # Both share the same date range; separate Y-axes avoid scale clash.
-    history = sku_df.tail(90).copy()
-    sigma_h = float(history["demand"].std())
-    avg_d_h = float(history["demand"].mean())
-    # ── Single consistent safety-stock and reorder-point computation ─────
-    # Used for BOTH the chart annotation lines and the recommendation text.
-    # Formula: ROP = avg_demand × lead_time + Z × σ × √(lead_time)  (Z=1.65 → 95%)
+    # ── Compute safety stock / reorder point (used for chart + recommendation) ──
+    # Use last 90 days of history for σ and avg — but only show last `horizon` days
+    # of history in the chart so history and forecast have equal visual weight.
+    history_full = sku_df.tail(90).copy()
+    sigma_h = float(history_full["demand"].std())
+    avg_d_h = float(history_full["demand"].mean())
     ss = round(1.65 * sigma_h * float(np.sqrt(lead_time)))
     rop = round(avg_d_h * lead_time + ss)
-    roll_avg = history["demand"].rolling(14, min_periods=1).mean()
 
-    crit_level = avg_d_h * lead_time
-    warn_level = avg_d_h * lead_time * 2
-    inv_max = max(history["inventory"].max(), warn_level) * 1.12
-    dates = history["date"].tolist()
-    chart_font = dict(color="#202124", family="Segoe UI, Arial, sans-serif", size=12)
-
-    # ── Figure 1: Inventory ───────────────────────────────────────────────
-    fig_hist = go.Figure()
-
-    # Risk zone bands
-    fig_hist.add_trace(
-        go.Scatter(
-            x=dates + dates[::-1],
-            y=[crit_level] * len(dates) + [0] * len(dates),
-            fill="toself",
-            fillcolor="rgba(234,67,53,0.12)",
-            line=dict(color="rgba(0,0,0,0)"),
-            name="Critical Zone",
-            showlegend=True,
-            hoverinfo="skip",
-        )
-    )
-    fig_hist.add_trace(
-        go.Scatter(
-            x=dates + dates[::-1],
-            y=[warn_level] * len(dates) + [crit_level] * len(dates),
-            fill="toself",
-            fillcolor="rgba(251,188,5,0.10)",
-            line=dict(color="rgba(0,0,0,0)"),
-            name="Warning Zone",
-            showlegend=True,
-            hoverinfo="skip",
-        )
-    )
-    fig_hist.add_trace(
-        go.Scatter(
-            x=dates + dates[::-1],
-            y=[inv_max] * len(dates) + [warn_level] * len(dates),
-            fill="toself",
-            fillcolor="rgba(52,168,83,0.07)",
-            line=dict(color="rgba(0,0,0,0)"),
-            name="Safe Zone",
-            showlegend=True,
-            hoverinfo="skip",
-        )
-    )
-    # Inventory filled area
-    fig_hist.add_trace(
-        go.Scatter(
-            x=dates,
-            y=history["inventory"],
-            mode="lines",
-            name="Inventory",
-            line=dict(color="#34A853", width=2.5),
-            fill="tozeroy",
-            fillcolor="rgba(52,168,83,0.18)",
-            hovertemplate="<b>%{x|%b %d}</b><br>Inventory: %{y:,} units<extra></extra>",
-        )
-    )
-    # Threshold annotations
-    fig_hist.add_hline(
-        y=rop,
-        line_dash="dash",
-        line_color="#EA4335",
-        line_width=1.8,
-        annotation_text=f"Reorder Point ({rop:,})",
-        annotation_position="right",
-        annotation_font=dict(color="#EA4335", size=11),
-    )
-    fig_hist.add_hline(
-        y=ss,
-        line_dash="dot",
-        line_color="#FBBC05",
-        line_width=1.5,
-        annotation_text=f"Safety Stock ({ss:,})",
-        annotation_position="right",
-        annotation_font=dict(color="#B06000", size=11),
-    )
-    fig_hist.update_layout(
-        title=dict(
-            text=f"Inventory Level — {sku_id} ({name})",
-            font=dict(size=14, color="#34A853"),
-        ),
-        height=380,
-        plot_bgcolor="#F8F9FA",
-        paper_bgcolor="#FFFFFF",
-        font=chart_font,
-        legend=dict(orientation="h", y=1.08, x=0, font=dict(size=10)),
-        margin=dict(t=60, b=40, l=60, r=130),
-        hovermode="x unified",
-        yaxis=dict(title="Units in Stock", gridcolor="#E8EAED"),
-        xaxis=dict(gridcolor="#E8EAED"),
-    )
-
-    # ── Figure 2: Daily Demand (full-width bar chart below both) ──────────
-    fig_demand = go.Figure()
-    fig_demand.add_trace(
-        go.Bar(
-            x=dates,
-            y=history["demand"],
-            name="Daily Demand",
-            marker_color="#4285F4",
-            opacity=0.65,
-            hovertemplate="<b>%{x|%b %d}</b><br>Demand: %{y:.0f} units<extra></extra>",
-        )
-    )
-    fig_demand.add_trace(
-        go.Scatter(
-            x=dates,
-            y=roll_avg,
-            mode="lines",
-            name="14-day Avg",
-            line=dict(color="#EA4335", width=2.2),
-            hovertemplate="<b>%{x|%b %d}</b><br>14-day avg: %{y:.1f} units<extra></extra>",
-        )
-    )
-    fig_demand.update_layout(
-        title=dict(
-            text="Daily Demand (last 90 days)",
-            font=dict(size=14, color="#4285F4"),
-        ),
-        height=360,
-        plot_bgcolor="#F8F9FA",
-        paper_bgcolor="#FFFFFF",
-        font=chart_font,
-        legend=dict(orientation="h", y=1.08, x=0, font=dict(size=12)),
-        margin=dict(t=50, b=60, l=60, r=30),
-        hovermode="x unified",
-        barmode="overlay",
-        yaxis=dict(title="Units / Day", gridcolor="#E8EAED"),
-        xaxis=dict(title="Date", gridcolor="#E8EAED"),
-    )
-
-    # ── Forecast engine: CatBoost first, statistical fallback ────────────
+    # ── Forecast engine: CatBoost / TFT, statistical fallback ────────────
     last_date = sku_df["date"].iloc[-1]
     future_dates = [last_date + timedelta(days=i + 1) for i in range(horizon)]
     method_label = "Statistical (mean ± 1.65σ)"
 
     try:
-        from forecasting.ml_forecast import forecast as ml_forecast, is_trained
+        from forecasting.ml_forecast import (
+            forecast as ml_forecast,
+            is_trained,
+            get_metrics as _fc_get_metrics,
+        )
 
         if is_trained():
             preds = ml_forecast(sku_id, sku_df, horizon)
             p10 = preds["p10"]
             p50 = preds["p50"]
             p90 = preds["p90"]
-            method_label = "CatBoost Quantile Regression"
+            _engine = _fc_get_metrics().get("engine", "CatBoost")
+            if "TFT" in _engine:
+                method_label = "TFT (Temporal Fusion Transformer)"
+            else:
+                method_label = "CatBoost Quantile Regression"
         else:
             raise RuntimeError("not trained")
     except Exception:
@@ -5132,62 +5485,13 @@ def build_forecast_fig(
     except Exception:
         pass
 
-    # ── Unified chart: history + forecast continuation ────────────────────
-    # BUG-025 fix: reuse future_dates already computed above (same values)
+    # ── Pure forecast chart (no history) ─────────────────────────────────
+    # Show only the forecast window. History shown was causing the chart to be
+    # dominated by 90 days of past data vs a small forecast period on the right.
+    # future_dates is already computed above.
     chart_font = dict(color="#202124", family="Segoe UI, Arial, sans-serif", size=12)
-    history = sku_df.tail(90).copy()
-    hist_dates = history["date"].tolist()
-    # future_dates is already defined above — no recomputation needed
 
     fig_unified = go.Figure()
-
-    # Historical demand shaded area
-    fig_unified.add_trace(
-        go.Scatter(
-            x=hist_dates,
-            y=history["demand"],
-            name="Historical Demand",
-            mode="lines",
-            line=dict(color="#4285F4", width=1.5),
-            fill="tozeroy",
-            fillcolor="rgba(66,133,244,0.10)",
-        )
-    )
-
-    # Inventory line on secondary y-axis
-    fig_unified.add_trace(
-        go.Scatter(
-            x=hist_dates,
-            y=history["inventory"],
-            name="Inventory",
-            mode="lines",
-            line=dict(color="#9E9E9E", width=1, dash="dot"),
-            yaxis="y2",
-        )
-    )
-
-    # Vertical divider at last historical date — use add_shape to avoid
-    # Plotly annotation bug with string x-values
-    last_hist_str = str(sku_df["date"].iloc[-1])[:10]
-    fig_unified.add_shape(
-        type="line",
-        x0=last_hist_str,
-        x1=last_hist_str,
-        y0=0,
-        y1=1,
-        yref="paper",
-        line=dict(color="#BDBDBD", width=1.5, dash="dash"),
-    )
-    fig_unified.add_annotation(
-        x=last_hist_str,
-        y=1,
-        yref="paper",
-        text="▶ Forecast",
-        showarrow=False,
-        font=dict(size=10, color="#555"),
-        xanchor="left",
-        yanchor="top",
-    )
 
     # P10–P90 confidence band
     fig_unified.add_trace(
@@ -5234,31 +5538,20 @@ def build_forecast_fig(
         )
     )
 
-    # Reorder point horizontal line
-    ss_val = round(1.65 * float(history["demand"].std()) * float(np.sqrt(lead_time)))
-    rop_val = round(float(history["demand"].mean()) * lead_time + ss_val)
-    # BUG-6 fix: add_hline does not support yref="y2". Use add_shape which does.
-    fig_unified.add_shape(
-        type="line",
-        x0=0,
-        x1=1,
-        xref="paper",
-        y0=rop_val,
-        y1=rop_val,
-        yref="y2",
-        line=dict(color="#FBBC05", width=1.5, dash="dash"),
-    )
-    fig_unified.add_annotation(
-        x=0.01,
-        xref="paper",
-        y=rop_val,
-        yref="y2",
-        text=f"Reorder Point ({rop_val:,} units)",
-        showarrow=False,
-        font=dict(size=10, color="#92400E"),
-        xanchor="left",
-        bgcolor="rgba(255,255,255,0.7)",
-    )
+    # Reorder point — only draw if it falls within the forecast range so it
+    # doesn't dominate the y-axis when national ROP >> store-level demand.
+    forecast_max = float(max(p90)) if len(p90) else 0
+    rop_visible = rop <= forecast_max * 3  # don't draw if ROP is 3× above forecast
+    if rop_visible:
+        fig_unified.add_hline(
+            y=rop,
+            line_dash="dash",
+            line_color="#FBBC05",
+            line_width=1.5,
+            annotation_text=f"Reorder Point ({rop:,} units)",
+            annotation_font=dict(size=10, color="#92400E"),
+            annotation_position="top left",
+        )
 
     # Promotion overlays in forecast window — use add_shape to avoid
     # Plotly annotation_position bug with datetime x-values
@@ -5300,28 +5593,28 @@ def build_forecast_fig(
     except Exception:
         pass
 
+    store_label = f" | Store: {store_id}" if store_id else ""
+    # Y range: zoom to the forecast values + 20% headroom.
+    # If ROP is visible it may extend slightly above, but the range prevents
+    # a giant ROP line from making the actual forecast invisible.
+    y_max = max(float(max(p90)) * 1.25, 1.0)
+    if rop_visible:
+        y_max = max(y_max, rop * 1.12)
     fig_unified.update_layout(
         **_CHART_LAYOUT,
         title=dict(
-            text=f"{horizon}-Day Demand Forecast: {sku_id} — {name}",
+            text=f"{horizon}-Day Demand Forecast: {sku_id} — {name}{store_label}",
             font=dict(size=16, color="#1e40af"),
         ),
         xaxis=dict(title="Date", tickangle=30),
-        yaxis=dict(title="Demand (units)", side="left"),
-        yaxis2=dict(
-            title="Inventory (units)",
-            overlaying="y",
-            side="right",
-            showgrid=False,
-            zeroline=False,
-        ),
-        height=520,
+        yaxis=dict(title="Demand (units)", gridcolor="#E8EAED", range=[0, y_max]),
+        height=460,
         legend=dict(orientation="h", y=-0.22, x=0, font=dict(size=11)),
-        margin=dict(t=80, b=100, l=60, r=60),
+        margin=dict(t=80, b=120, l=60, r=60),
         hovermode="x unified",
     )
 
-    # ── SKU accuracy indicator ────────────────────────────────────────────
+    # ── SKU accuracy indicator (returned as plain Markdown) ──────────────
     try:
         from mlops.monitor import get_sku_accuracy_chart
 
@@ -5331,21 +5624,13 @@ def build_forecast_fig(
         )
         if not sku_acc.empty:
             err = float(sku_acc["abs_error_pct"].iloc[0])
-            grade = sku_acc["grade"].iloc[0]
-            grade_color = {
-                "Excellent": "#137333",
-                "Good": "#1967D2",
-                "Fair": "#B45309",
-                "Poor": "#C5221F",
-            }.get(grade, "#374151")
-            accuracy_html = f"""
-            <div style="background:#F8F9FA;border-radius:8px;padding:10px 16px;
-                        margin-bottom:10px;font-size:0.9rem;color:#111;">
-                <b>Model Accuracy for {sku_id}:</b>
-                Absolute Error = <b>{err:.1f}%</b> &nbsp;·&nbsp;
-                Grade: <b style="color:{grade_color};">{grade}</b>
-                &nbsp;·&nbsp; Based on last 30 days of actual vs predicted demand
-            </div>"""
+            grade = str(sku_acc["grade"].iloc[0])
+            accuracy_html = (
+                f"**Model Accuracy for {sku_id}:** "
+                f"Absolute Error = **{err:.1f}%** &nbsp;·&nbsp; "
+                f"Grade: **{grade}** &nbsp;·&nbsp; "
+                f"Based on last 30 days of actual vs predicted demand"
+            )
         else:
             accuracy_html = ""
     except Exception:
@@ -5590,24 +5875,24 @@ def build_forecast_tab():
         # ── Chart interpretation — gr.Markdown for correct left-alignment ──
         gr.Markdown(
             "**How to read the Demand Forecast chart:**  \n"
-            "The chart is split into two sections by a vertical dashed line. "
-            "**Left of the line** = the last 90 days of actual historical demand (blue line) "
-            "and inventory (grey dotted). **Right of the line** = the forecast period.  \n"
+            "The chart shows the **forecast window only** — no historical data is displayed.  \n"
             "The **green line** (P50) is the expected demand — your best planning number. "
-            "The **shaded red band** between P10 and P90 shows the uncertainty range — "
-            "demand is expected to stay within this band 80% of the time. "
+            "The **shaded pink band** between P10 and P90 shows the uncertainty range — "
+            "demand is expected to stay within this band 80% of the time.  \n"
+            "**P10 (blue dotted)** = pessimistic case — use for safety stock calculations. "
+            "**P90 (red dotted)** = optimistic case — use for maximum order sizing.  \n"
             "**Orange shaded blocks** = active promotions during the forecast window "
             "(expect higher demand during those periods).  \n"
-            "The **KPI cards below** show the total forecast in units and estimated revenue at the current price. "
-            "The **yellow dashed horizontal line** on the right Y-axis shows the "
-            "Reorder Point — if inventory drops below this, a purchase order is needed."
+            "The **yellow dashed horizontal line** = Reorder Point — if your current inventory "
+            "is projected to fall below this, a purchase order is needed now.  \n"
+            "The **KPI cards below** show total forecast units and estimated revenue at the current price."
         )
 
         # ── SKU accuracy indicator ────────────────────────────────────────
-        accuracy_html = gr.HTML("")
+        accuracy_html = gr.Markdown("")
 
-        # ── Main unified chart (history + forecast) ───────────────────────
-        fig_unified = gr.Plot(label="Demand History + Forecast")
+        # ── Main forecast chart ───────────────────────────────────────────
+        fig_unified = gr.Plot(label="Demand Forecast")
 
         # ── Comparison chart (shown only if compare SKU selected) ─────────
         fig_compare = gr.Plot(label="SKU Comparison", visible=False)
@@ -5616,7 +5901,7 @@ def build_forecast_tab():
         kpi_html = gr.HTML("")
 
         # ── Recommendation ────────────────────────────────────────────────
-        rec_box = gr.Textbox(label="Reorder Recommendation", interactive=False, lines=3)
+        rec_box = gr.Markdown(label="Reorder Recommendation")
 
         # ── CSV export ────────────────────────────────────────────────────
         with gr.Row():
@@ -5675,8 +5960,15 @@ def build_forecast_tab():
 
         _forecast_outputs = [fig_unified, fig_compare, accuracy_html, kpi_html, rec_box]
 
-        def _set_horizon_and_run(h, sku_raw, sku2_raw):
-            return (h,) + build_forecast_fig(sku_raw, int(h), compare_sku=sku2_raw)
+        def _set_horizon_and_run(h, sku_raw, sku2_raw, store_val="All Stores"):
+            sid = (
+                _parse_store_id(store_val)
+                if store_val and store_val != "All Stores"
+                else None
+            )
+            return (h,) + build_forecast_fig(
+                sku_raw, int(h), compare_sku=sku2_raw, store_id=sid
+            )
 
         for _preset_btn, _h in [
             (preset_7, 7),
@@ -5685,16 +5977,8 @@ def build_forecast_tab():
             (preset_90, 90),
         ]:
             _preset_btn.click(
-                lambda sku_raw, sku2_raw, store_val, h=_h: (
-                    (h,)
-                    + build_forecast_fig(
-                        sku_raw,
-                        h,
-                        compare_sku=sku2_raw,
-                        store_id=_parse_store_id(store_val)
-                        if store_val and store_val != "All Stores"
-                        else None,
-                    )
+                lambda sku_raw, sku2_raw, store_val, h=_h: _set_horizon_and_run(
+                    h, sku_raw, sku2_raw, store_val
                 ),
                 inputs=[sku_dd, sku_dd2, fcast_store_dd],
                 outputs=[horizon_sl] + _forecast_outputs,
@@ -5819,50 +6103,6 @@ def build_mlops_tab(
 
         _cur_metrics = _get_ml_metrics()
         _engine = _cur_metrics.get("engine", "not_trained")
-        _mode_label = _cur_metrics.get("mode", "")
-
-        if _is_ml_trained():
-            _metric_parts = " &nbsp;·&nbsp; ".join(
-                filter(
-                    None,
-                    [
-                        f"<b>Engine:</b> <span style='color:#137333;font-weight:700'>{_engine}</span>",
-                        f"<b>Mode:</b> {_mode_label}" if _mode_label else "",
-                        f"<b>MAPE:</b> {_cur_metrics['mape']}%"
-                        if _cur_metrics.get("mape") is not None
-                        else "",
-                        f"<b>MAE:</b> {_cur_metrics['mae']}"
-                        if _cur_metrics.get("mae") is not None
-                        else "",
-                        f"<b>RMSE:</b> {_cur_metrics['rmse']}"
-                        if _cur_metrics.get("rmse") is not None
-                        else "",
-                        f"<b>Calibration:</b> {_cur_metrics['calibration_pct']}%"
-                        if _cur_metrics.get("calibration_pct") is not None
-                        else "",
-                        f"<b>Trained:</b> {_cur_metrics['trained_at']}"
-                        if _cur_metrics.get("trained_at")
-                        else "",
-                    ],
-                )
-            )
-            _engine_html = f"""
-            <div style="background:#F0FDF4; border:1px solid #34A853; border-radius:8px;
-                        padding:14px 20px; margin-bottom:12px; font-size:0.9rem;
-                        color:#111111; line-height:1.8;">
-                {_metric_parts}
-            </div>"""
-        else:
-            _engine_html = """
-            <div style="background:#FFF8E1; border:1px solid #F59E0B; border-radius:8px;
-                        padding:14px 20px; margin-bottom:12px; font-size:0.9rem;
-                        color:#5F3300; line-height:1.7;">
-                <b>No model trained yet.</b> Click <b>Full TFT Retrain</b> to train on your GPU
-                (~20–40 min), or <b>Fine-tune TFT</b> if a checkpoint exists (~3–8 min).
-                <b>CatBoost Fallback</b> trains in ~2 min and is always available.
-            </div>"""
-
-        gr.HTML(_engine_html)
 
         # Training mode explanation — native Gradio Markdown (no custom HTML)
         gr.Markdown(
@@ -5873,7 +6113,13 @@ def build_mlops_tab(
             "on the last 90 days of data. Takes ~3–8 minutes. Run this anytime new data arrives "
             "or after a major promotion to update the model without full retraining.  \n"
             "**CatBoost Fallback** — Fast tabular model. Trains in ~2 minutes. Used "
-            "automatically when TFT is not yet trained. Includes promotion + festival features."
+            "automatically when TFT is not yet trained. Includes promotion + festival features.  \n"
+            + (
+                ""
+                if _is_ml_trained()
+                else "> **No model trained yet.** Click **Full TFT Retrain** to train on your GPU "
+                "(~20–40 min), or **CatBoost Fallback** to get started in ~2 minutes."
+            )
         )
 
         with gr.Row():
@@ -5902,21 +6148,39 @@ def build_mlops_tab(
                 scale=1,
             )
 
-        train_status = gr.Textbox(
-            label="Training status",
+        def _metrics_to_df(metrics: dict, trained: bool) -> list:
+            """Convert model metrics dict into rows for the status table."""
+            if not trained:
+                return [["—", "—", "—", "—", "—", "—", "—", "Not trained"]]
+            return [
+                [
+                    metrics.get("engine", "—"),
+                    metrics.get("mode", "—"),
+                    f"{metrics.get('mape', '?')}%",
+                    str(metrics.get("mae", "?")),
+                    str(metrics.get("rmse", "?")),
+                    f"{metrics.get('calibration_pct', '?')}%",
+                    str(metrics.get("n_skus", "?")),
+                    metrics.get("trained_at", "—"),
+                ]
+            ]
+
+        _status_headers = [
+            "Engine",
+            "Mode",
+            "MAPE",
+            "MAE",
+            "RMSE",
+            "Calibration",
+            "SKUs",
+            "Trained At",
+        ]
+        train_status = gr.Dataframe(
+            value=_metrics_to_df(_cur_metrics, _is_ml_trained()),
+            headers=_status_headers,
+            label="Current Model Status",
             interactive=False,
-            lines=4,
-            value=(
-                f"Engine: {_engine} | "
-                f"MAPE: {_cur_metrics.get('mape', '?')}% | "
-                f"MAE: {_cur_metrics.get('mae', '?')} | "
-                f"RMSE: {_cur_metrics.get('rmse', '?')} | "
-                f"Calibration: {_cur_metrics.get('calibration_pct', '?')}% | "
-                f"Trained: {_cur_metrics.get('trained_at', '—')} | "
-                f"SKUs: {_cur_metrics.get('n_skus', '?')}"
-            )
-            if _is_ml_trained()
-            else "No model trained. Click a training button above to start.",
+            wrap=False,
         )
 
         def _run_training(
@@ -5957,20 +6221,20 @@ def build_mlops_tab(
                 )
 
             if "error" in result:
-                return f"Training failed: {result['error']}"
+                return [["ERROR", "—", "—", "—", "—", "—", "—", result["error"]]]
 
-            engine = result.get("engine", "Unknown")
-            mode = result.get("mode", "")
-            return (
-                f"Engine: {engine} ({mode}) | "
-                f"MAPE: {result.get('mape', '?')}% | "
-                f"MAE: {result.get('mae', '?')} | "
-                f"RMSE: {result.get('rmse', '?')} | "
-                f"Calibration: {result.get('calibration_pct', '?')}% | "
-                f"Trained: {result.get('trained_at', '?')} | "
-                f"Rows: {result.get('train_rows', 0):,} | "
-                f"SKUs: {result.get('n_skus', '?')}"
-            )
+            return [
+                [
+                    result.get("engine", "Unknown"),
+                    result.get("mode", "—"),
+                    f"{result.get('mape', '?')}%",
+                    str(result.get("mae", "?")),
+                    str(result.get("rmse", "?")),
+                    f"{result.get('calibration_pct', '?')}%",
+                    str(result.get("n_skus", "?")),
+                    result.get("trained_at", "?"),
+                ]
+            ]
 
         _db_inputs = [
             mysql_host,
@@ -6014,13 +6278,23 @@ def build_mlops_tab(
 
         # Summary stats
         with gr.Row():
-            stat_total = gr.Textbox(label="Total Forecasts Logged", interactive=False)
-            stat_skus = gr.Textbox(label="Unique SKUs Queried", interactive=False)
-            stat_last = gr.Textbox(label="Last Forecast At", interactive=False)
+            stat_total = gr.Markdown(label="Total Forecasts Logged")
+            stat_skus = gr.Markdown(label="Unique SKUs Queried")
+            stat_last = gr.Markdown(label="Last Forecast At")
 
         drift_output = gr.HTML(label="")
 
-        chart_queried = gr.Plot(label="Forecast Accuracy by SKU")
+        gr.Markdown(
+            "**Forecast Accuracy by SKU** — rows appear after each SKU is forecasted. "
+            "Error % = |P50 forecast − actual demand| / actual demand × 100. "
+            "Grade: Excellent <10% · Good <20% · Fair <35% · Poor ≥35%"
+        )
+        chart_queried = gr.Dataframe(
+            label="Forecast Accuracy by SKU",
+            headers=["SKU", "Forecast P50/day", "Actual Avg/day", "Error %", "Grade"],
+            interactive=False,
+            wrap=False,
+        )
 
         pred_log_table = gr.Dataframe(
             label="Latest Prediction per SKU (deduplicated — one row per SKU)",
@@ -6054,83 +6328,39 @@ def build_mlops_tab(
             else:
                 pred_df = pred_df_all
 
-            # ── SKU Forecast Accuracy chart ──────────────────────────────
-            fig = go.Figure()
+            # ── SKU Forecast Accuracy table ──────────────────────────────
             if not acc_df.empty:
-                # Colour bars by accuracy grade
-                colour_map = {
-                    "Excellent": "#34A853",
-                    "Good": "#4285F4",
-                    "Fair": "#FBBC05",
-                    "Poor": "#EA4335",
-                }
-                colours = acc_df["grade"].map(colour_map).fillna("#9CA3AF").tolist()
-                fig.add_trace(
-                    go.Bar(
-                        x=acc_df["sku_id"],
-                        y=acc_df["abs_error_pct"],
-                        marker_color=colours,
-                        text=acc_df["grade"],
-                        textposition="outside",
-                        customdata=acc_df[["p50_daily", "actual_daily"]].values,
-                        hovertemplate=(
-                            "<b>%{x}</b><br>"
-                            "Error: %{y:.1f}%<br>"
-                            "Forecast P50: %{customdata[0]:.1f}/day<br>"
-                            "Actual avg: %{customdata[1]:.1f}/day"
-                            "<extra></extra>"
-                        ),
-                    )
-                )
-                # Reference lines for grade thresholds
-                for level, colour, label in [
-                    (10, "#34A853", "Excellent <10%"),
-                    (20, "#4285F4", "Good <20%"),
-                    (35, "#FBBC05", "Fair <35%"),
-                ]:
-                    fig.add_hline(
-                        y=level,
-                        line_dash="dot",
-                        line_color=colour,
-                        line_width=1,
-                        annotation_text=label,
-                        annotation_position="right",
-                        annotation_font=dict(size=10, color=colour),
-                    )
-                fig.update_layout(
-                    title=dict(
-                        text="Forecast Accuracy per SKU  (lower = better)",
-                        font=dict(size=14, color="#4285F4"),
-                    ),
-                    yaxis_title="Absolute Error %",
-                    xaxis_title="SKU",
-                    height=340,
-                    plot_bgcolor="#F8F9FA",
-                    paper_bgcolor="#FFFFFF",
-                    font=dict(
-                        color="#202124",
-                        family="Segoe UI, Arial, sans-serif",
-                        size=12,
-                    ),
-                    xaxis=dict(tickangle=45),
-                    margin=dict(t=60, b=80, r=120),
-                    yaxis=dict(
-                        range=[0, max(acc_df["abs_error_pct"].max() * 1.3, 40)],
-                    ),
-                )
+                acc_table = acc_df.rename(
+                    columns={
+                        "sku_id": "SKU",
+                        "p50_daily": "Forecast P50/day",
+                        "actual_daily": "Actual Avg/day",
+                        "abs_error_pct": "Error %",
+                        "grade": "Grade",
+                    }
+                ).round({"Forecast P50/day": 1, "Actual Avg/day": 1, "Error %": 1})
+                # Sort worst errors to top so problem SKUs are immediately visible
+                acc_table = acc_table.sort_values(
+                    "Error %", ascending=False
+                ).reset_index(drop=True)
             else:
-                fig.update_layout(
-                    title="Run at least one forecast to see accuracy data",
-                    height=340,
-                    plot_bgcolor="#F8F9FA",
-                    paper_bgcolor="#FFFFFF",
+                import pandas as _pd
+
+                acc_table = _pd.DataFrame(
+                    columns=[
+                        "SKU",
+                        "Forecast P50/day",
+                        "Actual Avg/day",
+                        "Error %",
+                        "Grade",
+                    ]
                 )
 
             return (
-                str(summary["total_forecasts"]),
-                str(summary["unique_skus"]),
-                str(summary.get("last_forecast_at", "—"))[:19],
-                fig,
+                f"**{summary['total_forecasts']}** forecasts",
+                f"**{summary['unique_skus']}** SKUs",
+                f"**{str(summary.get('last_forecast_at', '—'))[:19]}**",
+                acc_table,
                 pred_df,
                 query_df,
             )

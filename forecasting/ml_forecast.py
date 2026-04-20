@@ -47,12 +47,37 @@ from __future__ import annotations
 import logging
 import os
 import threading
+import warnings
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pandas as pd
+
+# ── DataLoader num_workers warning suppression ───────────────────────────────
+# On Windows, PyTorch multiprocessing uses 'spawn' rather than 'fork'.
+# num_workers > 0 inside a Gradio app (no if __name__=="__main__" guard)
+# will deadlock or crash, so ALL DataLoaders here use num_workers=0 intentionally.
+#
+# PyTorch Lightning emits this on every predict() call via rank_zero_warn():
+#   "The 'predict_dataloader' does not have many workers which may be a
+#    bottleneck. Consider increasing num_workers to num_workers=23 ..."
+#
+# Lightning's own API is disable_possible_user_warnings() which calls
+# warnings.filterwarnings("ignore", category=PossibleUserWarning).
+# We use that directly here — it is the canonical suppression mechanism.
+try:
+    from lightning.fabric.utilities.warnings import (
+        disable_possible_user_warnings as _disable_plw,
+    )
+
+    _disable_plw()  # suppress all PossibleUserWarning from Lightning globally
+except ImportError:
+    # Fallback for older Lightning versions that don't have this helper
+    warnings.filterwarnings("ignore", message=".*num_workers.*bottleneck.*")
+    warnings.filterwarnings("ignore", message=".*predict_dataloader.*num_workers.*")
+    warnings.filterwarnings("ignore", message=".*train_dataloader.*num_workers.*")
 
 logger = logging.getLogger(__name__)
 
@@ -829,7 +854,17 @@ def _forecast_tft(
             enriched = _enrich_demand_df(enriched)
             enriched = enriched[enriched["sku_id"] == sku_id].copy()
 
-        enriched["time_idx"] = enriched.groupby("sku_id").cumcount()
+        enriched["time_idx"] = enriched.groupby("sku_id").cumcount().astype("int64")
+
+        # BUG-finfo fix: demand and all real columns must be float32 before
+        # from_dataset / GroupNormalizer (softplus) runs torch.finfo() on the dtype.
+        # _enrich_demand_df does not guarantee float32 for single-SKU DataFrames.
+        _float_cast = ["demand"] + _STATIC_REALS + _TV_KNOWN_REALS + _TV_UNKNOWN_REALS
+        for _col in _float_cast:
+            if _col in enriched.columns:
+                enriched[_col] = pd.to_numeric(enriched[_col], errors="coerce").astype(
+                    "float32"
+                )
 
         try:
             predict_ds = TimeSeriesDataSet.from_dataset(
@@ -911,45 +946,79 @@ def _save_tft_meta() -> None:
 
 def _rebuild_tft_dataset(df: pd.DataFrame, meta: dict):
     """
-    BUG-026 fix: re-create the TimeSeriesDataSet from saved training metadata
-    so TFT inference works after a process restart.
+    BUG-026 fix (updated): re-create the TimeSeriesDataSet from saved training
+    metadata so TFT inference works after a process restart.
+
+    CRITICAL: must use exactly the same column set that _make_tft_dataset used
+    during training — i.e. _STATIC_CATS / _STATIC_REALS / _TV_KNOWN_* /
+    _TV_UNKNOWN_REALS — all produced by _enrich_demand_df().
+
+    Previous version used hardcoded stale columns ("isoweek", "days_to_festival",
+    "festival_active", "price_inr" as a static real, only 3 static cats) that do
+    not exist in the enriched DataFrame, causing KeyError: 'supplier' and similar.
+
     Returns the dataset or None if TFT dependencies are unavailable.
     """
     try:
         from pytorch_forecasting import TimeSeriesDataSet
+        from pytorch_forecasting.data import GroupNormalizer
 
         enriched = _enrich_demand_df(df)
-        enriched["time_idx"] = (
-            enriched["date"] - enriched["date"].min()
-        ).dt.days.astype(int)
+
+        # time_idx must be per-SKU cumcount (same as _make_tft_dataset uses),
+        # NOT a global date-difference which collapses all SKUs to the same idx.
+        enriched["time_idx"] = enriched.groupby("sku_id").cumcount().astype("int64")
+
         max_encoder = meta.get("max_encoder_length", MAX_ENCODER)
         max_prediction = meta.get("max_prediction_length", MAX_PREDICTION)
-        cutoff_idx = int(enriched["time_idx"].max()) - max_prediction
-        train_df = enriched[enriched["time_idx"] <= cutoff_idx]
+
+        # Filter to SKUs with enough history (same guard as _make_tft_dataset)
+        min_obs = max_encoder + max_prediction
+        valid_skus = enriched.groupby("sku_id")["time_idx"].count() >= min_obs
+        valid_skus = valid_skus[valid_skus].index
+        enriched = enriched[enriched["sku_id"].isin(valid_skus)].copy()
+
+        if enriched.empty:
+            logger.warning("[TFT] _rebuild_tft_dataset: no SKUs have enough history")
+            return None
+
+        # Training cutoff: exclude last max_prediction steps per SKU
+        max_idx_per_sku = enriched.groupby("sku_id")["time_idx"].transform("max")
+        train_df = enriched[
+            enriched["time_idx"] <= max_idx_per_sku - max_prediction
+        ].copy()
+
+        # Cast dtypes exactly as _make_tft_dataset does
+        train_df["time_idx"] = train_df["time_idx"].astype("int64")
+        float_cols = ["demand"] + _STATIC_REALS + _TV_KNOWN_REALS + _TV_UNKNOWN_REALS
+        for col in float_cols:
+            if col in train_df.columns:
+                train_df[col] = pd.to_numeric(train_df[col], errors="coerce").astype(
+                    "float32"
+                )
+
         dataset = TimeSeriesDataSet(
             train_df,
             time_idx="time_idx",
             target="demand",
             group_ids=["sku_id"],
+            min_encoder_length=max_encoder // 2,
             max_encoder_length=max_encoder,
+            min_prediction_length=1,
             max_prediction_length=max_prediction,
-            static_categoricals=["sku_id", "category", "supplier"],
-            static_reals=["price_inr"],
-            time_varying_known_reals=[
-                "time_idx",
-                "isoweek",
-                "month",
-                "quarter",
-                "is_promo_active",
-                "promo_discount_pct",
-                "days_to_festival",
-                "festival_active",
-            ],
-            time_varying_unknown_reals=["demand"],
-            target_normalizer=None,
+            static_categoricals=_STATIC_CATS,
+            static_reals=_STATIC_REALS,
+            time_varying_known_categoricals=_TV_KNOWN_CATS,
+            time_varying_known_reals=_TV_KNOWN_REALS + ["time_idx"],
+            time_varying_unknown_reals=[*_TV_UNKNOWN_REALS, "demand"],
+            target_normalizer=GroupNormalizer(
+                groups=["sku_id"],
+                transformation="softplus",
+            ),
             add_relative_time_idx=True,
             add_target_scales=True,
             add_encoder_length=True,
+            allow_missing_timesteps=True,
         )
         return dataset
     except Exception as exc:
