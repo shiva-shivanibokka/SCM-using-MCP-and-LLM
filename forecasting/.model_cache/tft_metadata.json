@@ -7,7 +7,7 @@
   "n_skus": 65,
   "mode": "full_retrain",
   "epochs_trained": 11,
-  "data_source": "HUFT CSV",
-  "trained_at": "2026-04-17 16:48 UTC",
+  "data_source": "Pet Store CSV",
+  "trained_at": "2026-04-19 20:04 UTC",
   "engine": "TFT"
 }
