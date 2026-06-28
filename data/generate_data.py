@@ -108,6 +108,34 @@ STORES = [
     ("SP005", "Pune", "Maharashtra", "West", "Spa", 2021, 600, True),
 ]
 
+# ── Network expansion — additional physical stores (ST061+) ──────────────────
+# Programmatically extend the store network so the platform reflects a
+# realistic ~90-store omnichannel retailer. New cities + formats follow the
+# same 8-tuple schema: (store_id, city, state, region, store_type,
+# opened_year, size_sqft, has_spa).
+_EXPANSION_CITIES = [
+    ("Mumbai", "Maharashtra", "West"), ("Thane", "Maharashtra", "West"),
+    ("Nagpur", "Maharashtra", "West"), ("Nashik", "Maharashtra", "West"),
+    ("Rajkot", "Gujarat", "West"), ("Indore", "MP", "West"),
+    ("Bhopal", "MP", "West"), ("Delhi", "Delhi", "North"),
+    ("Faridabad", "Haryana", "North"), ("Agra", "UP", "North"),
+    ("Kanpur", "UP", "North"), ("Amritsar", "Punjab", "North"),
+    ("Bengaluru", "Karnataka", "South"), ("Mysuru", "Karnataka", "South"),
+    ("Chennai", "Tamil Nadu", "South"), ("Coimbatore", "Tamil Nadu", "South"),
+    ("Kochi", "Kerala", "South"), ("Visakhapatnam", "Andhra Pradesh", "South"),
+    ("Kolkata", "West Bengal", "East"), ("Bhubaneswar", "Odisha", "East"),
+    ("Guwahati", "Assam", "East"), ("Patna", "Bihar", "East"),
+    ("Ranchi", "Jharkhand", "East"), ("Raipur", "Chhattisgarh", "East"),
+    ("Goa", "Goa", "West"),
+]
+_FORMATS = [("Standard", 1700), ("Express", 900), ("Flagship", 3400)]
+for _i, (_city, _state, _region) in enumerate(_EXPANSION_CITIES):
+    _sid = f"ST{61 + _i:03d}"
+    _fmt, _sqft = _FORMATS[_i % len(_FORMATS)]
+    _opened = 2014 + (_i % 9)
+    _has_spa = _fmt == "Flagship"
+    STORES.append((_sid, _city, _state, _region, _fmt, _opened, _sqft, _has_spa))
+
 # ── Product master — real HUFT brands + SKUs ─────────────────────────────────
 
 PRODUCTS = [
@@ -1494,6 +1522,74 @@ PRODUCTS = [
     },
 ]
 
+# ── Catalog expansion — synthetic-but-realistic SKUs (EXT_*) ─────────────────
+# Extend the catalog to ~155 SKUs across the full assortment a real pet-store
+# buyer manages. Generated deterministically (seeded rng) from real brand
+# pools and category templates, matching the exact PRODUCT dict schema above.
+_EXT_TEMPLATES = [
+    # (category, subcategory, pet_type, brand, brand_type, supplier,
+    #  weight_kg, price_inr, margin_pct, base_demand, lead_time, cold_chain, life_stage)
+    ("Dog Food", "Dry Adult", "Dog", "Drools", "Third Party", "Drools India", 10.0, 1650, 30, 35, 7, False, "Adult"),
+    ("Dog Food", "Dry Puppy", "Dog", "Pedigree", "Third Party", "Mars Petcare", 8.0, 1299, 28, 38, 7, False, "Puppy"),
+    ("Dog Food", "Grain Free", "Dog", "Farmina", "Third Party", "Farmina Pet Foods", 12.0, 5200, 36, 18, 12, False, "Adult"),
+    ("Dog Food", "Senior Dry", "Dog", "Royal Canin", "Third Party", "Royal Canin India", 7.0, 3100, 35, 16, 10, False, "Senior"),
+    ("Cat Food", "Dry Adult", "Cat", "Whiskas", "Third Party", "Mars Petcare", 3.0, 749, 30, 30, 7, False, "Adult"),
+    ("Cat Food", "Kitten Dry", "Cat", "Royal Canin", "Third Party", "Royal Canin India", 2.0, 1199, 35, 22, 10, False, "Kitten"),
+    ("Cat Food", "Wet Pouch", "Cat", "Sheba", "Third Party", "Mars Petcare", 0.085, 99, 32, 60, 7, False, "Adult"),
+    ("Treats", "Dental Chew", "Dog", "Pedigree", "Third Party", "Mars Petcare", 0.5, 299, 40, 70, 5, False, "Adult"),
+    ("Treats", "Training Treat", "Dog", "Heads Up For Tails", "Private Label", "HUFT", 0.2, 349, 55, 55, 3, False, "All"),
+    ("Treats", "Cat Treat", "Cat", "Temptations", "Third Party", "Mars Petcare", 0.06, 199, 42, 48, 7, False, "Adult"),
+    ("Toys", "Chew Toy", "Dog", "KONG", "Third Party", "KONG Company", 0.3, 899, 45, 40, 14, False, "All"),
+    ("Toys", "Plush Toy", "Dog", "Trixie", "Third Party", "Trixie India", 0.2, 499, 50, 45, 14, False, "All"),
+    ("Toys", "Cat Wand", "Cat", "Heads Up For Tails", "Private Label", "HUFT", 0.1, 399, 58, 38, 3, False, "All"),
+    ("Grooming", "Shampoo", "Dog", "Himalaya", "Third Party", "Himalaya Wellness", 0.4, 349, 44, 50, 7, False, "All"),
+    ("Grooming", "Conditioner", "Dog", "Heads Up For Tails", "Private Label", "HUFT", 0.4, 449, 56, 32, 3, False, "All"),
+    ("Grooming", "Paw Balm", "Dog", "Heads Up For Tails", "Private Label", "HUFT", 0.05, 299, 60, 28, 3, False, "All"),
+    ("Accessories", "Collar", "Dog", "Heads Up For Tails", "Private Label", "HUFT", 0.15, 699, 62, 42, 3, False, "All"),
+    ("Accessories", "Leash", "Dog", "Heads Up For Tails", "Private Label", "HUFT", 0.25, 799, 62, 40, 3, False, "All"),
+    ("Accessories", "Harness", "Dog", "Ruffwear", "Third Party", "Ruffwear", 0.4, 2499, 38, 20, 18, False, "All"),
+    ("Health", "Tick & Flea", "Dog", "Virbac", "Third Party", "Virbac India", 0.05, 549, 34, 35, 10, False, "All"),
+    ("Health", "Multivitamin", "Dog", "Virbac", "Third Party", "Virbac India", 0.2, 649, 36, 30, 10, False, "All"),
+    ("Health", "Cat Dewormer", "Cat", "Bayer", "Third Party", "Bayer Animal Health", 0.02, 299, 33, 26, 10, False, "All"),
+    ("Bedding", "Dog Bed", "Dog", "Heads Up For Tails", "Private Label", "HUFT", 1.5, 2999, 60, 15, 5, False, "All"),
+    ("Bedding", "Cat Bed", "Cat", "Heads Up For Tails", "Private Label", "HUFT", 0.8, 1799, 60, 14, 5, False, "All"),
+    ("Fresh Food", "Fresh Meal", "Dog", "Sara's Wholesome", "Private Label", "HUFT Fresh Kitchen", 0.5, 399, 48, 24, 2, True, "Adult"),
+]
+_PACK_VARIANTS = ["Small", "Medium", "Large", "Value Pack"]
+_ext_counter = 1
+for _tmpl in _EXT_TEMPLATES:
+    (_cat, _sub, _pet, _brand, _btype, _sup, _wt, _price, _margin,
+     _bd, _lt, _cc, _stage) = _tmpl
+    for _v, _variant in enumerate(_PACK_VARIANTS):
+        if _ext_counter > 95:
+            break
+        _scale = [0.6, 1.0, 1.6, 2.2][_v]
+        _price_v = int(round(_price * _scale / 10.0)) * 10
+        _cost_v = int(round(_price_v * (1 - _margin / 100.0)))
+        _bd_v = max(1, int(round(_bd * (1.3 - 0.2 * _v) + rng.integers(-3, 4))))
+        PRODUCTS.append({
+            "sku_id": f"EXT_{_ext_counter:03d}",
+            "name": f"{_brand} {_sub} {_variant} ({_pet})",
+            "brand": _brand,
+            "brand_type": _btype,
+            "category": _cat,
+            "subcategory": _sub,
+            "pet_type": _pet,
+            "life_stage": _stage,
+            "breed_suitability": "All Breeds",
+            "weight_kg": round(_wt * _scale, 3),
+            "price_inr": _price_v,
+            "cost_inr": _cost_v,
+            "supplier": _sup,
+            "lead_time_days": _lt,
+            "base_demand": _bd_v,
+            "is_cold_chain": _cc,
+            "margin_pct": _margin,
+            "min_age_months": None,
+            "max_age_months": None,
+        })
+        _ext_counter += 1
+
 # ── Promotions master ─────────────────────────────────────────────────────────
 
 PROMOTIONS = [
@@ -2118,7 +2214,7 @@ CITIES = [
 
 
 def generate():
-    dates = pd.date_range("2023-01-01", "2024-12-31", freq="D")  # 730 days
+    dates = pd.date_range("2023-01-01", "2025-12-31", freq="D")  # 1096 days (3 yrs)
     n_days = len(dates)
 
     # ── 1. huft_products.csv ──────────────────────────────────────────────────
@@ -2175,11 +2271,11 @@ def generate():
     )
 
     # ── 4. huft_customers.csv ────────────────────────────────────────────────
-    n_cust = 5000
+    n_cust = 25000
     cust_rows = []
     for i in range(n_cust):
         join = pd.Timestamp(
-            rng.choice(pd.date_range("2020-01-01", "2024-11-30", freq="D"))
+            rng.choice(pd.date_range("2020-01-01", "2025-11-30", freq="D"))
         )
         seg = rng.choice(
             CUSTOMER_SEGMENTS, p=[0.20, 0.18, 0.22, 0.12, 0.10, 0.08, 0.10]
@@ -2259,7 +2355,7 @@ def generate():
     print(f"huft_promotions.csv — {len(promo_df)} promotions")
 
     # ── 6. huft_sales_transactions.csv ───────────────────────────────────────
-    n_txn = 50000
+    n_txn = 300000
     skus_list = [p["sku_id"] for p in PRODUCTS]
     sku_prices = {p["sku_id"]: p["price_inr"] for p in PRODUCTS}
     sku_cats = {p["sku_id"]: p["category"] for p in PRODUCTS}
@@ -2271,7 +2367,7 @@ def generate():
     txn_rows = []
     for i in range(n_txn):
         txn_date = pd.Timestamp(
-            rng.choice(pd.date_range("2023-01-01", "2024-12-31", freq="D"))
+            rng.choice(pd.date_range("2023-01-01", "2025-12-31", freq="D"))
         )
         sku = rng.choice(skus_list, p=weights)
         price = sku_prices[sku]
@@ -2380,7 +2476,7 @@ def generate():
     }
 
     sp_rows = []
-    review_months = pd.date_range("2023-01-01", "2024-12-01", freq="MS")
+    review_months = pd.date_range("2023-01-01", "2025-12-01", freq="MS")
     for sup in SUPPLIERS_HUFT:
         name = sup[0]
         base_otd = sup[3]
