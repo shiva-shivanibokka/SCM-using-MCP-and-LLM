@@ -1,17 +1,36 @@
-# Pet Store Supply Chain Intelligence Platform
-### Model Context Protocol · Temporal Fusion Transformer · Multi-LLM ReAct Agent · Real-Time Analytics
+# Petopia Intelligence Hub
+### Model Context Protocol · Foundation-Model Forecasting Ensemble · Multi-LLM ReAct Agent · React Analytics
 
-A production-grade, end-to-end **AI-powered supply chain intelligence system** built for a premium Indian pet retail company with 67 stores across India. The system combines a **50-tool MCP server**, a **multi-provider ReAct agent**, a **Temporal Fusion Transformer (TFT)** demand forecasting model, and an **18-chart interactive analytics dashboard** — all served through a polished Gradio web application.
+A production-grade, end-to-end **AI-powered supply chain intelligence platform** built for a premium Indian pet retailer (~90 stores, 160 SKUs, 25k customers, 300k transactions over 3 years). It combines a **50-tool MCP server**, a **multi-provider ReAct agent**, a **zero-shot forecasting ensemble** (Chronos-T5 + N-HiTS + CatBoost), and **8 animated dashboards** served by a **React + Vite** frontend over a **FastAPI** backend.
+
+**Deployment is fully free:** React frontend on **Vercel**, FastAPI backend on **HuggingFace Spaces** (Docker, CPU).
 
 ---
 
 ## What Makes This Different
 
-Most supply chain tools are dashboards that show you what happened. This system reasons over your data, calls live database tools, searches the web, executes Python code, and tells you what to do — in natural language.
+Most supply chain tools are dashboards that show you what happened. This system reasons over your data, calls live tools, and tells you what to do — in natural language.
 
-- **Not RAG** — No vector databases, no embeddings, no similarity search. Instead, the agent uses **Model Context Protocol (MCP)** to call typed tools that query live MySQL and PostgreSQL databases in real time.
-- **Not a chatbot** — The agent follows a full **ReAct reasoning loop** (Reasoning → Acting → Observing) with up to 20 tool calls per query, synthesising data from multiple sources before answering.
-- **Not a single model** — The forecasting engine uses a **Temporal Fusion Transformer** (state-of-the-art for retail time-series) with automatic fallback to **CatBoost**, both enriched with promotion calendar and Indian festival features.
+- **Not RAG** — No vector databases or embeddings. The agent uses **Model Context Protocol (MCP)** to call typed tools over live data in real time.
+- **Not a chatbot** — The agent runs a full **ReAct loop** (Reason → Act → Observe), up to 20 tool calls per query, synthesising multiple sources before answering.
+- **Not a single model, and genuinely zero-shot** — The forecasting engine blends **Amazon Chronos-T5** (a HuggingFace time-series foundation model), **N-HiTS**, and a **CatBoost** baseline with frozen weights `(0.5 / 0.35 / 0.15)`. It is fine-tuned once a quarter and runs **zero-shot in between** — no retraining at inference time, CPU-only.
+
+---
+
+## Running Locally
+
+```bash
+# 1. Backend (FastAPI + forecasting + MCP)
+pip install -r backend/requirements.txt
+python data/generate_data.py                       # generate the dataset
+uvicorn backend.main:app --reload --port 8000      # http://localhost:8000/docs
+
+# 2. Frontend (React + Vite)
+cd frontend && npm install && npm run dev          # http://localhost:5173
+```
+
+Set `VITE_API_BASE` in `frontend/.env` to point at the backend (defaults to `http://localhost:8000`).
+LLM provider, model, and API key are chosen in the UI (AI Assistant page) — free options include Groq and Gemini.
 
 ---
 
@@ -19,8 +38,14 @@ Most supply chain tools are dashboards that show you what happened. This system 
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│                     Gradio Web Application (5 Tabs)                      │
-│  AI Assistant │ Inventory Dashboard │ Analytics │ Demand Forecast │ MLOps│
+│              React + Vite Frontend (Vercel) — 8 Dashboards               │
+│ Executive·Inventory·Forecast·Suppliers·Stores·Analytics·AI·MLOps         │
+└──────────────────────────┬───────────────────────────────────────────────┘
+                           │  REST /api/* + WebSocket /ws/chat
+                           ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│            FastAPI Backend (HuggingFace Spaces · Docker · CPU)            │
+│  8 route modules · forecasting ensemble · /ws/chat streams the agent     │
 └──────────────────────────┬───────────────────────────────────────────────┘
                            │
                            ▼
