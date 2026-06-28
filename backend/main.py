@@ -40,3 +40,7 @@ from backend.api.routes import analytics as analytics_routes  # noqa: E402
 app.include_router(suppliers_routes.router)
 app.include_router(stores_routes.router)
 app.include_router(analytics_routes.router)
+
+from backend.api.routes import chat as chat_routes  # noqa: E402
+
+app.include_router(chat_routes.router)
