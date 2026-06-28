@@ -3,6 +3,63 @@
 @tailwind utilities;
 
 body {
-  @apply bg-cream text-navy;
-  font-family: Inter, system-ui, sans-serif;
+  @apply bg-cream text-ink;
+  font-family: Nunito, system-ui, sans-serif;
+  /* playful paw-print confetti, very subtle, behind everything */
+  background-color: #fff9f2;
+  background-image: radial-gradient(rgba(18, 181, 166, 0.06) 2px, transparent 2px),
+    radial-gradient(rgba(255, 122, 69, 0.06) 2px, transparent 2px);
+  background-size: 44px 44px, 44px 44px;
+  background-position: 0 0, 22px 22px;
+}
+
+h1,
+h2,
+h3,
+.font-display {
+  font-family: Fredoka, system-ui, sans-serif;
+}
+
+/* Reusable card surface */
+@layer components {
+  .card {
+    @apply bg-white rounded-blob shadow-pop border border-ink/5;
+  }
+  .pill {
+    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Scrollbar that fits the toybox vibe */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(18, 181, 166, 0.35);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(18, 181, 166, 0.6);
+}
+
+/* Respect users who prefer fewer animations */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }

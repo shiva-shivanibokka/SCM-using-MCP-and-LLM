@@ -1,50 +1,78 @@
 import { useQuery } from "@tanstack/react-query"
+import { Eraser, KeyRound } from "lucide-react"
 import { apiGet } from "../lib/api"
 import { useLLMStore } from "../stores/llmStore"
 
+// One-line model bar: provider · model · API key · clear.
 export default function LlmSelector() {
-  const { provider, model, apiKey, setProvider, setModel, setApiKey } = useLLMStore()
+  const { provider, model, apiKey, setProvider, setModel, setApiKey, clearApiKey } =
+    useLLMStore()
   const { data: providers } = useQuery({
     queryKey: ["providers"],
     queryFn: () => apiGet("/api/chat/providers"),
   })
 
   const models = providers?.[provider]?.models ?? []
+  const onProvider = (p) => setProvider(p, providers?.[p]?.default_model)
+
+  const FREE = { groq: "free", gemini: "free" }
 
   return (
-    <div className="flex flex-col gap-2 p-4 bg-white rounded-2xl shadow">
-      <div className="text-sm font-semibold text-navy mb-1">Model Settings</div>
-      <label className="text-xs font-semibold text-navy/70">Provider</label>
-      <select
-        className="rounded-lg border p-2 text-sm"
-        value={provider}
-        onChange={(e) => setProvider(e.target.value)}
-      >
-        {providers &&
-          Object.keys(providers).map((p) => (
-            <option key={p} value={p}>{p}</option>
+    <div className="card p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="pill bg-grape/10 text-grape">
+          <KeyRound size={13} /> Bring your own key
+        </span>
+
+        <select
+          className="rounded-xl border border-ink/15 bg-cream px-3 py-2 text-sm font-bold"
+          value={provider}
+          onChange={(e) => onProvider(e.target.value)}
+          aria-label="Provider"
+        >
+          {providers &&
+            Object.keys(providers).map((p) => (
+              <option key={p} value={p}>
+                {p}
+                {FREE[p] ? " (free)" : ""}
+              </option>
+            ))}
+        </select>
+
+        <select
+          className="rounded-xl border border-ink/15 bg-cream px-3 py-2 text-sm"
+          value={model}
+          onChange={(e) => setModel(e.target.value)}
+          aria-label="Model"
+        >
+          {models.map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
           ))}
-      </select>
-      <label className="text-xs font-semibold text-navy/70">Model</label>
-      <select
-        className="rounded-lg border p-2 text-sm"
-        value={model}
-        onChange={(e) => setModel(e.target.value)}
-      >
-        {models.map((m) => (
-          <option key={m} value={m}>{m}</option>
-        ))}
-      </select>
-      <label className="text-xs font-semibold text-navy/70">API Key</label>
-      <input
-        type="password"
-        className="rounded-lg border p-2 text-sm"
-        placeholder="paste your key (stays in your browser)"
-        value={apiKey}
-        onChange={(e) => setApiKey(e.target.value)}
-      />
-      <p className="text-[10px] text-navy/40 mt-1">
-        Free options: Groq, Gemini, Ollama. Keys are stored only in your browser.
+        </select>
+
+        <input
+          type="password"
+          className="flex-1 min-w-[180px] rounded-xl border border-ink/15 px-3 py-2 text-sm"
+          placeholder={`Paste your ${provider} API key — stays in your browser`}
+          value={apiKey}
+          onChange={(e) => setApiKey(e.target.value)}
+          aria-label="API key"
+        />
+
+        <button
+          onClick={clearApiKey}
+          disabled={!apiKey}
+          className="pill bg-coral/10 text-coral disabled:opacity-40 hover:bg-coral/20 transition"
+          title="Clear the API key"
+        >
+          <Eraser size={14} /> Clear
+        </button>
+      </div>
+      <p className="text-[11px] text-ink/45 mt-2 px-1">
+        Groq & Gemini have free tiers. Keys never leave your browser — they're sent only
+        with your chat request and never stored on the server.
       </p>
     </div>
   )

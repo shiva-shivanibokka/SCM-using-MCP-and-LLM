@@ -35,12 +35,12 @@ PROVIDER_ENV_KEYS = {
 PROVIDERS = {
     "anthropic": {
         "models": [
-            "claude-opus-4-5",
-            "claude-sonnet-4-5",
+            "claude-sonnet-4-6",
+            "claude-opus-4-8",
+            "claude-haiku-4-5-20251001",
             "claude-3-5-haiku-20241022",
-            "claude-3-opus-20240229",
         ],
-        "default_model": "claude-sonnet-4-5",
+        "default_model": "claude-sonnet-4-6",
     },
     "openai": {
         "models": [
