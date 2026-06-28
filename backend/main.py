@@ -32,3 +32,11 @@ from backend.api.routes import inventory as inventory_routes  # noqa: E402
 
 app.include_router(executive_routes.router)
 app.include_router(inventory_routes.router)
+
+from backend.api.routes import suppliers as suppliers_routes  # noqa: E402
+from backend.api.routes import stores as stores_routes  # noqa: E402
+from backend.api.routes import analytics as analytics_routes  # noqa: E402
+
+app.include_router(suppliers_routes.router)
+app.include_router(stores_routes.router)
+app.include_router(analytics_routes.router)
