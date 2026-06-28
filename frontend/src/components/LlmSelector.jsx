@@ -1,3 +1,4 @@
+import { useEffect } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Eraser, KeyRound } from "lucide-react"
 import { apiGet } from "../lib/api"
@@ -14,6 +15,14 @@ export default function LlmSelector() {
 
   const models = providers?.[provider]?.models ?? []
   const onProvider = (p) => setProvider(p, providers?.[p]?.default_model)
+
+  // Self-heal: if a persisted model doesn't belong to the current provider
+  // (e.g. an old Groq model left selected under OpenAI), reset to the default.
+  useEffect(() => {
+    if (providers && models.length && !models.includes(model)) {
+      setModel(providers[provider]?.default_model || models[0])
+    }
+  }, [providers, provider, model, models, setModel])
 
   const FREE = { groq: "free", gemini: "free" }
 
