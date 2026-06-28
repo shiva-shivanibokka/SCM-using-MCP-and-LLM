@@ -1,3 +1,14 @@
+---
+title: Petopia Backend
+emoji: 🐾
+colorFrom: teal
+colorTo: yellow
+sdk: docker
+app_port: 7860
+pinned: false
+license: mit
+---
+
 # Petopia Intelligence Hub
 ### Model Context Protocol · Foundation-Model Forecasting Ensemble · Multi-LLM ReAct Agent · React Analytics
 
