@@ -15,7 +15,7 @@ const LINKS = [
 export default function TopBar() {
   return (
     <header className="sticky top-0 z-30 bg-white/85 backdrop-blur border-b border-ink/10">
-      <div className="mx-auto max-w-[1400px] px-4 md:px-6">
+      <div className="mx-auto max-w-[1760px] px-5 md:px-10">
         <div className="flex items-center gap-4 h-16">
           {/* Logo + trotting mascot */}
           <NavLink to="/" className="flex items-center gap-2 shrink-0">

@@ -1,6 +1,6 @@
 import { motion } from "framer-motion"
+import { Info } from "lucide-react"
 
-// Each accent maps to a tile color, a soft tint, and a pet emoji.
 const ACCENTS = {
   teal: { bar: "bg-teal", tint: "bg-teal/10", ring: "ring-teal/20", emoji: "🐾" },
   orange: { bar: "bg-orange", tint: "bg-orange/10", ring: "ring-orange/20", emoji: "🦴" },
@@ -12,30 +12,40 @@ const ACCENTS = {
   coral: { bar: "bg-coral", tint: "bg-coral/10", ring: "ring-coral/20", emoji: "🚨" },
 }
 
-export default function KpiCard({ title, value, subtitle, accent = "teal", emoji }) {
+// `help` shows an info dot with a hover tooltip explaining what the metric means.
+export default function KpiCard({ title, value, subtitle, accent = "teal", emoji, help, index = 0 }) {
   const a = ACCENTS[accent] || ACCENTS.teal
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      whileHover={{ y: -4, rotate: -0.4 }}
-      transition={{ type: "spring", stiffness: 300, damping: 20 }}
-      className={`card overflow-hidden ring-1 ${a.ring}`}
+      initial={{ opacity: 0, y: 16 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      transition={{ type: "spring", stiffness: 280, damping: 22, delay: index * 0.06 }}
+      whileHover={{ y: -5, rotate: -0.5 }}
+      className={`group card overflow-visible ring-1 ${a.ring} relative`}
     >
-      <div className={`h-1.5 ${a.bar}`} />
+      <div className={`h-2 ${a.bar} rounded-t-blob`} />
       <div className="p-5">
         <div className="flex items-center justify-between">
-          <div className="text-xs font-extrabold uppercase tracking-wide text-ink/55">
+          <div className="flex items-center gap-1.5 text-sm font-extrabold uppercase tracking-wide text-ink/55">
             {title}
+            {help && (
+              <span className="relative">
+                <Info size={14} className="text-ink/30 group-hover:text-ink/60 transition" />
+                <span className="pointer-events-none absolute left-1/2 top-6 z-20 w-56 -translate-x-1/2 rounded-xl bg-ink px-3 py-2 text-xs font-medium normal-case tracking-normal text-white opacity-0 shadow-pop transition group-hover:opacity-100">
+                  {help}
+                </span>
+              </span>
+            )}
           </div>
-          <div className={`grid place-items-center h-9 w-9 rounded-full ${a.tint} text-lg`}>
+          <div className={`grid place-items-center h-10 w-10 rounded-full ${a.tint} text-xl`}>
             {emoji || a.emoji}
           </div>
         </div>
-        <div className="font-display text-3xl font-700 text-ink mt-2 leading-none">
+        <div className="font-display text-4xl font-700 text-ink mt-2 leading-none">
           {value}
         </div>
-        {subtitle && <div className="text-xs text-ink/50 mt-1.5">{subtitle}</div>}
+        {subtitle && <div className="text-sm text-ink/55 mt-2">{subtitle}</div>}
       </div>
     </motion.div>
   )

@@ -3,7 +3,17 @@ import { useQuery } from "@tanstack/react-query"
 import { motion } from "framer-motion"
 import { apiGet } from "../lib/api"
 import PageHeader from "../components/PageHeader"
+import Glossary from "../components/Glossary"
 import { num, titleize } from "../lib/format"
+
+const GLOSSARY = [
+  { term: "On-time delivery", what: "Share of orders that arrived by the promised date. Below ~90% disrupts replenishment planning." },
+  { term: "Fill rate", what: "Share of each order the supplier could actually ship in full — partial shipments hurt our shelf availability." },
+  { term: "Quality rating", what: "A 0–5 score for goods condition and spec compliance on arrival. Higher is better." },
+  { term: "Defect rate", what: "Percentage of received units that were damaged or out-of-spec. Lower is better." },
+  { term: "Lead time", what: "Average days from placing an order to receiving it. Shorter lets us hold less safety stock." },
+  { term: "Colour grading", what: "Green = on target, amber = watch, red = needs a conversation. Thresholds differ per metric (e.g. low defects are good, high on-time is good)." },
+]
 
 // metric → how to read it. higherIsBetter drives the color grading.
 const METRICS = [
@@ -107,6 +117,8 @@ export default function Suppliers() {
           </div>
         </>
       )}
+
+      <Glossary items={GLOSSARY} />
     </div>
   )
 }

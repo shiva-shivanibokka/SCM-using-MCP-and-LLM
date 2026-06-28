@@ -49,6 +49,12 @@ def load_promotions() -> pd.DataFrame:
     return pd.read_csv(_D / "huft_promotions.csv")
 
 
+@functools.lru_cache(maxsize=None)
+def load_store_inventory() -> pd.DataFrame:
+    # Large (~1.2M rows): per store × SKU × day, with days_of_supply + risk_status.
+    return pd.read_csv(_D / "store_daily_inventory.csv", parse_dates=["date"])
+
+
 def sku_history(sku_id: str) -> list[float]:
     df = load_demand()
     s = (df[df["sku_id"] == sku_id]
@@ -59,5 +65,6 @@ def sku_history(sku_id: str) -> list[float]:
 
 def clear_cache() -> None:
     for fn in (load_products, load_stores, load_demand, load_customers,
-               load_transactions, load_suppliers, load_returns, load_promotions):
+               load_transactions, load_suppliers, load_returns, load_promotions,
+               load_store_inventory):
         fn.cache_clear()

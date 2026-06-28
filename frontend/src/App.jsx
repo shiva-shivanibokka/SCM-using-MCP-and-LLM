@@ -15,7 +15,7 @@ export default function App() {
     <BrowserRouter>
       <FloatingPets />
       <TopBar />
-      <main className="mx-auto max-w-[1400px] px-4 md:px-6 py-8">
+      <main className="mx-auto max-w-[1760px] px-5 md:px-10 py-8">
         <Routes>
           <Route path="/" element={<Executive />} />
           <Route path="/inventory" element={<Inventory />} />
@@ -27,7 +27,7 @@ export default function App() {
           <Route path="/mlops" element={<MLOps />} />
         </Routes>
       </main>
-      <footer className="mx-auto max-w-[1400px] px-6 py-8 text-center text-xs text-ink/40">
+      <footer className="mx-auto max-w-[1760px] px-10 py-8 text-center text-sm text-ink/40">
         🐾 Petopia Intelligence Hub · Chronos + N-HiTS + CatBoost ensemble · MCP agent
       </footer>
     </BrowserRouter>

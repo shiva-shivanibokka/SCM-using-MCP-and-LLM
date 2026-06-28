@@ -9,7 +9,17 @@ import { apiGet } from "../lib/api"
 import PageHeader from "../components/PageHeader"
 import KpiCard from "../components/KpiCard"
 import ChartCard from "../components/ChartCard"
+import Glossary from "../components/Glossary"
 import { num } from "../lib/format"
+
+const GLOSSARY = [
+  { term: "Horizon", what: "How many days ahead we forecast. A 30-day horizon predicts demand for each of the next 30 days." },
+  { term: "P50 (median)", what: "The expected demand — half the time actual demand lands above this, half below." },
+  { term: "P10 / P90 band", what: "The likely range: demand should fall between the P10 (low) and P90 (high) lines about 80% of the time. A wide band means more uncertainty." },
+  { term: "Ensemble", what: "We blend three models — Chronos (a foundation model), N-HiTS (neural), and CatBoost (trees) — with fixed weights. Combining beats any single model." },
+  { term: "Zero-shot", what: "Chronos forecasts without being trained on this SKU first — like a pretrained language model completing new text." },
+  { term: "Peak day", what: "The single day in the horizon with the highest expected demand — plan stock to cover it." },
+]
 
 const COMPCOLORS = { chronos: "#12B5A6", nhits: "#8B5CF6", catboost: "#FF7A45" }
 
@@ -130,11 +140,15 @@ export default function Forecast() {
 
       {ran && fc && (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <KpiCard title={`Total demand (${horizon}d)`} value={num(total)} accent="teal" emoji="📈" />
-            <KpiCard title="Avg / day" value={num(avg)} accent="sky" emoji="📅" />
-            <KpiCard title="Peak day" value={`Day ${peakDay}`} subtitle={`${num(peak)} units`} accent="orange" emoji="⛰️" />
-            <KpiCard title="Models blended" value={activeModels.length} accent="grape" emoji="🧩" />
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
+            <KpiCard index={0} title={`Total demand (${horizon}d)`} value={num(total)} accent="teal" emoji="📈"
+              help="Expected total units sold over the whole horizon (sum of the median daily forecasts)." />
+            <KpiCard index={1} title="Avg / day" value={num(avg)} accent="sky" emoji="📅"
+              help="Average expected demand per day across the horizon." />
+            <KpiCard index={2} title="Peak day" value={`Day ${peakDay}`} subtitle={`${num(peak)} units`} accent="orange" emoji="⛰️"
+              help="The highest-demand day in the horizon — size stock to cover it." />
+            <KpiCard index={3} title="Models blended" value={activeModels.length} accent="grape" emoji="🧩"
+              help="How many of the three ensemble models contributed to this run." />
           </div>
 
           <ChartCard
@@ -162,6 +176,8 @@ export default function Forecast() {
           </ChartCard>
         </>
       )}
+
+      <Glossary items={GLOSSARY} />
     </div>
   )
 }

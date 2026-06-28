@@ -6,7 +6,17 @@ import { apiGet } from "../lib/api"
 import PageHeader from "../components/PageHeader"
 import KpiCard from "../components/KpiCard"
 import ChartCard from "../components/ChartCard"
+import Glossary from "../components/Glossary"
 import { inr, inrCompact } from "../lib/format"
+
+const GLOSSARY = [
+  { term: "Revenue (net)", what: "Total money taken in from sales after discounts, across all stores and channels, for the whole history." },
+  { term: "Gross margin %", what: "The share of revenue left after the cost of the goods sold — how profitable sales are before overheads." },
+  { term: "Fill rate", what: "The percentage of demand we could satisfy straight from stock. Higher means fewer disappointed customers." },
+  { term: "Stockout rate", what: "How often an item had zero demand met because it was out of stock. Lower is better." },
+  { term: "Inventory value (at cost)", what: "What the stock currently on shelves is worth at purchase cost — capital tied up in inventory." },
+  { term: "Top / Bottom SKUs", what: "The best- and worst-selling individual products by revenue. Protect the top; review the bottom." },
+]
 
 const PALETTE = ["#12B5A6", "#FF7A45", "#FF5DA2", "#3DA5F4", "#36C26B", "#8B5CF6", "#FFC53D"]
 
@@ -48,11 +58,15 @@ export default function Executive() {
         blurb="The one-screen health check: how much we're selling, how profitably, how reliably we keep shelves stocked, and where the money comes from. Everything below is computed live from transactions and inventory."
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-        <KpiCard title="Revenue" value={inrCompact(data.revenue)} subtitle="All-time, net" accent="teal" emoji="💰" />
-        <KpiCard title="Gross margin" value={`${data.gross_margin_pct}%`} subtitle="After cost of goods" accent="amber" emoji="📈" />
-        <KpiCard title="Fill rate" value={`${data.fill_rate}%`} subtitle="Demand met from stock" accent="leaf" emoji="✅" />
-        <KpiCard title="Stockout rate" value={`${data.stockout_rate}%`} subtitle="Lower is better" accent="coral" emoji="🚨" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 mb-5">
+        <KpiCard index={0} title="Revenue" value={inrCompact(data.revenue)} subtitle="All-time, net" accent="teal" emoji="💰"
+          help="Total sales after discounts, across every store and channel." />
+        <KpiCard index={1} title="Gross margin" value={`${data.gross_margin_pct}%`} subtitle="After cost of goods" accent="amber" emoji="📈"
+          help="Profit left after the cost of goods, as a share of revenue." />
+        <KpiCard index={2} title="Fill rate" value={`${data.fill_rate}%`} subtitle="Demand met from stock" accent="leaf" emoji="✅"
+          help="Share of customer demand served straight from available stock." />
+        <KpiCard index={3} title="Stockout rate" value={`${data.stockout_rate}%`} subtitle="Lower is better" accent="coral" emoji="🚨"
+          help="How often an item was unavailable when demanded. Lower is better." />
       </div>
 
       <div className="mb-6">
@@ -62,6 +76,7 @@ export default function Executive() {
           subtitle="Capital tied up in stock — latest snapshot"
           accent="grape"
           emoji="🏷️"
+          help="The purchase-cost value of all stock currently on shelves."
         />
       </div>
 
@@ -93,6 +108,8 @@ export default function Executive() {
           <SkuList rows={data.bottom_skus || []} danger />
         </ChartCard>
       </div>
+
+      <Glossary items={GLOSSARY} />
     </div>
   )
 }

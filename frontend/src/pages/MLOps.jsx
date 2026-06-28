@@ -7,6 +7,15 @@ import { apiGet, apiPost } from "../lib/api"
 import PageHeader from "../components/PageHeader"
 import KpiCard from "../components/KpiCard"
 import ChartCard from "../components/ChartCard"
+import Glossary from "../components/Glossary"
+
+const GLOSSARY = [
+  { term: "Ensemble weights", what: "How much each model contributes to the blended forecast. Frozen between fine-tunes so predictions stay reproducible." },
+  { term: "Zero-shot (between fine-tunes)", what: "The models keep forecasting new data without retraining; we only retrain on a schedule, not every request." },
+  { term: "MAPE", what: "Mean Absolute Percentage Error from backtesting — average % the forecast was off. Lower is better; 12% means typically within 12% of actual." },
+  { term: "Fine-tune cadence", what: "We retrain every 90 days so the models track shifting demand without churning predictions daily." },
+  { term: "Trigger fine-tune", what: "Queues a retrain run for N-HiTS and CatBoost; Chronos stays zero-shot and is re-pinned after backtesting." },
+]
 
 const WEIGHT_COLORS = { chronos: "#12B5A6", nhits: "#8B5CF6", catboost: "#FF7A45" }
 
@@ -67,11 +76,15 @@ export default function MLOps() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <KpiCard title="Last fine-tune" value={data.last_finetune} accent="teal" emoji="✅" />
-        <KpiCard title="Next fine-tune" value={data.next_finetune} accent="amber" emoji="📆" />
-        <KpiCard title="Models in ensemble" value={data.models.length} accent="grape" emoji="🧩" />
-        <KpiCard title="Cadence" value="90 days" subtitle="zero-shot between" accent="sky" emoji="🔁" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
+        <KpiCard index={0} title="Last fine-tune" value={data.last_finetune} accent="teal" emoji="✅"
+          help="When the models were last retrained on fresh demand." />
+        <KpiCard index={1} title="Next fine-tune" value={data.next_finetune} accent="amber" emoji="📆"
+          help="The next scheduled retrain date (every 90 days)." />
+        <KpiCard index={2} title="Models in ensemble" value={data.models.length} accent="grape" emoji="🧩"
+          help="How many models are blended into the forecast (Chronos, N-HiTS, CatBoost)." />
+        <KpiCard index={3} title="Cadence" value="90 days" subtitle="zero-shot between" accent="sky" emoji="🔁"
+          help="We retrain quarterly; between runs the models forecast new data zero-shot." />
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
@@ -113,6 +126,8 @@ export default function MLOps() {
           </ResponsiveContainer>
         </ChartCard>
       </div>
+
+      <Glossary items={GLOSSARY} />
     </div>
   )
 }

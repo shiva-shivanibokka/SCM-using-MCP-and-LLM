@@ -2,15 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  /* Bumps every rem-based size up ~6% so body text isn't tiny */
+  font-size: 17px;
+}
+
 body {
-  @apply bg-cream text-ink;
+  @apply bg-white text-ink;
   font-family: Nunito, system-ui, sans-serif;
-  /* playful paw-print confetti, very subtle, behind everything */
-  background-color: #fff9f2;
-  background-image: radial-gradient(rgba(18, 181, 166, 0.06) 2px, transparent 2px),
-    radial-gradient(rgba(255, 122, 69, 0.06) 2px, transparent 2px);
-  background-size: 44px 44px, 44px 44px;
-  background-position: 0 0, 22px 22px;
+  /* very faint paw-dot texture on white */
+  background-color: #ffffff;
+  background-image: radial-gradient(rgba(18, 181, 166, 0.04) 2px, transparent 2px),
+    radial-gradient(rgba(255, 122, 69, 0.04) 2px, transparent 2px);
+  background-size: 46px 46px, 46px 46px;
+  background-position: 0 0, 23px 23px;
+  background-attachment: fixed;
 }
 
 h1,
@@ -20,13 +26,12 @@ h3,
   font-family: Fredoka, system-ui, sans-serif;
 }
 
-/* Reusable card surface */
 @layer components {
   .card {
-    @apply bg-white rounded-blob shadow-pop border border-ink/5;
+    @apply bg-white rounded-blob border border-ink/10 shadow-pop;
   }
   .pill {
-    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold;
+    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold;
   }
 }
 
@@ -40,7 +45,6 @@ h3,
   }
 }
 
-/* Scrollbar that fits the toybox vibe */
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -53,7 +57,6 @@ h3,
   background: rgba(18, 181, 166, 0.6);
 }
 
-/* Respect users who prefer fewer animations */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

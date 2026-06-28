@@ -18,7 +18,7 @@ export default function PageHeader({ emoji, title, blurb, children }) {
           )}
           {title}
         </motion.h1>
-        {blurb && <p className="text-ink/60 mt-2 max-w-2xl">{blurb}</p>}
+        {blurb && <p className="text-ink/65 text-lg mt-2 max-w-4xl leading-relaxed">{blurb}</p>}
       </div>
       {children && <div className="flex items-center gap-2">{children}</div>}
     </div>

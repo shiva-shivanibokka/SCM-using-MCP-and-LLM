@@ -7,7 +7,19 @@ import { apiGet } from "../lib/api"
 import PageHeader from "../components/PageHeader"
 import ChartCard from "../components/ChartCard"
 import KpiCard from "../components/KpiCard"
+import Glossary from "../components/Glossary"
 import { inrCompact, inr } from "../lib/format"
+
+const GLOSSARY = [
+  { term: "LTV (Lifetime Value)", what: "The total revenue an average customer in a segment brings over their whole relationship with us — not a single purchase. High-LTV segments are worth retaining hardest." },
+  { term: "Customer segment", what: "A behavioural group customers are bucketed into based on what and how they buy." },
+  { term: "Loyal Premium", what: "Frequent, high-spend regulars who buy premium brands — the most valuable group." },
+  { term: "Multi-Pet Household", what: "Customers with several pets — larger, more frequent baskets across multiple pet types." },
+  { term: "Health Focused", what: "Customers who prioritise vet diets, supplements, and wellness products." },
+  { term: "New Pet Parent", what: "Recently acquired customers still building their basket — high growth potential." },
+  { term: "Budget Conscious", what: "Price-sensitive shoppers who favour value packs and discounts." },
+  { term: "Returns by category", what: "How many returns each product category generated — high bars flag quality, sizing, or expectation problems." },
+]
 
 const PALETTE = ["#12B5A6", "#FF7A45", "#FF5DA2", "#3DA5F4", "#36C26B", "#8B5CF6", "#FFC53D"]
 
@@ -54,10 +66,12 @@ export default function Analytics() {
           {ltv.slice(0, 4).map((d, i) => (
             <KpiCard
               key={d.name}
+              index={i}
               title={`LTV · ${d.name}`}
               value={inrCompact(d.value)}
               accent={["teal", "pink", "sky", "grape"][i % 4]}
               emoji="💎"
+              help={`Average lifetime value of a "${d.name}" customer — total revenue they bring over their whole relationship with us.`}
             />
           ))}
         </div>
@@ -103,6 +117,8 @@ export default function Analytics() {
           </ResponsiveContainer>
         )}
       </ChartCard>
+
+      <Glossary items={GLOSSARY} />
     </div>
   )
 }
