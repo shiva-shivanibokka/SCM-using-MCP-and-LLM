@@ -1,58 +1,80 @@
-"""Cached pandas loaders over the data/ CSVs."""
+"""Data access layer.
+
+Reads from PostgreSQL (Neon) when DATABASE_URL is set; otherwise falls back to
+the bundled CSVs. Either way the rest of the app sees identical DataFrames, so
+routes and forecasting don't care where the data lives.
+"""
 from __future__ import annotations
 
 import functools
+import logging
+
 import pandas as pd
 
 from .config import settings
+from .db import get_engine
 
+logger = logging.getLogger(__name__)
 _D = settings.DATA_DIR
+
+
+def _load(table: str, csv: str, parse_dates=None) -> pd.DataFrame:
+    """Load a table from Postgres, falling back to the CSV on any failure."""
+    engine = get_engine()
+    if engine is not None:
+        try:
+            return pd.read_sql_table(table, engine, parse_dates=parse_dates)
+        except Exception as e:  # table missing, network blip, etc.
+            logger.warning("DB read failed for '%s' (%s) — using CSV", table, e)
+    return pd.read_csv(_D / csv, parse_dates=parse_dates) if parse_dates \
+        else pd.read_csv(_D / csv)
 
 
 @functools.lru_cache(maxsize=None)
 def load_products() -> pd.DataFrame:
-    return pd.read_csv(_D / "huft_products.csv")
+    return _load("products", "huft_products.csv")
 
 
 @functools.lru_cache(maxsize=None)
 def load_stores() -> pd.DataFrame:
-    return pd.read_csv(_D / "huft_stores.csv")
+    return _load("stores", "huft_stores.csv")
 
 
 @functools.lru_cache(maxsize=None)
 def load_demand() -> pd.DataFrame:
-    return pd.read_csv(_D / "huft_daily_demand.csv", parse_dates=["date"])
+    return _load("demand", "huft_daily_demand.csv", parse_dates=["date"])
 
 
 @functools.lru_cache(maxsize=None)
 def load_customers() -> pd.DataFrame:
-    return pd.read_csv(_D / "huft_customers.csv")
+    return _load("customers", "huft_customers.csv")
 
 
 @functools.lru_cache(maxsize=None)
 def load_transactions() -> pd.DataFrame:
-    return pd.read_csv(_D / "huft_sales_transactions.csv")
+    return _load("transactions", "huft_sales_transactions.csv", parse_dates=["date"])
 
 
 @functools.lru_cache(maxsize=None)
 def load_suppliers() -> pd.DataFrame:
-    return pd.read_csv(_D / "huft_supplier_performance.csv")
+    return _load("suppliers", "huft_supplier_performance.csv")
 
 
 @functools.lru_cache(maxsize=None)
 def load_returns() -> pd.DataFrame:
-    return pd.read_csv(_D / "huft_returns.csv")
+    return _load("returns", "huft_returns.csv")
 
 
 @functools.lru_cache(maxsize=None)
 def load_promotions() -> pd.DataFrame:
-    return pd.read_csv(_D / "huft_promotions.csv")
+    return _load("promotions", "huft_promotions.csv")
 
 
 @functools.lru_cache(maxsize=None)
 def load_store_inventory() -> pd.DataFrame:
-    # Large (~1.2M rows): per store × SKU × day, with days_of_supply + risk_status.
-    return pd.read_csv(_D / "store_daily_inventory.csv", parse_dates=["date"])
+    # In Postgres this is the compact latest-snapshot table; from CSV it's the
+    # full daily history. Callers take the latest row per (store, SKU) either way.
+    return _load("store_inventory", "store_daily_inventory.csv", parse_dates=["date"])
 
 
 def sku_history(sku_id: str) -> list[float]:
