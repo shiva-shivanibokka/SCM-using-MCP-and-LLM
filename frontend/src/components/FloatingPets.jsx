@@ -2,7 +2,7 @@
 // Purely decorative — pointer-events-none and hidden from screen readers.
 const PETS = ["🐶", "🐱", "🐰", "🐹", "🐦", "🐠", "🐢", "🦴", "🐾"]
 
-export default function FloatingPets({ count = 7 }) {
+export default function FloatingPets({ count = 5 }) {
   const items = Array.from({ length: count }, (_, i) => ({
     pet: PETS[i % PETS.length],
     left: `${(i * 13 + 6) % 96}%`,

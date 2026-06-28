@@ -46,8 +46,8 @@ export default {
         },
         floatUp: {
           "0%": { transform: "translateY(20px)", opacity: "0" },
-          "15%": { opacity: "0.5" },
-          "85%": { opacity: "0.5" },
+          "15%": { opacity: "0.3" },
+          "85%": { opacity: "0.3" },
           "100%": { transform: "translateY(-120px)", opacity: "0" },
         },
         popIn: {
