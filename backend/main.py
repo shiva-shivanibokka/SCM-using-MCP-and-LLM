@@ -26,3 +26,9 @@ from backend.api.routes import mlops as mlops_routes  # noqa: E402
 
 app.include_router(forecast_routes.router)
 app.include_router(mlops_routes.router)
+
+from backend.api.routes import executive as executive_routes  # noqa: E402
+from backend.api.routes import inventory as inventory_routes  # noqa: E402
+
+app.include_router(executive_routes.router)
+app.include_router(inventory_routes.router)
