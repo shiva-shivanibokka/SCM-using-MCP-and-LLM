@@ -19,3 +19,10 @@ app.add_middleware(
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+from backend.api.routes import forecast as forecast_routes  # noqa: E402
+from backend.api.routes import mlops as mlops_routes  # noqa: E402
+
+app.include_router(forecast_routes.router)
+app.include_router(mlops_routes.router)
