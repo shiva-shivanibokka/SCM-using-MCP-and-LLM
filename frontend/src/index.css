@@ -3,8 +3,8 @@
 @tailwind utilities;
 
 html {
-  /* Bumps every rem-based size up ~6% so body text isn't tiny */
-  font-size: 17px;
+  /* Bumps every rem-based size up so body text reads comfortably on big screens */
+  font-size: 18.5px;
 }
 
 body {
@@ -31,7 +31,7 @@ h3,
     @apply bg-white rounded-blob border border-ink/10 shadow-pop;
   }
   .pill {
-    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold;
+    @apply inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-base font-bold;
   }
 }
 

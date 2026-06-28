@@ -24,28 +24,28 @@ export default function KpiCard({ title, value, subtitle, accent = "teal", emoji
       whileHover={{ y: -5, rotate: -0.5 }}
       className={`group card overflow-visible ring-1 ${a.ring} relative`}
     >
-      <div className={`h-2 ${a.bar} rounded-t-blob`} />
-      <div className="p-5">
+      <div className={`h-2.5 ${a.bar} rounded-t-blob`} />
+      <div className="p-6">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-sm font-extrabold uppercase tracking-wide text-ink/55">
+          <div className="flex items-center gap-1.5 text-base font-extrabold uppercase tracking-wide text-ink/55">
             {title}
             {help && (
               <span className="relative">
-                <Info size={14} className="text-ink/30 group-hover:text-ink/60 transition" />
-                <span className="pointer-events-none absolute left-1/2 top-6 z-20 w-56 -translate-x-1/2 rounded-xl bg-ink px-3 py-2 text-xs font-medium normal-case tracking-normal text-white opacity-0 shadow-pop transition group-hover:opacity-100">
+                <Info size={16} className="text-ink/30 group-hover:text-ink/60 transition" />
+                <span className="pointer-events-none absolute left-1/2 top-7 z-20 w-64 -translate-x-1/2 rounded-xl bg-ink px-3 py-2 text-sm font-medium normal-case tracking-normal text-white opacity-0 shadow-pop transition group-hover:opacity-100">
                   {help}
                 </span>
               </span>
             )}
           </div>
-          <div className={`grid place-items-center h-10 w-10 rounded-full ${a.tint} text-xl`}>
+          <div className={`grid place-items-center h-12 w-12 rounded-full ${a.tint} text-2xl`}>
             {emoji || a.emoji}
           </div>
         </div>
-        <div className="font-display text-4xl font-700 text-ink mt-2 leading-none">
+        <div className="font-display text-5xl font-700 text-ink mt-3 leading-none">
           {value}
         </div>
-        {subtitle && <div className="text-sm text-ink/55 mt-2">{subtitle}</div>}
+        {subtitle && <div className="text-lg text-ink/55 mt-2.5">{subtitle}</div>}
       </div>
     </motion.div>
   )

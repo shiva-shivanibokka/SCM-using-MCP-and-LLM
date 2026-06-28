@@ -54,6 +54,21 @@ export default {
           "0%": { transform: "scale(0.9)", opacity: "0" },
           "100%": { transform: "scale(1)", opacity: "1" },
         },
+        // Colab-style: an animal strolls across the full width with a gait bob.
+        walk: {
+          "0%": { transform: "translateX(-8vw) translateY(0)" },
+          "20%": { transform: "translateX(15vw) translateY(-7px)" },
+          "40%": { transform: "translateX(38vw) translateY(0)" },
+          "60%": { transform: "translateX(60vw) translateY(-7px)" },
+          "80%": { transform: "translateX(84vw) translateY(0)" },
+          "100%": { transform: "translateX(112vw) translateY(-7px)" },
+        },
+        walkMini: {
+          "0%,100%": { transform: "translateX(0) translateY(0)" },
+          "25%": { transform: "translateX(38px) translateY(-3px)" },
+          "50%": { transform: "translateX(76px) translateY(0)" },
+          "75%": { transform: "translateX(38px) translateY(-3px)" },
+        },
       },
       animation: {
         trot: "trot 6s ease-in-out infinite",
@@ -61,6 +76,8 @@ export default {
         wiggle: "wiggle 0.6s ease-in-out infinite",
         floatUp: "floatUp 9s linear infinite",
         popIn: "popIn 0.35s ease-out both",
+        walk: "walk 14s linear infinite",
+        walkMini: "walkMini 3.5s ease-in-out infinite",
       },
     },
   },

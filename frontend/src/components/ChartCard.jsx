@@ -13,8 +13,8 @@ export default function ChartCard({ title, hint, action, children, className = "
     >
       <div className="flex items-start justify-between gap-3 mb-4">
         <div>
-          <div className="font-display text-xl font-600 text-ink">{title}</div>
-          {hint && <div className="text-sm text-ink/55 mt-1 max-w-prose">{hint}</div>}
+          <div className="font-display text-2xl font-600 text-ink">{title}</div>
+          {hint && <div className="text-base text-ink/55 mt-1">{hint}</div>}
         </div>
         {action && <div className="shrink-0">{action}</div>}
       </div>

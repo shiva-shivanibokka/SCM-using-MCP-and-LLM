@@ -31,7 +31,7 @@ def detail(store_id: str):
     top_categories = [
         {"category": str(k), "revenue": float(v)}
         for k, v in t.groupby("category")["net_revenue_inr"].sum()
-        .sort_values(ascending=False).head(5).items()
+        .sort_values(ascending=False).head(10).items()
     ]
     channel_mix = {str(k): int(v) for k, v in t["channel"].value_counts().items()} \
         if "channel" in t.columns else {}
@@ -44,6 +44,20 @@ def detail(store_id: str):
     sku_count = int(latest["sku_id"].nunique())
     risk_counts = {str(k): int(v) for k, v in latest["risk_status"].value_counts().items()} \
         if "risk_status" in latest.columns else {}
+
+    # SKU lists per risk status, so the UI can show "all SKUs at CRITICAL" etc.
+    risk_skus = {"OK": [], "WARNING": [], "CRITICAL": []}
+    if "risk_status" in latest.columns:
+        for _, r in latest.sort_values("days_of_supply").iterrows():
+            status = str(r["risk_status"])
+            if status in risk_skus:
+                risk_skus[status].append({
+                    "sku_id": str(r["sku_id"]),
+                    "name": str(r.get("name", "")),
+                    "inventory": float(r["inventory"]),
+                    "days_of_cover": round(float(r["days_of_supply"]), 1)
+                    if r["days_of_supply"] == r["days_of_supply"] else None,
+                })
 
     return {
         "profile": profile,
@@ -58,4 +72,5 @@ def detail(store_id: str):
         "top_categories": top_categories,
         "channel_mix": channel_mix,
         "risk_counts": risk_counts,
+        "risk_skus": risk_skus,
     }
