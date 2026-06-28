@@ -8,6 +8,15 @@ from __future__ import annotations
 
 import os
 from functools import lru_cache
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+# Load DATABASE_URL from .env for local runs. On the deployed Space it's set as
+# a real env var (a secret); load_dotenv doesn't override existing env vars.
+_BASE = Path(__file__).resolve().parent.parent
+load_dotenv(_BASE / "backend" / ".env")
+load_dotenv(_BASE / ".env")
 
 
 def _normalize(url: str) -> str:
