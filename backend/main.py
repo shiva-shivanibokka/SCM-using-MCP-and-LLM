@@ -21,6 +21,39 @@ def health():
     return {"status": "ok"}
 
 
+@app.get("/diagnostics")
+def diagnostics():
+    """Report the live data source so we can tell Postgres from CSV fallback.
+
+    `database_configured` is whether DATABASE_URL is set; `database_live` is
+    whether an actual `SELECT 1` succeeds right now. If configured is true but
+    live is false, the app is silently serving the CSV fallback.
+    """
+    from backend.db import database_enabled, get_engine
+
+    source = "csv"
+    db_live = False
+    detail = None
+    engine = get_engine()
+    if engine is not None:
+        try:
+            from sqlalchemy import text
+
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            db_live = True
+            source = "postgres"
+        except Exception as e:  # configured but unreachable -> CSV fallback
+            detail = str(e)[:200]
+
+    return {
+        "data_source": source,
+        "database_configured": database_enabled(),
+        "database_live": db_live,
+        "error": detail,
+    }
+
+
 from backend.api.routes import forecast as forecast_routes  # noqa: E402
 from backend.api.routes import mlops as mlops_routes  # noqa: E402
 
