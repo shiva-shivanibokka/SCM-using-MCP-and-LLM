@@ -16,6 +16,8 @@ const GLOSSARY = [
   { term: "Backtest", what: "We hide the most recent 30 days, retrain on the rest, forecast those 30 days, and compare to what actually happened. That gap is the score." },
   { term: "Model registry", what: "A logbook of every fine-tune run — its version, accuracy, rows trained, and when. So you can see the model improving over time." },
   { term: "Trigger fine-tune", what: "Actually retrains CatBoost on the latest demand for the busiest SKUs, scores it, and appends a new version to the registry." },
+  { term: "Run telemetry (receipt)", what: "Every AI Assistant turn is logged with the tools it called, how long each took, status, and an estimated cost — so agent behaviour is observable, not a black box." },
+  { term: "Estimated cost", what: "A ballpark from tokens × a rough per-provider rate. It's an estimate (the agent doesn't expose exact billing), so treat it as directional, not an invoice." },
 ]
 
 const WEIGHT_COLORS = { chronos: "#12B5A6", nhits: "#8B5CF6", catboost: "#FF7A45" }
@@ -36,6 +38,11 @@ export default function MLOps() {
     mutationFn: () => apiPost("/api/mlops/finetune"),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["registry"] }),
   })
+  const { data: agent } = useQuery({
+    queryKey: ["agent-runs"],
+    queryFn: () => apiGet("/api/mlops/agent-runs?limit=25"),
+    refetchInterval: 15000,
+  })
 
   if (!data) return <div className="text-ink/50 animate-pulse">Loading registry…</div>
 
@@ -45,6 +52,12 @@ export default function MLOps() {
   }))
   const mape = data.models.map((m) => ({ name: m.name, mape: m.backtest_mape, type: m.type }))
   const history = data.history || []
+  const runs = agent?.runs || []
+  const STATUS_STYLE = {
+    ok: "bg-leaf/15 text-leaf",
+    error: "bg-coral/15 text-coral",
+    incomplete: "bg-amber/15 text-amber",
+  }
 
   return (
     <div>
@@ -178,6 +191,72 @@ export default function MLOps() {
                     <td className="px-5 py-2.5">{h.n_skus}</td>
                     <td className="px-5 py-2.5">{h.training_rows?.toLocaleString()}</td>
                     <td className="px-5 py-2.5 text-ink/60">{fmtTime(h.trained_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Agent run telemetry — a 'receipt' per assistant turn */}
+      <div className="card mt-6 overflow-hidden">
+        <div className="px-5 py-4 border-b border-ink/10">
+          <div className="font-display font-700 text-lg text-ink">Agent activity · run telemetry</div>
+          <div className="text-sm text-ink/55 mt-0.5">
+            Every AI Assistant turn is traced here: which tools it called, how long
+            each took, status, and an estimated token cost. Auto-refreshes every 15s.
+          </div>
+        </div>
+        {runs.length === 0 ? (
+          <div className="p-8 text-center text-ink/50">
+            No agent runs yet. Ask something on the <b>AI Assistant</b> tab and it appears here.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-ink/55 border-b border-ink/10">
+                  <th className="px-5 py-2.5 font-bold">When</th>
+                  <th className="px-5 py-2.5 font-bold">Provider / model</th>
+                  <th className="px-5 py-2.5 font-bold">Question</th>
+                  <th className="px-5 py-2.5 font-bold">Tools</th>
+                  <th className="px-5 py-2.5 font-bold">Latency</th>
+                  <th className="px-5 py-2.5 font-bold">Est. tokens</th>
+                  <th className="px-5 py-2.5 font-bold">Est. cost</th>
+                  <th className="px-5 py-2.5 font-bold">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {runs.map((r) => (
+                  <tr key={r.run_id} className="border-b border-ink/5 align-top hover:bg-ink/[0.02]">
+                    <td className="px-5 py-2.5 text-ink/60 whitespace-nowrap">{fmtTime(r.created_at)}</td>
+                    <td className="px-5 py-2.5 whitespace-nowrap">
+                      <span className="font-bold">{r.provider}</span>
+                      <span className="text-ink/45 text-xs block">{r.model || "—"}</span>
+                    </td>
+                    <td className="px-5 py-2.5 max-w-[280px] truncate" title={r.question}>{r.question}</td>
+                    <td className="px-5 py-2.5">
+                      {r.steps?.length ? (
+                        <div className="flex flex-col gap-0.5">
+                          {r.steps.map((s, i) => (
+                            <span key={i} className="font-mono text-xs text-ink/70 whitespace-nowrap">
+                              {s.tool} <span className="text-ink/40">· {s.ms}ms</span>
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-ink/40">{r.n_tools || 0}</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-2.5 font-mono whitespace-nowrap">{(r.latency_ms / 1000).toFixed(1)}s</td>
+                    <td className="px-5 py-2.5 font-mono text-ink/70">{r.est_tokens?.toLocaleString()}</td>
+                    <td className="px-5 py-2.5 font-mono text-ink/70">${(r.est_cost_usd ?? 0).toFixed(5)}</td>
+                    <td className="px-5 py-2.5">
+                      <span className={`pill ${STATUS_STYLE[r.status] || "bg-ink/10 text-ink/60"}`}>
+                        {r.status}
+                      </span>
+                    </td>
                   </tr>
                 ))}
               </tbody>

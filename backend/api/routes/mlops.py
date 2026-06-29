@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException
 
 from backend.forecasting.registry import get_registry, record_finetune
 from backend.forecasting.training import retrain_catboost
+from backend.observability import recent_runs
 
 router = APIRouter(prefix="/api/mlops", tags=["mlops"])
 
@@ -11,6 +12,12 @@ router = APIRouter(prefix="/api/mlops", tags=["mlops"])
 @router.get("/registry")
 def registry():
     return get_registry()
+
+
+@router.get("/agent-runs")
+def agent_runs(limit: int = 25):
+    """Recent agent-run telemetry — the 'receipt' for each assistant turn."""
+    return {"runs": recent_runs(limit)}
 
 
 @router.post("/finetune")
