@@ -1,9 +1,9 @@
 from __future__ import annotations
-from datetime import date, timedelta
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
-from backend.forecasting.registry import get_registry
+from backend.forecasting.registry import get_registry, record_finetune
+from backend.forecasting.training import retrain_catboost
 
 router = APIRouter(prefix="/api/mlops", tags=["mlops"])
 
@@ -15,22 +15,30 @@ def registry():
 
 @router.post("/finetune")
 def trigger_finetune():
-    """Kick off a quarterly fine-tune run.
+    """Actually retrain CatBoost and log the run to the model registry.
 
-    The forecasting stack is zero-shot between scheduled fine-tunes, so this
-    simulates enqueuing a refresh job: it reports the run that would start now
-    and when the next automatic cycle lands. (A real deployment would hand this
-    to a job queue / GitHub Action that retrains N-HiTS + CatBoost and re-pins
-    the Chronos weights.)
+    Pulls the latest demand for the busiest SKUs, retrains CatBoost, backtests
+    it (holding out the most recent horizon and scoring sMAPE), then appends a
+    new version row to the model_registry logbook. Chronos stays zero-shot.
     """
-    reg = get_registry()
-    started = date(2025, 12, 1) + timedelta(days=90)  # next scheduled cycle
+    try:
+        result = retrain_catboost(n_skus=8, horizon=30)
+    except Exception as e:  # surface real training failures to the UI
+        raise HTTPException(500, f"retrain failed: {e}")
+
+    rec = record_finetune(result, notes="manual fine-tune via dashboard")
+    smape = result["backtest_smape"]
     return {
-        "status": "queued",
-        "job_id": "ft-" + started.isoformat().replace("-", ""),
-        "message": "Fine-tune run queued. N-HiTS and CatBoost will retrain on the "
-                   "latest demand; Chronos stays zero-shot and is re-pinned after backtest.",
-        "started_run": started.isoformat(),
-        "next_finetune": (started + timedelta(days=90)).isoformat(),
-        "models": [m["name"] for m in reg["models"]],
+        "status": "completed",
+        "version": rec.get("version"),
+        "model": result["model_name"],
+        "backtest_smape": smape,
+        "n_skus": result["n_skus"],
+        "training_rows": result["training_rows"],
+        "trained_at": rec.get("trained_at"),
+        "message": (
+            f"Retrained CatBoost on {result['training_rows']:,} rows across "
+            f"{result['n_skus']} SKUs."
+            + (f" Backtest sMAPE {smape}%." if smape is not None else "")
+        ),
     }

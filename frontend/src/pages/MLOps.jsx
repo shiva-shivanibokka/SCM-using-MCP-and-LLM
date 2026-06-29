@@ -1,4 +1,4 @@
-import { useQuery, useMutation } from "@tanstack/react-query"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell,
 } from "recharts"
@@ -11,20 +11,31 @@ import Glossary from "../components/Glossary"
 
 const GLOSSARY = [
   { term: "Ensemble weights", what: "How much each model contributes to the blended forecast. Frozen between fine-tunes so predictions stay reproducible." },
-  { term: "Zero-shot (between fine-tunes)", what: "The models keep forecasting new data without retraining; we only retrain on a schedule, not every request." },
-  { term: "MAPE", what: "Mean Absolute Percentage Error from backtesting — average % the forecast was off. Lower is better; 12% means typically within 12% of actual." },
-  { term: "Fine-tune cadence", what: "We retrain every 90 days so the models track shifting demand without churning predictions daily." },
-  { term: "Trigger fine-tune", what: "Queues a retrain run for N-HiTS and CatBoost; Chronos stays zero-shot and is re-pinned after backtesting." },
+  { term: "Zero-shot (between fine-tunes)", what: "The models keep forecasting new data without retraining; we only retrain on demand or schedule, not every request." },
+  { term: "sMAPE", what: "Symmetric Mean Absolute Percentage Error from backtesting — average % the forecast was off, bounded so demand zero-days don't blow it up. Lower is better." },
+  { term: "Backtest", what: "We hide the most recent 30 days, retrain on the rest, forecast those 30 days, and compare to what actually happened. That gap is the score." },
+  { term: "Model registry", what: "A logbook of every fine-tune run — its version, accuracy, rows trained, and when. So you can see the model improving over time." },
+  { term: "Trigger fine-tune", what: "Actually retrains CatBoost on the latest demand for the busiest SKUs, scores it, and appends a new version to the registry." },
 ]
 
 const WEIGHT_COLORS = { chronos: "#12B5A6", nhits: "#8B5CF6", catboost: "#FF7A45" }
 
+function fmtTime(iso) {
+  if (!iso) return "—"
+  const d = new Date(iso)
+  return d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
+}
+
 export default function MLOps() {
+  const qc = useQueryClient()
   const { data } = useQuery({
     queryKey: ["registry"],
     queryFn: () => apiGet("/api/mlops/registry"),
   })
-  const finetune = useMutation({ mutationFn: () => apiPost("/api/mlops/finetune") })
+  const finetune = useMutation({
+    mutationFn: () => apiPost("/api/mlops/finetune"),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["registry"] }),
+  })
 
   if (!data) return <div className="text-ink/50 animate-pulse">Loading registry…</div>
 
@@ -33,13 +44,14 @@ export default function MLOps() {
     pct: Math.round(w * 100),
   }))
   const mape = data.models.map((m) => ({ name: m.name, mape: m.backtest_mape, type: m.type }))
+  const history = data.history || []
 
   return (
     <div>
       <PageHeader
         emoji="⚙️"
         title="MLOps"
-        blurb="The forecasting stack is zero-shot between quarterly fine-tunes: ensemble weights stay frozen so predictions are reproducible, and we retrain on a schedule. Here's the model registry, accuracy, and the controls to trigger the next run."
+        blurb="Chronos stays zero-shot; CatBoost retrains on demand. Hit Trigger fine-tune to actually retrain CatBoost on the latest demand, backtest it, and log a new version to the model registry below."
       >
         <button
           onClick={() => finetune.mutate()}
@@ -51,7 +63,7 @@ export default function MLOps() {
           ) : (
             <RefreshCw size={16} />
           )}
-          Trigger fine-tune
+          {finetune.isPending ? "Retraining…" : "Trigger fine-tune"}
         </button>
       </PageHeader>
 
@@ -60,31 +72,34 @@ export default function MLOps() {
           <CheckCircle2 className="text-leaf shrink-0 mt-0.5" size={20} />
           <div className="text-sm">
             <div className="font-bold text-ink">
-              Fine-tune queued · job <span className="font-mono">{finetune.data.job_id}</span>
+              Retrain complete · version{" "}
+              <span className="font-mono">v{finetune.data.version}</span>
+              {finetune.data.backtest_smape != null && (
+                <> · sMAPE <span className="font-mono">{finetune.data.backtest_smape}%</span></>
+              )}
             </div>
             <div className="text-ink/60 mt-0.5">{finetune.data.message}</div>
             <div className="text-ink/50 mt-1 text-xs">
-              Retraining: {finetune.data.models.join(" · ")} · next auto-cycle{" "}
-              {finetune.data.next_finetune}
+              Logged to the model registry at {fmtTime(finetune.data.trained_at)}.
             </div>
           </div>
         </div>
       )}
       {finetune.isError && (
         <div className="card p-4 mb-6 border-l-4 border-coral text-sm text-coral">
-          Couldn't reach the fine-tune endpoint. Is the backend running?
+          Retrain failed: {String(finetune.error?.message || "couldn't reach the backend")}.
         </div>
       )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
         <KpiCard index={0} title="Last fine-tune" value={data.last_finetune} accent="teal" emoji="✅"
-          help="When the models were last retrained on fresh demand." />
+          help="When CatBoost was last retrained — updates the moment you trigger a run." />
         <KpiCard index={1} title="Next fine-tune" value={data.next_finetune} accent="amber" emoji="📆"
-          help="The next scheduled retrain date (every 90 days)." />
-        <KpiCard index={2} title="Models in ensemble" value={data.models.length} accent="grape" emoji="🧩"
-          help="How many models are blended into the forecast (Chronos, N-HiTS, CatBoost)." />
-        <KpiCard index={3} title="Cadence" value="90 days" subtitle="zero-shot between" accent="sky" emoji="🔁"
-          help="We retrain quarterly; between runs the models forecast new data zero-shot." />
+          help="The next scheduled retrain date (90 days after the last run)." />
+        <KpiCard index={2} title="Registry versions" value={history.length} accent="grape" emoji="📚"
+          help="How many fine-tune runs are logged in the model registry." />
+        <KpiCard index={3} title="Models in ensemble" value={data.models.length} accent="sky" emoji="🧩"
+          help="Models blended into the forecast: Chronos, N-HiTS, CatBoost." />
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
@@ -108,8 +123,8 @@ export default function MLOps() {
         </ChartCard>
 
         <ChartCard
-          title="Backtest accuracy (MAPE — lower is better)"
-          hint="Mean absolute percentage error from the last backtest. This is what the fine-tune run aims to push down."
+          title="Backtest error % (lower is better)"
+          hint="CatBoost shows the sMAPE from your latest real retrain; Chronos and N-HiTS show reference backtests. Triggering a fine-tune pushes CatBoost's bar to its freshly measured score."
         >
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={mape}>
@@ -125,6 +140,50 @@ export default function MLOps() {
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
+      </div>
+
+      {/* Model registry logbook */}
+      <div className="card mt-6 overflow-hidden">
+        <div className="px-5 py-4 border-b border-ink/10">
+          <div className="font-display font-700 text-lg text-ink">Model registry · fine-tune logbook</div>
+          <div className="text-sm text-ink/55 mt-0.5">
+            Every retrain appends a version here, so you can track accuracy over time.
+          </div>
+        </div>
+        {history.length === 0 ? (
+          <div className="p-8 text-center text-ink/50">
+            No fine-tune runs yet. Hit <b>Trigger fine-tune</b> to create version 1.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-ink/55 border-b border-ink/10">
+                  <th className="px-5 py-2.5 font-bold">Version</th>
+                  <th className="px-5 py-2.5 font-bold">Model</th>
+                  <th className="px-5 py-2.5 font-bold">Backtest sMAPE</th>
+                  <th className="px-5 py-2.5 font-bold">SKUs</th>
+                  <th className="px-5 py-2.5 font-bold">Rows trained</th>
+                  <th className="px-5 py-2.5 font-bold">Trained at</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((h) => (
+                  <tr key={h.version} className="border-b border-ink/5 hover:bg-ink/[0.02]">
+                    <td className="px-5 py-2.5 font-mono font-bold text-grape">v{h.version}</td>
+                    <td className="px-5 py-2.5">{h.model_name}</td>
+                    <td className="px-5 py-2.5 font-mono">
+                      {h.backtest_smape != null ? `${h.backtest_smape}%` : "—"}
+                    </td>
+                    <td className="px-5 py-2.5">{h.n_skus}</td>
+                    <td className="px-5 py-2.5">{h.training_rows?.toLocaleString()}</td>
+                    <td className="px-5 py-2.5 text-ink/60">{fmtTime(h.trained_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <Glossary items={GLOSSARY} />
