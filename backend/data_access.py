@@ -77,6 +77,19 @@ def load_store_inventory() -> pd.DataFrame:
     return _load("store_inventory", "store_daily_inventory.csv", parse_dates=["date"])
 
 
+def load_mart(name: str):
+    """Read a dbt mart from the `analytics` schema. Returns None if the mart
+    isn't built yet (or there's no DB) so callers can fall back to raw compute."""
+    engine = get_engine()
+    if engine is None:
+        return None
+    try:
+        return pd.read_sql_table(name, engine, schema="analytics")
+    except Exception as e:
+        logger.info("dbt mart '%s' not available (%s) — using raw compute", name, e)
+        return None
+
+
 def sku_history(sku_id: str) -> list[float]:
     df = load_demand()
     s = (df[df["sku_id"] == sku_id]

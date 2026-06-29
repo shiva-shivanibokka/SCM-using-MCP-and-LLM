@@ -2669,7 +2669,21 @@ def generate():
     compat.to_csv(OUT / "pet_store_supply_chain.csv", index=False)
     print(f"pet_store_supply_chain.csv — {len(compat):,} rows (backward compat)")
 
-    return demand_df
+    # Return every table in memory, keyed by its database table name, so the
+    # seeder can write straight to Postgres without re-reading the CSVs. The
+    # CSVs above remain as the offline fallback snapshot.
+    return {
+        "products": prod_df,
+        "stores": store_df,
+        "demand": demand_df,
+        "customers": cust_df,
+        "promotions": promo_df,
+        "transactions": txn_df,
+        "returns": ret_df,
+        "suppliers": sp_df,
+        "cold_chain": cold_df,
+        "store_daily_inventory": sdi_df,
+    }
 
 
 if __name__ == "__main__":

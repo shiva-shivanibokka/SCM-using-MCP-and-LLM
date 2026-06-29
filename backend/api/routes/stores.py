@@ -1,7 +1,9 @@
 from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 
-from backend.data_access import load_stores, load_transactions, load_store_inventory
+from backend.data_access import (
+    load_stores, load_transactions, load_store_inventory, load_mart,
+)
 
 router = APIRouter(prefix="/api/stores", tags=["stores"])
 
@@ -28,7 +30,7 @@ def detail(store_id: str):
     orders = int(len(t))
     margin = float(t["gross_margin_inr"].sum())
     margin_pct = round(margin / revenue * 100, 1) if revenue else 0.0
-    top_categories = [
+    top_categories = [  # noqa: E501 (kept from raw — the mart doesn't carry category breakdown)
         {"category": str(k), "revenue": float(v)}
         for k, v in t.groupby("category")["net_revenue_inr"].sum()
         .sort_values(ascending=False).head(10).items()
@@ -59,16 +61,36 @@ def detail(store_id: str):
                     if r["days_of_supply"] == r["days_of_supply"] else None,
                 })
 
+    # Prefer the dbt `store_kpis` mart for headline numbers; fall back to the
+    # raw pandas compute above if dbt hasn't been built. (sku_count comes from
+    # the live inventory snapshot either way.)
+    kpis = {
+        "revenue": revenue,
+        "orders": orders,
+        "units": units,
+        "gross_margin_pct": margin_pct,
+        "inventory_value": inventory_value,
+        "sku_count": sku_count,
+    }
+    kpis_source = "raw"
+    mart = load_mart("store_kpis")
+    if mart is not None:
+        m = mart[mart["store_id"] == store_id]
+        if not m.empty:
+            r = m.iloc[0]
+            kpis.update({
+                "revenue": float(r["revenue"]),
+                "orders": int(r["orders"]),
+                "units": int(r["units"]),
+                "gross_margin_pct": float(r["gross_margin_pct"]),
+                "inventory_value": float(r["inventory_value"]),
+            })
+            kpis_source = "dbt:store_kpis"
+
     return {
         "profile": profile,
-        "kpis": {
-            "revenue": revenue,
-            "orders": orders,
-            "units": units,
-            "gross_margin_pct": margin_pct,
-            "inventory_value": inventory_value,
-            "sku_count": sku_count,
-        },
+        "kpis": kpis,
+        "kpis_source": kpis_source,
         "top_categories": top_categories,
         "channel_mix": channel_mix,
         "risk_counts": risk_counts,

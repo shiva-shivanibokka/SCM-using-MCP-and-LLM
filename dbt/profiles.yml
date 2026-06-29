@@ -1,0 +1,16 @@
+# Connection profile for dbt. Fields are read from DBT_* env vars, which
+# db/run_dbt.py derives from the app's single DATABASE_URL — so dbt and the
+# app always point at the same Neon database. Run via:  python db/run_dbt.py build
+petopia:
+  target: prod
+  outputs:
+    prod:
+      type: postgres
+      host: "{{ env_var('DBT_HOST') }}"
+      user: "{{ env_var('DBT_USER') }}"
+      password: "{{ env_var('DBT_PASSWORD') }}"
+      port: "{{ env_var('DBT_PORT') | int }}"
+      dbname: "{{ env_var('DBT_DBNAME') }}"
+      schema: "{{ env_var('DBT_SCHEMA', 'analytics') }}"
+      sslmode: require
+      threads: 4
