@@ -1,7 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom"
 import TopBar from "./components/TopBar"
 import FloatingPets from "./components/FloatingPets"
-import PetParade from "./components/PetParade"
 import Executive from "./pages/Executive"
 import Inventory from "./pages/Inventory"
 import Forecast from "./pages/Forecast"
@@ -28,7 +27,6 @@ export default function App() {
           <Route path="/mlops" element={<MLOps />} />
         </Routes>
       </main>
-      <PetParade />
       <footer className="px-10 py-6 text-center text-base text-ink/45 border-t border-ink/5">
         🐾 Petopia Intelligence Hub · Chronos + N-HiTS + CatBoost ensemble · MCP agent
       </footer>

@@ -11,17 +11,9 @@ const LINKS = [
   ["/assistant", "AI Assistant", "🐕‍🦺"],
 ]
 
-// Pets stroll along the header's bottom edge, near the logo — absolutely
-// positioned so they never steal width from the nav.
-const STROLLERS = [
-  { pet: "🐕", left: "0px", delay: "0s" },
-  { pet: "🐈", left: "70px", delay: "1.1s" },
-  { pet: "🐇", left: "140px", delay: "2.2s" },
-]
-
 export default function TopBar() {
   return (
-    <header className="sticky top-0 z-30 bg-white/90 backdrop-blur border-b border-ink/10 relative">
+    <header className="sticky top-0 z-30 bg-white/90 backdrop-blur border-b border-ink/10">
       <div className="mx-auto max-w-[1840px] px-5 md:px-10">
         <div className="flex items-center gap-6 h-24">
           {/* Logo */}
@@ -58,22 +50,6 @@ export default function TopBar() {
             ))}
           </nav>
         </div>
-      </div>
-
-      {/* Strolling pets along the bottom edge near the logo */}
-      <div
-        className="pointer-events-none absolute bottom-0 left-5 md:left-10 w-52 h-7 overflow-hidden hidden sm:block"
-        aria-hidden
-      >
-        {STROLLERS.map((s, i) => (
-          <span
-            key={i}
-            className="absolute bottom-0 inline-block animate-walkMini text-xl"
-            style={{ left: s.left, animationDelay: s.delay }}
-          >
-            {s.pet}
-          </span>
-        ))}
       </div>
     </header>
   )
