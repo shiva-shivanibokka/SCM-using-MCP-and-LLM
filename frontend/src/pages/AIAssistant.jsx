@@ -4,6 +4,7 @@ import { Brain, ChevronDown, Send, Trash2 } from "lucide-react"
 import { useChat } from "../hooks/useChat"
 import LlmSelector from "../components/LlmSelector"
 import PageHeader from "../components/PageHeader"
+import Markdown from "../components/Markdown"
 
 const SUGGESTIONS = [
   "Which SKUs are at stockout risk this week?",
@@ -37,11 +38,8 @@ function ChainOfThought({ steps }) {
             className="overflow-hidden mt-2 space-y-1 border-l-2 border-grape/30 pl-3"
           >
             {steps.map((s, i) => (
-              <li
-                key={i}
-                className="text-xs text-ink/60 font-mono whitespace-pre-wrap break-words"
-              >
-                {s.content}
+              <li key={i} className="text-xs text-ink/70 break-words">
+                <Markdown>{s.content}</Markdown>
               </li>
             ))}
           </motion.ul>
@@ -136,8 +134,8 @@ export default function AIAssistant() {
                       ⚠️ {m.error}
                     </div>
                   ) : m.answer ? (
-                    <div className="bg-cream border border-ink/10 rounded-2xl rounded-bl-sm px-4 py-3 text-sm text-ink whitespace-pre-wrap">
-                      {m.answer}
+                    <div className="bg-cream border border-ink/10 rounded-2xl rounded-bl-sm px-4 py-3 text-sm text-ink">
+                      <Markdown>{m.answer}</Markdown>
                     </div>
                   ) : (
                     <div className="bg-cream border border-ink/10 rounded-2xl px-4 py-3 text-sm text-ink/40">

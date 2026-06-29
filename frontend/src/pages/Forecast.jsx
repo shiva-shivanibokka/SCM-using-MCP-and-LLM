@@ -50,6 +50,7 @@ export default function Forecast() {
     ? fc.p50.map((v, i) => ({
         day: i + 1,
         p10: fc.p10[i],
+        p90: fc.p90[i],
         band: fc.p90[i] - fc.p10[i],
         p50: v,
         chronos: fc.components?.chronos?.p50?.[i],
@@ -163,9 +164,13 @@ export default function Forecast() {
                 <YAxis tick={{ fontSize: 12 }} />
                 <Tooltip />
                 <Legend />
-                <Area dataKey="p10" stackId="band" stroke="none" fill="transparent" name="P10" />
-                <Area dataKey="band" stackId="band" stroke="none" fill="#12B5A6" fillOpacity={0.16} name="P10–P90" />
+                {/* Shaded band: a transparent base at P10 + the (P90−P10) height. */}
+                <Area dataKey="p10" stackId="band" stroke="none" fill="transparent" legendType="none" tooltipType="none" />
+                <Area dataKey="band" stackId="band" stroke="none" fill="#12B5A6" fillOpacity={0.12} legendType="none" tooltipType="none" />
+                {/* P10 and P90 drawn separately as dashed boundaries. */}
+                <Line type="monotone" dataKey="p90" stroke="#12B5A6" strokeWidth={1.5} strokeOpacity={0.55} strokeDasharray="5 4" dot={false} name="P90 (high)" />
                 <Line type="monotone" dataKey="p50" stroke="#12B5A6" strokeWidth={2.5} dot={false} name="P50 (median)" />
+                <Line type="monotone" dataKey="p10" stroke="#12B5A6" strokeWidth={1.5} strokeOpacity={0.55} strokeDasharray="5 4" dot={false} name="P10 (low)" />
                 {showComponents &&
                   activeModels.map((m) => (
                     <Line key={m} type="monotone" dataKey={m} stroke={COMPCOLORS[m]}

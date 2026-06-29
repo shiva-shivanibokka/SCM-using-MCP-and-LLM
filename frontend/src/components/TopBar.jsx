@@ -7,8 +7,8 @@ const LINKS = [
   ["/suppliers", "Suppliers", "🚚"],
   ["/stores", "Stores", "🏬"],
   ["/analytics", "Analytics", "🧁"],
-  ["/mlops", "MLOps", "⚙️"],
   ["/assistant", "AI Assistant", "🐕‍🦺"],
+  ["/mlops", "MLOps", "⚙️"],
 ]
 
 export default function TopBar() {
