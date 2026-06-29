@@ -97,6 +97,55 @@ LLM provider, model, and API key are chosen in the UI (AI Assistant page) — fr
 
 ---
 
+## Data & MLOps Engineering
+
+The platform is backed by a real **ELT pipeline** and production-style MLOps, not flat files.
+
+```
+data/generate_data.py ──► db/seed.py ──► PostgreSQL (Neon)  ──► dbt ──► analytics marts ──► FastAPI ──► React
+   (synthetic HUFT data)   (direct write,   raw layer            (transform     store_kpis        (CSV fallback
+                            no CSV step)     + system of record)   + test)        sku_performance    if DB down)
+                                                                                  supplier_scorecard
+```
+
+**System of record — PostgreSQL (Neon).** `db/seed.py` generates the dataset in
+memory and writes it **straight into Postgres** (no CSV middleman). CSVs are kept
+only as an offline fallback: `backend/data_access.py` reads Postgres first and
+falls back to CSV automatically, so the app runs with or without a database.
+`GET /diagnostics` reports which source is live.
+
+**dbt transformations + data quality.** The `dbt/` project turns the raw tables
+into business-ready marts (`store_kpis`, `sku_performance`, `supplier_scorecard`)
+with **26 data-quality tests** — `not_null`, `unique`, referential `relationships`,
+`accepted_values`, and a singular no-negative-revenue test. The store dashboard
+reads its KPIs from the `store_kpis` mart (`kpis_source: "dbt:store_kpis"`), with
+raw compute as fallback.
+
+```bash
+python db/seed.py            # generate + load Postgres directly
+python db/run_dbt.py build   # build marts + run all data-quality tests
+```
+
+**Real MLOps — retrain + model registry.** The MLOps tab's *Trigger fine-tune*
+button actually retrains CatBoost on the latest demand for the busiest SKUs,
+backtests it (holding out the most recent horizon and scoring **sMAPE**), and
+appends a version row to a `model_registry` logbook in Postgres — so model
+accuracy is tracked over time, not faked.
+
+**Agent observability.** Every AI Assistant turn is traced to an `agent_runs`
+table — tools called, per-tool latency, total latency, status, and an estimated
+token cost — surfaced as a live "receipt" in the MLOps tab. Telemetry is
+best-effort and never blocks or breaks the chat.
+
+> **Dev note (dbt + protobuf):** `dbt-core` pins a newer `protobuf` than
+> `google-generativeai` allows, so installing dbt in the *same* environment can
+> break the local Gemini provider. Install the data-engineering tooling in its
+> own virtualenv: `python -m venv .dbt-venv && .dbt-venv/Scripts/pip install -r
+> requirements-dev.txt`. The deployed backend never runs dbt, so production is
+> unaffected.
+
+---
+
 ## Key Technical Highlights
 
 ### 1. Model Context Protocol (MCP) — 50 Tools
