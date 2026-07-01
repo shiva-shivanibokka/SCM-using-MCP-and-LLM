@@ -30,7 +30,7 @@ latest as (
 select
     sku_id,
     count(distinct store_id)                                      as stores_stocked,
-    round(avg(days_of_supply), 1)                                 as avg_days_of_supply,
+    round(avg(days_of_supply)::numeric, 1)                        as avg_days_of_supply,
     sum(inventory)                                                as total_inventory,
     sum(demand)                                                   as total_daily_demand,
     sum(case when risk_status = 'CRITICAL' then 1 else 0 end)     as critical_stores,
