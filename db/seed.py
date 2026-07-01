@@ -59,6 +59,16 @@ def main() -> None:
     print("Generating synthetic HUFT dataset in memory…")
     frames = generate()
 
+    # dbt builds views/marts in the `analytics` schema that depend on these raw
+    # tables. Postgres won't let us replace a raw table while a view depends on
+    # it, so drop the derived schema first — dbt rebuilds it in the next step
+    # (`python db/run_dbt.py build`). This keeps re-seeding idempotent.
+    with engine.begin() as conn:
+        from sqlalchemy import text
+
+        conn.execute(text("DROP SCHEMA IF EXISTS analytics CASCADE"))
+    print("Cleared stale analytics schema (dbt will rebuild it).")
+
     print("\nWriting tables directly to Postgres (raw layer)…")
     for table in DIRECT:
         _write(frames[table], table, engine)
