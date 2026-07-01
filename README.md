@@ -149,6 +149,18 @@ sequenceDiagram
     WS-->>FE: done
 ```
 
+### Honest forecasting — how the models avoid data leakage
+
+A model can look great and be worthless if it's *evaluated on data it trained on* — the reported accuracy is then in-sample-optimistic and collapses the moment real out-of-sample data arrives. This project is careful to never do that:
+
+- **Time-based (not random) splits.** For time series, a random train/test split leaks the future into the past. The persistent CatBoost splits **by date**: `cutoff = max(date) − 90d`, train on `date ≤ cutoff`, validate on `date > cutoff` (`forecasting/ml_forecast.py:_train_catboost`). The validation window is genuinely the future the model never saw.
+- **Training cutoff *before* the holdout.** The registry backtest trains on all-but-the-last-`horizon` days and scores the held-out tail: `train, test = series[:-horizon], series[-horizon:]` — the model is fit **only** on `train` (`backend/forecasting/training.py`). No holdout day ever influences training.
+- **Encoders and summary stats fit on training rows only.** SKU/category encoders and per-SKU mean/std are computed from the *training* slice, so validation-period distributions can't bleak into the features the model learns from.
+- **Causal features only.** Lags and rolling windows look **backward** (values available at prediction time) — never forward.
+- **sMAPE, reported out-of-sample.** Accuracy is symmetric MAPE (robust to zero-demand days) measured on the held-out window — the number you see is the model's *real* generalisation error, not a leaked one.
+
+The practical payoff: a fine-tune's reported score is honest from day one, so it can't silently degrade later simply because an in-sample metric stopped flattering it.
+
 ---
 
 ## Tech Stack
