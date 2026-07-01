@@ -11,6 +11,7 @@ const LINKS = [
   ["/stockout", "Stockout", "⏳"],
   ["/anomaly", "Anomaly", "🚨"],
   ["/whatif", "What-If", "🧪"],
+  ["/ask", "Ask Your Data", "🔎"],
   ["/assistant", "AI Assistant", "🐕‍🦺"],
   ["/mlops", "MLOps", "⚙️"],
 ]

@@ -7,13 +7,27 @@ agent tools share the exact same logic.
 from __future__ import annotations
 
 from fastapi import APIRouter
+from pydantic import BaseModel
 
+from backend.config import settings
 from backend.data_access import load_products, load_store_inventory, load_transactions
 from intelligence.anomaly import run_anomaly_detection
+from intelligence.sql import run_query
 from intelligence.stockout import predict_stockouts
 from intelligence.whatif import simulate_discount_impact, simulate_restock_impact
 
 router = APIRouter(prefix="/api/intelligence", tags=["intelligence"])
+
+
+class SqlBody(BaseModel):
+    sql: str
+
+
+@router.post("/sql")
+def ask_data_sql(body: SqlBody):
+    """Run a guarded read-only SQL SELECT against the data (DuckDB). Returns
+    {columns, rows, total, truncated, error}."""
+    return run_query(body.sql, settings.DATA_DIR, max_rows=100)
 
 
 @router.get("/stockout")

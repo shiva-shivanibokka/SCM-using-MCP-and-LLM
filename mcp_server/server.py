@@ -6952,88 +6952,17 @@ def tool_get_whatif_simulation(
         return f"TOOL_ERROR [get_whatif_simulation]: {e}"
 
 
-_DUCK_CON = None
-# Friendly view name → source CSV, for the read-only SQL sandbox.
-_SQL_VIEWS = {
-    "products": "huft_products.csv",
-    "stores": "huft_stores.csv",
-    "transactions": "huft_sales_transactions.csv",
-    "demand": "huft_daily_demand.csv",
-    "customers": "huft_customers.csv",
-    "promotions": "huft_promotions.csv",
-    "returns": "huft_returns.csv",
-    "suppliers": "huft_supplier_performance.csv",
-    "store_inventory": "store_daily_inventory.csv",
-}
-# Blocked in user SQL. Keywords use word boundaries (so a column like
-# "created_at" is fine); dangerous DuckDB functions use substring matching
-# (so read_csv_auto / parquet_scan / glob can't slip past a word boundary).
-_SQL_FORBIDDEN_KW = (
-    "insert", "update", "delete", "drop", "create", "alter", "attach", "detach",
-    "copy", "pragma", "export", "call", "merge", "truncate", "grant", "replace",
-)
-_SQL_FORBIDDEN_SUB = (
-    "read_", "_scan", "glob", "sniff", "system", "getenv", "install", "load",
-)
-
-
-def _get_duck_con():
-    global _DUCK_CON
-    if _DUCK_CON is not None:
-        return _DUCK_CON
-    import duckdb
-
-    con = duckdb.connect(database=":memory:")
-    for name, csv in _SQL_VIEWS.items():
-        if (HUFT_DATA_DIR / csv).exists():
-            path = (HUFT_DATA_DIR / csv).as_posix()
-            con.execute(f"CREATE VIEW {name} AS SELECT * FROM read_csv_auto('{path}')")
-    _DUCK_CON = con
-    return con
-
-
-def _is_safe_select(sql: str) -> bool:
-    import re
-
-    s = sql.strip().rstrip(";").lower()
-    if not (s.startswith("select") or s.startswith("with")):
-        return False
-    if ";" in s:  # single statement only
-        return False
-    if any(re.search(rf"\b{kw}\b", s) for kw in _SQL_FORBIDDEN_KW):
-        return False
-    return not any(sub in s for sub in _SQL_FORBIDDEN_SUB)
-
-
 def tool_run_sql_query(sql: str, max_rows: int = 100) -> str:
     """
     Execute a read-only SQL SELECT against the data (DuckDB over the CSV tables)
     and return the rows as a markdown table. For ad-hoc questions no dedicated
-    tool covers. Only a single SELECT is permitted.
+    tool covers. Only a single SELECT is permitted. Safety + execution live in
+    the shared intelligence.sql module (one implementation for tool and API).
     """
     try:
-        try:
-            import duckdb  # noqa: F401
-        except ImportError:
-            return "SQL querying is unavailable in this environment (duckdb not installed)."
-        if not _is_safe_select(sql):
-            return ("Only a single read-only SELECT (or WITH … SELECT) is allowed — "
-                    "no writes, DDL, or file access.")
-        con = _get_duck_con()
-        df = con.execute(sql).fetchdf()
-        total = len(df)
-        df = df.head(max_rows)
-        if df.empty:
-            return "Query ran successfully but returned no rows."
+        from intelligence.sql import run_query_markdown
 
-        cols = list(df.columns)
-        head = "| " + " | ".join(str(c) for c in cols) + " |\n"
-        head += "|" + "|".join("---" for _ in cols) + "|\n"
-        body = ""
-        for row in df.itertuples(index=False):
-            body += "| " + " | ".join(str(v) for v in row) + " |\n"
-        note = f"\n\n_Showing {len(df)} of {total} rows._" if total > len(df) else ""
-        return f"Query returned **{total}** rows.\n\n{head}{body}{note}"
+        return run_query_markdown(sql, HUFT_DATA_DIR, max_rows)
     except Exception as e:
         return f"TOOL_ERROR [run_sql_query]: {e}"
 
