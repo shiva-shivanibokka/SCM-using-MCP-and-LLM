@@ -94,11 +94,11 @@ def anomaly():
 
 @router.get("/options")
 def options():
-    """Dropdown options for the what-if simulator: product categories and SKUs."""
+    """Dropdown options: product categories and SKUs (with each SKU's category)."""
     p = load_products()
     categories = sorted(x for x in p["category"].dropna().unique().tolist())
     skus = (
-        p[["sku_id", "name"]]
+        p[["sku_id", "name", "category"]]
         .drop_duplicates("sku_id")
         .sort_values("name")
         .to_dict("records")
