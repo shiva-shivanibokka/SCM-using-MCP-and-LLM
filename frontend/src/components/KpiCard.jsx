@@ -15,7 +15,7 @@ const ACCENTS = {
 
 // `help` adds a clickable "?" that pops the explanation ABOVE the title — so it
 // never overlaps the number. The full glossary at the page bottom says the same.
-export default function KpiCard({ title, value, subtitle, accent = "teal", emoji, help, index = 0 }) {
+export default function KpiCard({ title, value, subtitle, accent = "teal", emoji, help, index = 0, valueClass }) {
   const a = ACCENTS[accent] || ACCENTS.teal
   const [open, setOpen] = useState(false)
   return (
@@ -61,7 +61,7 @@ export default function KpiCard({ title, value, subtitle, accent = "teal", emoji
             {emoji || a.emoji}
           </div>
         </div>
-        <div className="font-display text-5xl font-700 text-ink mt-3 leading-none">
+        <div className={`font-display font-700 text-ink mt-3 leading-none ${valueClass || "text-5xl"}`}>
           {value}
         </div>
         {subtitle && <div className="text-lg text-ink/55 mt-2.5">{subtitle}</div>}

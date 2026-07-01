@@ -36,6 +36,7 @@ def _co_purchase() -> pd.DataFrame:
     baskets = txn.groupby("order_id")["sku_id"].apply(lambda s: sorted(set(s)))
     baskets = baskets[baskets.apply(len) >= 2]
     total_orders = int(txn["order_id"].nunique())
+    sku_orders = txn.groupby("sku_id")["order_id"].nunique().to_dict()
 
     pair_counts: dict[tuple[str, str], int] = {}
     for items in baskets:
@@ -48,16 +49,21 @@ def _co_purchase() -> pd.DataFrame:
     names = prod["name"].to_dict()
     cats = prod["category"].to_dict()
 
-    rows = [
-        {
+    rows = []
+    for (a, b), n in pair_counts.items():
+        if n < 3:
+            continue
+        oa = sku_orders.get(a, 0) or 1
+        ob = sku_orders.get(b, 0) or 1
+        rows.append({
             "sku_a": a, "sku_a_name": names.get(a, a), "sku_a_category": cats.get(a, ""),
             "sku_b": b, "sku_b_name": names.get(b, b), "sku_b_category": cats.get(b, ""),
             "co_purchases": n,
             "support_pct": round(100.0 * n / total_orders, 3) if total_orders else 0.0,
-        }
-        for (a, b), n in pair_counts.items()
-        if n >= 3
-    ]
+            "lift": round(n * total_orders / (oa * ob), 2),
+            "conf_a_to_b": round(100.0 * n / oa, 1),
+            "conf_b_to_a": round(100.0 * n / ob, 1),
+        })
     df = pd.DataFrame(rows)
     if df.empty:
         return df
@@ -83,22 +89,41 @@ def overview(top_n: int = 20):
 
 @router.get("/for-sku/{sku_id}")
 def for_sku(sku_id: str, top_n: int = 8):
-    """Given a SKU, the products most often bought alongside it."""
+    """Products most often bought alongside a SKU. Ranked by lift (association
+    strength) when available, so genuine complements outrank merely-popular items;
+    `also_bought_pct` is the % of this SKU's buyers who also bought the partner."""
     df = _co_purchase()
     if df.empty:
-        return {"sku_id": sku_id, "recommendations": []}
+        return {"sku_id": sku_id, "recommendations": [], "ranked_by": "none"}
+
+    has_lift = {"lift", "conf_a_to_b", "conf_b_to_a"}.issubset(df.columns)
 
     # A pair is symmetric: match sku_id on either side, return the other side.
-    left = df[df["sku_a"] == sku_id].rename(
-        columns={"sku_b": "sku_id", "sku_b_name": "name", "sku_b_category": "category"}
-    )
-    right = df[df["sku_b"] == sku_id].rename(
-        columns={"sku_a": "sku_id", "sku_a_name": "name", "sku_a_category": "category"}
-    )
+    # The "also bought %" is the confidence FROM this SKU's side.
+    left = df[df["sku_a"] == sku_id].rename(columns={
+        "sku_b": "sku_id", "sku_b_name": "name", "sku_b_category": "category",
+        **({"conf_a_to_b": "also_bought_pct"} if has_lift else {}),
+    })
+    right = df[df["sku_b"] == sku_id].rename(columns={
+        "sku_a": "sku_id", "sku_a_name": "name", "sku_a_category": "category",
+        **({"conf_b_to_a": "also_bought_pct"} if has_lift else {}),
+    })
     cols = ["sku_id", "name", "category", "co_purchases", "support_pct"]
-    combined = (
-        pd.concat([left[cols], right[cols]], ignore_index=True)
-        .sort_values("co_purchases", ascending=False)
-        .head(top_n)
-    )
-    return {"sku_id": sku_id, "recommendations": combined.to_dict("records")}
+    if has_lift:
+        cols += ["lift", "also_bought_pct"]
+    combined = pd.concat([left[cols], right[cols]], ignore_index=True)
+
+    if has_lift:
+        # Only recommend genuine complements: bought together more than chance
+        # (lift > 1.2) and often enough to trust (co_purchases >= 10). Ranked by
+        # association strength. Empty is a valid, honest answer.
+        pool = (
+            combined[(combined["co_purchases"] >= 10) & (combined["lift"] > 1.2)]
+            .sort_values("lift", ascending=False)
+            .head(top_n)
+        )
+        ranked_by = "lift"
+    else:
+        pool = combined.sort_values("co_purchases", ascending=False).head(top_n)
+        ranked_by = "co_purchases"
+    return {"sku_id": sku_id, "recommendations": pool.to_dict("records"), "ranked_by": ranked_by}

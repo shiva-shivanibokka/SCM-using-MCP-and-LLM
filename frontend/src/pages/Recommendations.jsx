@@ -25,7 +25,7 @@ const short = (s) => (String(s ?? "").length > 22 ? String(s).slice(0, 21) + "�
 export default function Recommendations() {
   const { data, isLoading } = useQuery({
     queryKey: ["recommendations"],
-    queryFn: () => apiGet("/api/recommendations/overview"),
+    queryFn: () => apiGet("/api/recommendations/overview?top_n=100"),
   })
   const { data: opts } = useQuery({
     queryKey: ["intel-options"],
@@ -89,16 +89,20 @@ export default function Recommendations() {
               <div className="text-ink/40 text-sm py-6 text-center">Finding recommendations…</div>
             ) : (forSku.data?.recommendations ?? []).length === 0 ? (
               <div className="text-ink/40 text-sm py-6 text-center">
-                No co-purchase data for this product yet.
+                No products are bought together with this one more than chance would predict.
               </div>
             ) : (
+              <>
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-ink/50 border-b border-ink/10">
                     <th className="py-2 pr-3 font-bold">Customers who bought this also bought</th>
                     <th className="py-2 pr-3 font-bold">Category</th>
+                    <th className="py-2 pr-3 font-bold text-right">Also bought %</th>
                     <th className="py-2 pr-3 font-bold text-right">Co-purchases</th>
-                    <th className="py-2 pr-3 font-bold text-right">Support %</th>
+                    {forSku.data.recommendations[0]?.lift != null && (
+                      <th className="py-2 pr-3 font-bold text-right">Lift</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -106,14 +110,23 @@ export default function Recommendations() {
                     <tr key={i} className="border-b border-ink/5 hover:bg-cream">
                       <td className="py-2 pr-3 font-semibold text-ink">{x.name}</td>
                       <td className="py-2 pr-3 text-ink/55">{x.category}</td>
-                      <td className="py-2 pr-3 text-right tabular-nums">{num(x.co_purchases)}</td>
                       <td className="py-2 pr-3 text-right tabular-nums font-semibold text-teal">
-                        {Number(x.support_pct ?? 0).toFixed(2)}%
+                        {x.also_bought_pct != null ? `${Number(x.also_bought_pct).toFixed(1)}%` : "—"}
                       </td>
+                      <td className="py-2 pr-3 text-right tabular-nums">{num(x.co_purchases)}</td>
+                      {x.lift != null && (
+                        <td className="py-2 pr-3 text-right tabular-nums text-ink/70">{Number(x.lift).toFixed(1)}×</td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
               </table>
+              <p className="text-[11px] text-ink/45 mt-3">
+                Ranked by <b>lift</b> (how much more often these sell together than chance) so genuine
+                complements rank above merely-popular items. <b>Also bought %</b> = share of this product's
+                buyers who also bought that item.
+              </p>
+              </>
             )}
           </div>
         )}
@@ -122,13 +135,17 @@ export default function Recommendations() {
       {/* Overview KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 my-6">
         <KpiCard index={0} title="Product pairings found" value={num(data?.total_pairs ?? 0)}
+          valueClass="text-3xl"
           accent="teal" emoji="🔗" help="Distinct product pairs bought together often enough to recommend." />
         <KpiCard index={1} title="Strongest pairing" value={num(data?.max_co_purchases ?? 0)}
+          valueClass="text-3xl"
           accent="pink" emoji="⭐" help="Co-purchase count of the single most frequently bought-together pair." />
         <KpiCard index={2} title="Top pair" value={data?.top_pair ?? "—"}
+          valueClass="text-base leading-snug"
           accent="sky" emoji="🛒" help="The two products most often bought in the same order." />
         <KpiCard index={3} title="Source"
           value={data?.source === "dbt_mart" ? "dbt mart" : "live compute"}
+          valueClass="text-2xl"
           accent="grape" emoji="⚙️" help="Whether these came from the pre-built dbt + DuckDB mart or were computed on the fly." />
       </div>
 
