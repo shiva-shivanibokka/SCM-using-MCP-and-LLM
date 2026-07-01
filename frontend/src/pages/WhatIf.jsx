@@ -14,22 +14,33 @@ const GLOSSARY = [
   { term: "Restock ROI", what: "Gross profit from the restocked units divided by what they cost to buy. Higher is a better use of working capital." },
 ]
 
+const selectCls = "px-3 py-2 rounded-xl border border-ink/15 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal/40"
+
 export default function WhatIf() {
   const [tab, setTab] = useState("discount")
+  // input state
   const [discount, setDiscount] = useState(20)
   const [category, setCategory] = useState("")
   const [sku, setSku] = useState("")
   const [units, setUnits] = useState(500)
+  // "applied" state — only set when the Simulate button is pressed
+  const [applied, setApplied] = useState(null)
+  const [appliedR, setAppliedR] = useState(null)
+
+  const { data: opts } = useQuery({
+    queryKey: ["intel-options"],
+    queryFn: () => apiGet("/api/intelligence/options"),
+  })
 
   const disc = useQuery({
-    queryKey: ["whatif-discount", discount, category],
-    queryFn: () => apiGet(`/api/intelligence/whatif/discount?new_discount_pct=${discount}${category ? `&category=${encodeURIComponent(category)}` : ""}`),
-    enabled: tab === "discount",
+    queryKey: ["whatif-discount", applied],
+    queryFn: () => apiGet(`/api/intelligence/whatif/discount?new_discount_pct=${applied.discount}${applied.category ? `&category=${encodeURIComponent(applied.category)}` : ""}`),
+    enabled: tab === "discount" && !!applied,
   })
   const rest = useQuery({
-    queryKey: ["whatif-restock", sku, units],
-    queryFn: () => apiGet(`/api/intelligence/whatif/restock?sku_id=${encodeURIComponent(sku)}&restock_units=${units}`),
-    enabled: tab === "restock" && sku.trim().length > 0,
+    queryKey: ["whatif-restock", appliedR],
+    queryFn: () => apiGet(`/api/intelligence/whatif/restock?sku_id=${encodeURIComponent(appliedR.sku)}&restock_units=${appliedR.units}`),
+    enabled: tab === "restock" && !!appliedR,
   })
 
   const d = disc.data
@@ -54,7 +65,7 @@ export default function WhatIf() {
 
       {tab === "discount" ? (
         <>
-          <ChartCard title="Discount scenario" hint="Set a new discount level and (optionally) a category.">
+          <ChartCard title="Discount scenario" hint="Pick a discount level and category, then run the simulation.">
             <div className="flex flex-wrap items-end gap-6 py-2">
               <label className="flex flex-col gap-1">
                 <span className="text-sm font-bold text-ink/60">New discount: {discount}%</span>
@@ -62,72 +73,92 @@ export default function WhatIf() {
                   onChange={(e) => setDiscount(+e.target.value)} className="w-64 accent-teal" />
               </label>
               <label className="flex flex-col gap-1">
-                <span className="text-sm font-bold text-ink/60">Category (optional)</span>
-                <input value={category} onChange={(e) => setCategory(e.target.value)}
-                  placeholder="e.g. Grooming"
-                  className="px-3 py-2 rounded-xl border border-ink/15 text-sm w-56" />
+                <span className="text-sm font-bold text-ink/60">Category</span>
+                <select value={category} onChange={(e) => setCategory(e.target.value)} className={selectCls + " w-56"}>
+                  <option value="">All categories</option>
+                  {(opts?.categories ?? []).map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
               </label>
+              <button onClick={() => setApplied({ discount, category })}
+                className="pill bg-ink text-white hover:bg-ink/90">
+                ▶ Simulate impact
+              </button>
             </div>
           </ChartCard>
 
-          {d && !d.error && (
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 my-6">
-              <KpiCard index={0} title="Est. elasticity" value={d.elasticity} accent="grape" emoji="📈"
-                help="Estimated from your discount history. More negative = demand reacts more strongly to price." />
-              <KpiCard index={1} title="Units change" value={`${d.delta.units_pct > 0 ? "+" : ""}${d.delta.units_pct}%`}
-                accent="teal" emoji="📦" help="Projected change in units sold at the new discount." />
-              <KpiCard index={2} title="Net revenue change"
-                value={`${d.delta.net_revenue_pct > 0 ? "+" : ""}${d.delta.net_revenue_pct}%`}
-                accent={d.delta.net_revenue >= 0 ? "teal" : "coral"} emoji="💰"
-                help="The bottom-line effect after more units but a deeper discount." />
-              <KpiCard index={3} title="Net revenue Δ" value={inrCompact(d.delta.net_revenue)}
-                accent={d.delta.net_revenue >= 0 ? "sky" : "coral"} emoji="₹"
-                help="Absolute change in net revenue versus the historical baseline." />
-            </div>
-          )}
-          {d && !d.error && (
-            <ChartCard title={`Baseline vs projected — ${d.category}`} hint={d.note}>
-              <table className="w-full text-sm">
-                <thead><tr className="text-left text-ink/50 border-b border-ink/10">
-                  <th className="py-2 font-bold">Metric</th>
-                  <th className="py-2 font-bold text-right">Baseline ({d.baseline.avg_discount_pct}% disc)</th>
-                  <th className="py-2 font-bold text-right">At {d.projected.discount_pct}%</th>
-                </tr></thead>
-                <tbody>
-                  <tr className="border-b border-ink/5"><td className="py-2">Units</td>
-                    <td className="py-2 text-right tabular-nums">{num(d.baseline.units)}</td>
-                    <td className="py-2 text-right tabular-nums">{num(d.projected.units)}</td></tr>
-                  <tr className="border-b border-ink/5"><td className="py-2">GMV</td>
-                    <td className="py-2 text-right tabular-nums">{inr(d.baseline.gmv)}</td>
-                    <td className="py-2 text-right tabular-nums">{inr(d.projected.gmv)}</td></tr>
-                  <tr><td className="py-2">Net revenue</td>
-                    <td className="py-2 text-right tabular-nums">{inr(d.baseline.net_revenue)}</td>
-                    <td className="py-2 text-right tabular-nums font-semibold">{inr(d.projected.net_revenue)}</td></tr>
-                </tbody>
-              </table>
-            </ChartCard>
-          )}
+          {!applied ? (
+            <div className="text-ink/40 text-sm py-10 text-center">Set a discount and press <b>Simulate impact</b>.</div>
+          ) : disc.isFetching ? (
+            <div className="text-ink/40 text-sm py-10 text-center">Simulating…</div>
+          ) : d && !d.error ? (
+            <>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 my-6">
+                <KpiCard index={0} title="Est. elasticity" value={d.elasticity} accent="grape" emoji="📈"
+                  help="Estimated from your discount history. More negative = demand reacts more strongly to price." />
+                <KpiCard index={1} title="Units change" value={`${d.delta.units_pct > 0 ? "+" : ""}${d.delta.units_pct}%`}
+                  accent="teal" emoji="📦" help="Projected change in units sold at the new discount." />
+                <KpiCard index={2} title="Net revenue change"
+                  value={`${d.delta.net_revenue_pct > 0 ? "+" : ""}${d.delta.net_revenue_pct}%`}
+                  accent={d.delta.net_revenue >= 0 ? "teal" : "coral"} emoji="💰"
+                  help="The bottom-line effect after more units but a deeper discount." />
+                <KpiCard index={3} title="Net revenue Δ" value={inrCompact(d.delta.net_revenue)}
+                  accent={d.delta.net_revenue >= 0 ? "sky" : "coral"} emoji="₹"
+                  help="Absolute change in net revenue versus the historical baseline." />
+              </div>
+              <ChartCard title={`Baseline vs projected — ${d.category}`} hint={d.note}>
+                <table className="w-full text-sm">
+                  <thead><tr className="text-left text-ink/50 border-b border-ink/10">
+                    <th className="py-2 font-bold">Metric</th>
+                    <th className="py-2 font-bold text-right">Baseline ({d.baseline.avg_discount_pct}% disc)</th>
+                    <th className="py-2 font-bold text-right">At {d.projected.discount_pct}%</th>
+                  </tr></thead>
+                  <tbody>
+                    <tr className="border-b border-ink/5"><td className="py-2">Units</td>
+                      <td className="py-2 text-right tabular-nums">{num(d.baseline.units)}</td>
+                      <td className="py-2 text-right tabular-nums">{num(d.projected.units)}</td></tr>
+                    <tr className="border-b border-ink/5"><td className="py-2">GMV</td>
+                      <td className="py-2 text-right tabular-nums">{inr(d.baseline.gmv)}</td>
+                      <td className="py-2 text-right tabular-nums">{inr(d.projected.gmv)}</td></tr>
+                    <tr><td className="py-2">Net revenue</td>
+                      <td className="py-2 text-right tabular-nums">{inr(d.baseline.net_revenue)}</td>
+                      <td className="py-2 text-right tabular-nums font-semibold">{inr(d.projected.net_revenue)}</td></tr>
+                  </tbody>
+                </table>
+              </ChartCard>
+            </>
+          ) : d && d.error ? (
+            <div className="text-coral text-sm py-10 text-center">{d.error}</div>
+          ) : null}
         </>
       ) : (
         <>
-          <ChartCard title="Restock scenario" hint="Enter a SKU and how many units to add.">
+          <ChartCard title="Restock scenario" hint="Pick a SKU and how many units to add, then run the simulation.">
             <div className="flex flex-wrap items-end gap-6 py-2">
               <label className="flex flex-col gap-1">
-                <span className="text-sm font-bold text-ink/60">SKU ID</span>
-                <input value={sku} onChange={(e) => setSku(e.target.value)}
-                  placeholder="e.g. FOOD_D001"
-                  className="px-3 py-2 rounded-xl border border-ink/15 text-sm w-56" />
+                <span className="text-sm font-bold text-ink/60">SKU</span>
+                <select value={sku} onChange={(e) => setSku(e.target.value)} className={selectCls + " w-72"}>
+                  <option value="">Select a SKU…</option>
+                  {(opts?.skus ?? []).map((s) => (
+                    <option key={s.sku_id} value={s.sku_id}>{s.name} ({s.sku_id})</option>
+                  ))}
+                </select>
               </label>
               <label className="flex flex-col gap-1">
                 <span className="text-sm font-bold text-ink/60">Restock units</span>
                 <input type="number" value={units} onChange={(e) => setUnits(+e.target.value)}
-                  className="px-3 py-2 rounded-xl border border-ink/15 text-sm w-40" />
+                  className={selectCls + " w-40"} />
               </label>
+              <button onClick={() => sku && setAppliedR({ sku, units })} disabled={!sku}
+                className="pill bg-ink text-white hover:bg-ink/90 disabled:opacity-40">
+                ▶ Simulate restock
+              </button>
             </div>
           </ChartCard>
 
-          {sku.trim() === "" ? (
-            <div className="text-ink/40 text-sm py-10 text-center">Enter a SKU to simulate a restock.</div>
+          {!appliedR ? (
+            <div className="text-ink/40 text-sm py-10 text-center">Pick a SKU and press <b>Simulate restock</b>.</div>
+          ) : rest.isFetching ? (
+            <div className="text-ink/40 text-sm py-10 text-center">Simulating…</div>
           ) : r && r.error ? (
             <div className="text-coral text-sm py-10 text-center">{r.error}</div>
           ) : r ? (
@@ -149,9 +180,7 @@ export default function WhatIf() {
                 </div>
               )}
             </>
-          ) : (
-            <div className="text-ink/40 text-sm py-10 text-center">Loading…</div>
-          )}
+          ) : null}
         </>
       )}
 

@@ -47,6 +47,20 @@ def anomaly():
     return run_anomaly_detection(load_transactions(), load_store_inventory())
 
 
+@router.get("/options")
+def options():
+    """Dropdown options for the what-if simulator: product categories and SKUs."""
+    p = load_products()
+    categories = sorted(x for x in p["category"].dropna().unique().tolist())
+    skus = (
+        p[["sku_id", "name"]]
+        .drop_duplicates("sku_id")
+        .sort_values("name")
+        .to_dict("records")
+    )
+    return {"categories": categories, "skus": skus}
+
+
 @router.get("/whatif/discount")
 def whatif_discount(new_discount_pct: float = 20.0, category: str | None = None):
     """Project the impact of a new discount level on units, GMV, and net revenue."""
