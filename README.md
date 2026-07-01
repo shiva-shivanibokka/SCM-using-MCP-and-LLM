@@ -27,13 +27,13 @@ license: mit
 
 - **What it is:** An end-to-end supply-chain intelligence platform for a premium pet retailer — a **multi-LLM ReAct agent** (over **54 MCP tools**, including ad-hoc SQL) on top of a real **PostgreSQL data warehouse**, a **dbt** transformation layer (runnable on Postgres *or* DuckDB), a **forecasting ensemble** with intermittent-demand routing, a suite of **operational intelligence engines** (stockout, anomaly, what-if, recommendations), and **13 React dashboards**.
 - **Hardest problem solved:** Wiring a tool-calling LLM agent to *governed, tested* data — raw tables seeded directly into Postgres, transformed by **dbt with 26 passing data-quality tests**, served to both the dashboards and the agent, with automatic CSV fallback if the database is unreachable.
-- **What's genuinely real (not mocked):** It's **deployed** (Vercel + HuggingFace Spaces + Neon Postgres), tested in **CI** (23 backend + 3 frontend tests), the fine-tune button **actually retrains CatBoost** and logs a versioned model registry (measured backtest sMAPE ≈ 20%), and every agent run is **traced** (per-tool latency + estimated cost).
+- **What's genuinely real (not mocked):** It's **deployed** (Vercel + HuggingFace Spaces + Neon Postgres), tested in **CI**, the fine-tune button **actually retrains CatBoost** with a **leak-free temporal split**, logs a versioned model registry, and **persists the trained weights durably in Postgres** so they survive Space restarts. Forecasts are backtested honestly (no in-sample leakage), and every agent run is **traced** (per-tool latency + estimated cost).
 
 ---
 
 ## Overview — problem & motivation
 
-Most "supply chain dashboards" show you what already happened and leave the thinking to you. **Petopia** flips that: you ask a question in plain English ("which SKUs are at stockout risk this week?"), and an agent reasons over the live warehouse, calls real tools, and answers with the actual numbers — then you can drill into the same data across twelve dashboards.
+Most "supply chain dashboards" show you what already happened and leave the thinking to you. **Petopia** flips that: you ask a question in plain English ("which SKUs are at stockout risk this week?"), and an agent reasons over the live warehouse, calls real tools, and answers with the actual numbers — then you can drill into the same data across thirteen dashboards.
 
 It models a fictional premium Indian pet retailer, **HUFT-style** (Heads Up For Tails), with ~90 stores, 160 SKUs, 25k customers, and ~327k transaction line items across ~180k multi-item orders over three years of synthetic-but-realistic data (festival demand spikes, promotions, cold-chain SKUs, regional channels). Every line item carries an `order_id` and `customer_id`, so genuine basket and per-customer analytics (co-purchase, recommendations) are possible — not just SKU aggregates.
 
@@ -47,15 +47,15 @@ It models a fictional premium Indian pet retailer, **HUFT-style** (Heads Up For 
 
 - 🤖 **Multi-LLM ReAct agent (BYOK)** — Anthropic, OpenAI, Groq, and Google Gemini, hot-swappable in the UI; the key you type wins over any server key. Streams its reasoning and tool calls live over a WebSocket, with collapsible chain-of-thought and Markdown-rendered answers.
 - 🧰 **54-tool MCP server** — the agent calls typed tools (inventory, forecasts, suppliers, analytics, stockout, anomaly, what-if) via the **Model Context Protocol**, in-process by default. No RAG, no embeddings — structured tool calls over live data.
-- 🔎 **Ad-hoc NL→SQL** — a guarded `run_sql_query` tool lets the agent answer questions no fixed tool covers by writing a **read-only SQL SELECT** (single statement, file-access/DDL/multi-statement blocked, 100-row cap), executed on **DuckDB** over the data. Open-ended querying *inside* the controlled MCP boundary.
+- 🔎 **Ad-hoc SQL + natural-language querying** — a guarded `run_sql_query` tool lets the agent answer questions no fixed tool covers by writing a **read-only SQL SELECT** (single statement, file-access/DDL/multi-statement blocked, 100-row cap), executed on **DuckDB** over the data. The **Ask Your Data** dashboard adds a hybrid **"ask in plain English"** box: an LLM (BYOK) turns your question into SQL, drops it into an editor you can review/edit, then runs it through the same guard — open-ended querying with a visible, editable query.
 - 🗄️ **Real data warehouse** — PostgreSQL (Neon) is the system of record, seeded **directly** from generation (no CSV middleman), with automatic CSV fallback and a `/diagnostics` endpoint that reports which source is live.
 - 🔧 **dbt transformation layer (Postgres *or* DuckDB)** — raw → staging → marts (`store_kpis`, `sku_performance`, `supplier_scorecard`, plus `co_purchase_pairs`, `customer_product_history`, `sku_days_of_supply`) with data-quality tests. The same models build on Neon Postgres (`db/run_dbt.py`) **or**, with zero database, on **DuckDB over a Parquet raw layer** (`db/build_marts.py`) — the free-tier path.
-- 🎯 **Product recommendations** — a co-purchase engine ("customers who bought X also bought Y") computed from **real multi-item order baskets**, served by the `co_purchase_pairs` mart with a live-compute fallback.
+- 🎯 **Product recommendations (market basket)** — a co-purchase engine computed from **real multi-item order baskets** that measures **support, confidence, and lift**, and ranks per-product suggestions by **lift** so genuine complements ("bought together") beat merely-popular items. Interactive per-product lookups (category → product → recommendations) plus a browse of the strongest pairings; served by the `co_purchase_pairs` mart with a live-compute fallback.
 - ⏳ **Stockout predictor** — per-SKU sales velocity, days-to-zero, lead-time-aware reorder quantities, and critical/warning/watch/healthy/excess risk buckets.
 - 🚨 **Anomaly detection** — four rules-based detectors: sales crashes (week-over-week revenue drops), overnight inventory spikes (data-entry risk), discount breaches (per-channel ceilings), and velocity-vs-stock risk.
-- 🧪 **What-if simulator** — project the revenue impact of a discount (price elasticity estimated from history) or the days-of-cover, overstock risk, and ROI of a restock.
+- 🧪 **What-if simulator** — project the revenue impact of a discount (price elasticity estimated from history) or the days-of-cover, overstock risk, and ROI of a restock. Category and SKU pickers are populated from the live catalog, and each scenario runs on an explicit **Simulate** button.
 - 🔮 **Forecasting ensemble + intermittent-demand routing** — Amazon **Chronos-T5** + **N-HiTS** + **CatBoost** quantile blend `(0.5 / 0.35 / 0.15)`, with graceful degradation. Lumpy/intermittent SKUs (long zero-runs) are auto-routed to **Croston / TSB** via Syntetos-Boylan classification before the ML models run.
-- ⚙️ **Real MLOps** — the *Trigger fine-tune* button actually retrains CatBoost on the latest demand, backtests it (sMAPE), and appends a version to a Postgres **model registry** logbook.
+- ⚙️ **Real MLOps with durable weights** — the *Trigger fine-tune* button retrains the served CatBoost on the latest demand using a **leak-free temporal split** (training cutoff *before* the validation window — no in-sample leakage), backtests it (sMAPE), and appends a version to a Postgres **model registry**. The trained weights are **persisted durably as a blob in Postgres** (last-N versions retained) and **restored on boot** — so a fine-tune survives HuggingFace Space restarts, whose container storage is otherwise ephemeral. One click trains, scores, and persists; the agent's forecasts then serve those weights.
 - 📊 **Agent observability** — every assistant turn is logged with its tools, per-tool latency, status, and an estimated token cost, shown as a live "receipt" table.
 - 🖥️ **13 animated dashboards** — Executive, Inventory, Forecast, Suppliers, Stores, Analytics, Recommendations, Stockout, Anomaly, What-If, Ask Your Data (SQL console), AI Assistant, MLOps — React + Vite, with confidence-band charts, clickable drill-downs, and per-metric explanations.
 
@@ -82,7 +82,7 @@ flowchart TD
     end
     subgraph Neon["Neon — PostgreSQL"]
         RAW[(raw tables)]
-        MARTS[(analytics marts<br/>+ model_registry<br/>+ agent_runs)]
+        MARTS[(analytics marts<br/>+ model_registry<br/>+ model_artifacts weights<br/>+ agent_runs)]
     end
     LLM[LLM provider<br/>Anthropic / OpenAI / Groq / Gemini]
     CSV[(bundled CSVs<br/>offline fallback)]
@@ -158,7 +158,7 @@ sequenceDiagram
 | **Frontend** | React 18, Vite, TailwindCSS, Recharts, Framer Motion, Zustand, TanStack Query, react-markdown | Vite for fast builds/HMR; Zustand+TanStack keep server state and UI state cleanly separated; Recharts for the confidence-band/forecast charts |
 | **Backend** | FastAPI, Uvicorn, Pydantic, WebSockets | Async-native; WebSocket streams the agent's reasoning token-by-token; auto OpenAPI docs |
 | **Agent / LLM** | Anthropic, OpenAI, Groq, Google Gemini SDKs; Model Context Protocol | BYOK multi-provider so it's not locked to one vendor; MCP gives typed tool-calling without RAG |
-| **Forecasting** | chronos-forecasting, neuralforecast (N-HiTS), CatBoost, PyTorch (CPU) | Chronos is zero-shot (no per-SKU training); CatBoost is the always-available CPU fallback for graceful degradation |
+| **Forecasting** | chronos-forecasting, neuralforecast (N-HiTS), CatBoost, PyTorch (CPU), Croston/TSB | Chronos is zero-shot; CatBoost is the always-available CPU model (trainable + durably persisted); Croston/TSB handle intermittent demand the ML models forecast poorly |
 | **Data / warehouse** | PostgreSQL (Neon), SQLAlchemy, psycopg2, pandas, DuckDB, PyArrow | Serverless Postgres free tier; SQLAlchemy engine with CSV fallback; DuckDB over Parquet for the free-tier mart build and the agent's ad-hoc SQL |
 | **Transformation** | dbt-core, dbt-postgres, dbt-duckdb | Industry-standard, testable, version-controlled SQL — same models on Postgres or DuckDB |
 | **Infra** | Docker (HF Spaces), Vercel, GitHub Actions | Free, reproducible, independently deployable frontend/backend |
@@ -170,7 +170,7 @@ Exact versions live in [`backend/requirements.txt`](backend/requirements.txt), [
 ## Skills Demonstrated
 
 - **Data engineering / ETL-ELT pipeline design** — deterministic generation (orders + baskets + customers) → direct-to-Postgres seeding → dbt staging/marts with data-quality tests; engine-portable models that also build on **DuckDB over a Parquet raw layer** for a zero-database free-tier path.
-- **Production ML / MLOps** — model-serving API separate from training; on-demand CatBoost retrain + backtest; versioned model registry in Postgres; **intermittent-demand routing** (Croston/TSB) and a co-purchase **recommendation** mart.
+- **Production ML / MLOps** — model-serving API separate from training; one-click CatBoost retrain with a **leak-free temporal backtest**; a versioned model registry **and durable weight persistence** in Postgres (blob store with last-N retention, restored on boot) so fine-tunes survive ephemeral container restarts; **intermittent-demand routing** (Croston/TSB) and a **lift-based** co-purchase recommendation mart.
 - **LLM application development & agentic systems** — multi-provider ReAct agent, MCP tool-calling, streaming, context-window compression.
 - **Observability & monitoring** — health + `/diagnostics` endpoints, structured per-run agent telemetry (latency, cost, status).
 - **Cloud deployment** — HuggingFace Spaces (Docker), Vercel, Neon Postgres; secrets via platform config, not in code.
@@ -283,7 +283,12 @@ curl https://shiva-1993-petstore-scm-mcp-backend.hf.space/api/executive/kpis
 # → {"revenue": 494092688.0, "gross_margin_pct": 45.6, "inventory_value": 236831848.0, ...}
 
 curl -X POST https://shiva-1993-petstore-scm-mcp-backend.hf.space/api/mlops/finetune
-# → retrains CatBoost, returns {"status":"completed","version":1,"backtest_smape":20.1,...}
+# → trains + persists CatBoost; returns
+#   {"status":"completed","version":1,"backtest_smape":18.2,"val_mape":12.0,"durably_persisted":true,...}
+
+curl -X POST https://shiva-1993-petstore-scm-mcp-backend.hf.space/api/intelligence/sql \
+  -H "Content-Type: application/json" -d '{"sql":"SELECT city, SUM(net_revenue_inr) r FROM transactions GROUP BY 1 ORDER BY r DESC LIMIT 5"}'
+# → guarded read-only SQL over the warehouse (DuckDB), returns {columns, rows, ...}
 ```
 
 Interactive OpenAPI docs: **`/docs`** on the backend.
@@ -294,7 +299,7 @@ Interactive OpenAPI docs: **`/docs`** on the backend.
 
 ```
 .
-├── frontend/              # React + Vite SPA (8 dashboards, BYOK LLM selector, charts)
+├── frontend/              # React + Vite SPA (13 dashboards, BYOK LLM selector, charts)
 │   ├── src/pages/         # one component per dashboard
 │   ├── src/components/    # KpiCard, Markdown, charts, LlmSelector, ...
 │   └── src/hooks/         # useChat (WebSocket ReAct stream)
@@ -306,9 +311,12 @@ Interactive OpenAPI docs: **`/docs`** on the backend.
 │   ├── db.py              # SQLAlchemy engine from DATABASE_URL
 │   ├── observability.py   # agent_runs telemetry
 │   ├── agent_ws.py        # WebSocket adapter + per-tool timing
-│   └── forecasting/       # chronos / nhits / catboost / ensemble / intermittent (Croston/TSB) / registry
+│   └── forecasting/       # chronos / nhits / catboost / ensemble / intermittent (Croston/TSB) /
+│                          #   registry / training (leak-free retrain + durable persist)
 ├── intelligence/          # pure-compute engines shared by backend + agent:
-│                          #   stockout, anomaly, whatif (recommendations live in the route/mart)
+│                          #   stockout, anomaly, whatif, sql (guarded NL→SQL / DuckDB)
+├── forecasting/           # trainable persistent model (ml_forecast) + artifact_store
+│                          #   (durable weight persistence to Postgres)
 ├── agent/                 # multi-provider ReAct agent + MCP client
 ├── mcp_server/            # MCP server (54 typed tools incl. run_sql_query, in-process or SSE)
 ├── dbt/                   # dbt project: staging views + marts, Postgres AND DuckDB targets
@@ -340,7 +348,7 @@ All three run in **GitHub Actions CI** on every push. Coverage is focused on the
 ## Roadmap / Known limitations
 
 - **Synthetic data only** — no real business metrics are claimed; the data is generated, not sourced.
-- **MCP tool count** — ~50 tools is intentionally near the practical ceiling; the next step is *consolidation* (fewer, composable tools) rather than more.
+- **MCP tool count** — 54 tools is intentionally near the practical ceiling; the next step is *consolidation* (fewer, composable tools) rather than more.
 - **Agent eval harness** — automated graded scenarios for the agent (assert correct tool selection + answers) is the highest-value next addition.
 - **Exact token accounting** — agent cost is currently *estimated* (chars/4 × per-provider rate); wiring real usage from each provider's response would make it exact.
 - **Heavy forecasting models on free CPU** — Chronos/N-HiTS run only where resources allow; the API degrades gracefully to CatBoost otherwise.
