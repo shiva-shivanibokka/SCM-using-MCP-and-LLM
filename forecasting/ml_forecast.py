@@ -1211,6 +1211,14 @@ def _save_catboost() -> None:
             },
             _CACHE_DIR / "metadata.pkl",
         )
+        # Also persist durably to Neon so the weights survive an HF Space restart
+        # (the container filesystem is ephemeral). Best-effort; no-op without a DB.
+        try:
+            from forecasting.artifact_store import save_cache
+
+            save_cache(_CACHE_DIR, "catboost")
+        except Exception as exc:
+            logger.warning(f"[CatBoost] durable save skipped: {exc}")
     except Exception as exc:
         logger.warning(f"[CatBoost] Save failed: {exc}")
 
@@ -1220,6 +1228,14 @@ def _load_catboost() -> bool:
     global _cb_trained, _cb_metrics, _cb_trained_at
 
     meta_path = _CACHE_DIR / "metadata.pkl"
+    if not meta_path.exists():
+        # Local cache is gone (e.g. fresh HF container) — try the durable copy.
+        try:
+            from forecasting.artifact_store import restore_cache
+
+            restore_cache(_CACHE_DIR, "catboost")
+        except Exception:
+            pass
     if not meta_path.exists():
         return False
     try:
