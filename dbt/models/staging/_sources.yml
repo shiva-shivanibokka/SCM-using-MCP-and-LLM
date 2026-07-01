@@ -1,0 +1,75 @@
+version: 2
+
+sources:
+  - name: raw
+    schema: public
+    description: >
+      Raw tables seeded directly from generated data by db/seed.py.
+      These are the system of record; dbt transforms them into the marts
+      the dashboards read.
+    # DuckDB target only: read the raw tables straight from Parquet files
+    # (the "cheap heavy storage" layer). The Postgres adapter ignores `meta`
+    # and reads schema `public`, so the same models build on either engine.
+    # `{name}` is a dbt-duckdb placeholder replaced with each table's name.
+    meta:
+      external_location: "{{ env_var('RAW_DIR', 'data/parquet') }}/{name}.parquet"
+    tables:
+      - name: products
+        columns:
+          - name: sku_id
+            description: Primary key — one row per SKU.
+            tests: [not_null, unique]
+          - name: margin_pct
+            tests: [not_null]
+
+      - name: stores
+        columns:
+          - name: store_id
+            tests: [not_null, unique]
+          - name: region
+            tests:
+              - accepted_values:
+                  values: ["East", "North", "South", "West", "Online"]
+
+      - name: transactions
+        columns:
+          - name: txn_id
+            tests: [not_null, unique]
+          - name: sku_id
+            tests:
+              - not_null
+              - relationships:
+                  to: source('raw', 'products')
+                  field: sku_id
+          - name: store_id
+            tests:
+              - not_null
+              - relationships:
+                  to: source('raw', 'stores')
+                  field: store_id
+          - name: channel
+            tests:
+              - accepted_values:
+                  values: ["App", "Offline", "Online"]
+
+      - name: demand
+        columns:
+          - name: sku_id
+            tests: [not_null]
+
+      - name: suppliers
+        columns:
+          - name: supplier_name
+            tests: [not_null]
+
+      - name: store_inventory
+        columns:
+          - name: store_id
+            tests:
+              - relationships:
+                  to: source('raw', 'stores')
+                  field: store_id
+          - name: risk_status
+            tests:
+              - accepted_values:
+                  values: ["OK", "WARNING", "CRITICAL"]

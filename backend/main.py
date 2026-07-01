@@ -69,10 +69,14 @@ app.include_router(inventory_routes.router)
 from backend.api.routes import suppliers as suppliers_routes  # noqa: E402
 from backend.api.routes import stores as stores_routes  # noqa: E402
 from backend.api.routes import analytics as analytics_routes  # noqa: E402
+from backend.api.routes import recommendations as recommendations_routes  # noqa: E402
+from backend.api.routes import intelligence as intelligence_routes  # noqa: E402
 
 app.include_router(suppliers_routes.router)
 app.include_router(stores_routes.router)
 app.include_router(analytics_routes.router)
+app.include_router(recommendations_routes.router)
+app.include_router(intelligence_routes.router)
 
 from backend.api.routes import chat as chat_routes  # noqa: E402
 

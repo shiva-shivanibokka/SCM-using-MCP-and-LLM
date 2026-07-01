@@ -23,7 +23,13 @@ lightning_logs/
 *.pkl
 *.pt
 *.pth
-models/
+# Root-level ML model-weight binaries only — anchored so it does NOT swallow
+# dbt/models/ (the SQL transformation models, which must be version-controlled).
+/models/
+
+# Locally-built dbt+DuckDB mart artifacts (regenerable via db/build_marts.py)
+*.duckdb
+data/parquet/
 
 # One-off utility scripts not part of the app
 replace_css.py

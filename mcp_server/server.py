@@ -5587,6 +5587,94 @@ MCP_TOOLS = [
             },
         },
     },
+    {
+        "name": "get_stockout_prediction",
+        "description": (
+            "Predicts which SKUs will run out of stock. For each SKU computes daily "
+            "sales velocity, days-to-zero (inventory / velocity), a reorder quantity "
+            "(covering lead time + safety stock), and a risk bucket "
+            "(critical/warning/watch/healthy/excess). "
+            "USE THIS for: 'what will stock out soon?', 'which SKUs need reordering?', "
+            "'stockout risk', 'days of cover', 'reorder list with urgency'."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "risk": {
+                    "type": "string",
+                    "description": "Filter to one bucket: critical, warning, watch, healthy, excess, dead. Optional.",
+                },
+                "top_n": {
+                    "type": "integer",
+                    "description": "Max SKUs to return (default 20).",
+                },
+            },
+        },
+    },
+    {
+        "name": "get_anomaly_detection",
+        "description": (
+            "Scans sales and inventory for anomalies using four detectors: sales crash "
+            "(revenue drop >30% week-over-week), inventory spike (>50% overnight jump — "
+            "data-entry risk), discount breach (discount above the per-channel ceiling), "
+            "and velocity-vs-stock risk (<14 days of cover). "
+            "USE THIS for: 'anything unusual?', 'anomalies', 'what looks wrong', "
+            "'sudden drops or spikes', 'data quality issues'."
+        ),
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "get_whatif_simulation",
+        "description": (
+            "What-if business simulator. scenario='discount': project how a new discount "
+            "level changes units, GMV, and net revenue (using price elasticity estimated "
+            "from history), optionally for one category. scenario='restock': project new "
+            "days-of-cover, overstock risk, GMV unlocked, restock cost, and ROI for adding "
+            "N units of a SKU. "
+            "USE THIS for: 'what if we discount X by 20%?', 'should we restock SKU Y?', "
+            "'discount impact', 'restock ROI'."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "scenario": {"type": "string", "description": "'discount' or 'restock'. Default 'discount'."},
+                "category": {"type": "string", "description": "Discount scenario: limit to a category. Optional."},
+                "new_discount_pct": {"type": "number", "description": "Discount scenario: new discount %. Default 20."},
+                "sku_id": {"type": "string", "description": "Restock scenario: the SKU to restock."},
+                "restock_units": {"type": "integer", "description": "Restock scenario: units to add. Default 500."},
+            },
+        },
+    },
+    {
+        "name": "run_sql_query",
+        "description": (
+            "Run a read-only SQL SELECT against the data warehouse (DuckDB) for ad-hoc "
+            "questions no other tool covers. Write standard SQL; only a single SELECT is "
+            "allowed (no INSERT/UPDATE/DDL). Results are capped at 100 rows.\n\n"
+            "Tables (columns):\n"
+            "  transactions(txn_id, order_id, customer_id, date, sku_id, brand, category, "
+            "quantity, unit_price_inr, discount_pct, net_revenue_inr, gross_margin_inr, "
+            "channel, city, customer_segment, store_id)\n"
+            "  products(sku_id, name, brand, category, pet_type, life_stage, price_inr, "
+            "cost_inr, margin_pct, supplier, lead_time_days)\n"
+            "  stores(store_id, city, state, region, store_type)\n"
+            "  demand(sku_id, date, demand, inventory)\n"
+            "  customers(customer_id, city, segment, pet_type, lifetime_value_inr)\n"
+            "  store_inventory(date, store_id, sku_id, name, category, demand, inventory, "
+            "lead_time_days, days_of_supply, risk_status, price_inr, cost_inr)\n"
+            "  suppliers(supplier_name, on_time_delivery_pct, defect_rate_pct, fill_rate_pct)\n"
+            "  returns(return_id, sku_id, category, return_reason, refund_inr)\n\n"
+            "USE THIS when the answer needs a custom aggregation/filter/join not offered by "
+            "a dedicated tool. GMV = unit_price_inr*quantity; NR = net_revenue_inr."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "sql": {"type": "string", "description": "A single read-only SELECT statement."},
+            },
+            "required": ["sql"],
+        },
+    },
 ]
 
 # ── Auto-populate _TOOL_REGISTRY from the static MCP_TOOLS list ──────────────
@@ -5638,6 +5726,10 @@ _CACHEABLE_TOOLS: set[str] = {
     "get_basket_analysis",
     "get_price_elasticity_analysis",
     "get_forecast_vs_actual",
+    "get_stockout_prediction",
+    "get_anomaly_detection",
+    "get_whatif_simulation",
+    "run_sql_query",
 }
 
 # DB tools that need credential injection — handled specially in dispatch
@@ -5729,6 +5821,10 @@ _TOOL_HANDLER_MAP: dict[str, Any] = {
         **kw
     ),
     "get_forecast_vs_actual": lambda **kw: tool_get_forecast_vs_actual(**kw),
+    "get_stockout_prediction": lambda **kw: tool_get_stockout_prediction(**kw),
+    "get_anomaly_detection": lambda **kw: tool_get_anomaly_detection(**kw),
+    "get_whatif_simulation": lambda **kw: tool_get_whatif_simulation(**kw),
+    "run_sql_query": lambda **kw: tool_run_sql_query(**kw),
 }
 
 
@@ -6632,16 +6728,15 @@ def tool_get_basket_analysis(
         if category:
             txn = txn[txn["category"].str.contains(category, case=False, na=False)]
 
-        # Generated data has 1 SKU per txn_id (unique txn per row),
-        # so groupby("txn_id") always gives single-item baskets.
-        # Use store+date+customer_segment as a proxy basket: items bought at the
-        # same store on the same day by customers of the same type are likely
-        # purchased as part of the same shopping occasion.
-        basket_key = (
-            ["store_id", "date", "customer_segment"]
-            if all(c in txn.columns for c in ["store_id", "date", "customer_segment"])
-            else ["txn_id"]
-        )
+        # Real baskets: transactions carry order_id, so line items of one order
+        # group into an actual multi-SKU basket. Fall back to the older
+        # store+date+segment proxy only if order_id is somehow absent.
+        if "order_id" in txn.columns:
+            basket_key = ["order_id"]
+        elif all(c in txn.columns for c in ["store_id", "date", "customer_segment"]):
+            basket_key = ["store_id", "date", "customer_segment"]
+        else:
+            basket_key = ["txn_id"]
         baskets = txn.groupby(basket_key)["sku_id"].apply(list)
         # Only keep baskets with 2+ items
         baskets = baskets[baskets.apply(len) >= 2]
@@ -6661,16 +6756,20 @@ def tool_get_basket_analysis(
         if not pair_counts:
             return "No product pairs found."
 
-        # Build results with support and product names
-        sku_names = txn.drop_duplicates("sku_id").set_index("sku_id")["name"].to_dict()
-        sku_cats = (
-            txn.drop_duplicates("sku_id").set_index("sku_id")["category"].to_dict()
-        )
+        # Build results with support and product names. Transaction rows have no
+        # product name, so pull names/categories from the products table.
+        prod = get_products().drop_duplicates("sku_id").set_index("sku_id")
+        sku_names = prod["name"].to_dict()
+        sku_cats = prod["category"].to_dict()
         total_baskets = len(baskets)
         basket_method = (
-            "store+date+segment proxy baskets"
-            if basket_key != ["txn_id"]
-            else "transaction baskets"
+            "real order baskets"
+            if basket_key == ["order_id"]
+            else (
+                "store+date+segment proxy baskets"
+                if basket_key != ["txn_id"]
+                else "transaction baskets"
+            )
         )
 
         pairs_df = (
@@ -6721,6 +6820,222 @@ def tool_get_basket_analysis(
         return header + tbl + rec
     except Exception as e:
         return f"TOOL_ERROR [get_basket_analysis]: {e}"
+
+
+def tool_get_stockout_prediction(risk: str | None = None, top_n: int = 20) -> str:
+    """
+    Stockout prediction: per-SKU sales velocity, days-to-zero, reorder quantity,
+    and risk bucket (critical/warning/watch/healthy/excess). Answers: "what will
+    stock out soon?", "which SKUs need reordering and how urgently?".
+    """
+    try:
+        from intelligence.stockout import predict_stockouts
+
+        sdi_path = HUFT_DATA_DIR / "store_daily_inventory.csv"
+        if not sdi_path.exists():
+            return "No inventory data available."
+        inv = pd.read_csv(sdi_path, parse_dates=["date"])
+        result = predict_stockouts(inv, risk_filter=risk)
+        rows = result["rows"][:top_n]
+        if not rows:
+            return "No SKUs match the requested stockout risk filter."
+
+        s = result["summary"]
+        emoji = {"critical": "🔴", "warning": "🟠", "watch": "🟡",
+                 "healthy": "🟢", "excess": "📦", "dead": "💀"}
+        header = (
+            f"## Stockout Predictor\n\n"
+            f"**{s.get('total_skus', 0)} SKUs** analysed — "
+            f"🔴 {s.get('critical', 0)} critical · 🟠 {s.get('warning', 0)} warning · "
+            f"🟡 {s.get('watch', 0)} watch · 🟢 {s.get('healthy', 0)} healthy · "
+            f"📦 {s.get('excess', 0)} excess. **{s.get('needs_reorder', 0)}** need reordering now.\n\n"
+        )
+        tbl = (
+            "| SKU | Product | Inventory | Velocity/day | Days to Zero | Reorder Qty | Risk |\n"
+            "|-----|---------|-----------|--------------|--------------|-------------|------|\n"
+        )
+        for x in rows:
+            dtz = "∞" if x["days_to_zero"] is None else x["days_to_zero"]
+            tbl += (
+                f"| {x['sku_id']} | {str(x['name'])[:26]} | {x['inventory']:,} | "
+                f"{x['daily_velocity']} | {dtz} | {x['reorder_qty']:,} | "
+                f"{emoji.get(x['risk'], '')} {x['risk']} |\n"
+            )
+        return header + tbl
+    except Exception as e:
+        return f"TOOL_ERROR [get_stockout_prediction]: {e}"
+
+
+def tool_get_anomaly_detection() -> str:
+    """
+    Anomaly detection across sales and inventory: sales crashes, inventory spikes,
+    discount breaches, and velocity-vs-stock risks. Answers: "anything unusual?".
+    """
+    try:
+        from intelligence.anomaly import run_anomaly_detection
+
+        txn = get_transactions()
+        sdi_path = HUFT_DATA_DIR / "store_daily_inventory.csv"
+        inv = pd.read_csv(sdi_path, parse_dates=["date"]) if sdi_path.exists() else pd.DataFrame()
+        result = run_anomaly_detection(txn, inv)
+        anomalies = result["anomalies"]
+        if not anomalies:
+            return "No anomalies detected across sales or inventory."
+
+        s = result["summary"]
+        sev_emoji = {"critical": "🔴", "warning": "🟠", "info": "🔵"}
+        header = (
+            f"## Anomaly Detection\n\n"
+            f"**{s['total']} anomalies** — 🔴 {s['critical']} critical · 🟠 {s['warning']} warning. "
+            f"Breakdown: {', '.join(f'{k} ({v})' for k, v in s['by_type'].items())}.\n\n"
+        )
+        tbl = ("| Severity | Type | Entity | Detail |\n"
+               "|----------|------|--------|--------|\n")
+        for a in anomalies[:25]:
+            tbl += (f"| {sev_emoji.get(a['severity'], '')} {a['severity']} | {a['type']} "
+                    f"| {a['entity']} | {a['detail']} |\n")
+        return header + tbl
+    except Exception as e:
+        return f"TOOL_ERROR [get_anomaly_detection]: {e}"
+
+
+def tool_get_whatif_simulation(
+    scenario: str = "discount",
+    category: str | None = None,
+    new_discount_pct: float = 20.0,
+    sku_id: str | None = None,
+    restock_units: int = 500,
+) -> str:
+    """
+    What-if simulator. scenario='discount' projects discount impact on units/GMV/NR;
+    scenario='restock' projects days-of-cover, GMV unlock, and ROI for a restock.
+    """
+    try:
+        if scenario == "restock":
+            from intelligence.whatif import simulate_restock_impact
+
+            if not sku_id:
+                return "Restock scenario needs a sku_id."
+            sdi_path = HUFT_DATA_DIR / "store_daily_inventory.csv"
+            inv = pd.read_csv(sdi_path, parse_dates=["date"]) if sdi_path.exists() else pd.DataFrame()
+            r = simulate_restock_impact(inv, get_products(), sku_id, restock_units)
+            if "error" in r:
+                return r["error"]
+            c, p, e = r["current"], r["projected"], r["economics"]
+            return (
+                f"## What-If — Restock {r['name']} ({sku_id})\n\n"
+                f"Add **{r['restock_units']:,} units**.\n\n"
+                f"| Metric | Now | After restock |\n|---|---|---|\n"
+                f"| Inventory | {c['inventory']:,} | {p['inventory']:,} |\n"
+                f"| Days of cover | {c['days_of_cover']} | {p['days_of_cover']} |\n\n"
+                f"**Restock cost:** ₹{e['restock_cost']:,} · **GMV unlock:** ₹{e['gmv_unlock']:,} · "
+                f"**Gross profit:** ₹{e['gross_profit']:,} · **ROI:** {e['roi_pct']}%"
+                + ("\n\n⚠️ Overstock risk (>90 days cover)." if p["overstock_risk"] else "")
+            )
+
+        from intelligence.whatif import simulate_discount_impact
+
+        r = simulate_discount_impact(get_transactions(), category, new_discount_pct)
+        if "error" in r:
+            return r["error"]
+        b, p, d = r["baseline"], r["projected"], r["delta"]
+        return (
+            f"## What-If — Discount ({r['category']})\n\n"
+            f"Estimated price elasticity: **{r['elasticity']}**.\n\n"
+            f"| Metric | Baseline ({b['avg_discount_pct']}% disc) | At {p['discount_pct']}% disc |\n|---|---|---|\n"
+            f"| Units | {b['units']:,} | {p['units']:,} ({d['units_pct']:+}%) |\n"
+            f"| GMV | ₹{b['gmv']:,} | ₹{p['gmv']:,} |\n"
+            f"| Net revenue | ₹{b['net_revenue']:,} | ₹{p['net_revenue']:,} ({d['net_revenue_pct']:+}%) |\n\n"
+            f"Net revenue change: **₹{d['net_revenue']:,}**. _{r['note']}_"
+        )
+    except Exception as e:
+        return f"TOOL_ERROR [get_whatif_simulation]: {e}"
+
+
+_DUCK_CON = None
+# Friendly view name → source CSV, for the read-only SQL sandbox.
+_SQL_VIEWS = {
+    "products": "huft_products.csv",
+    "stores": "huft_stores.csv",
+    "transactions": "huft_sales_transactions.csv",
+    "demand": "huft_daily_demand.csv",
+    "customers": "huft_customers.csv",
+    "promotions": "huft_promotions.csv",
+    "returns": "huft_returns.csv",
+    "suppliers": "huft_supplier_performance.csv",
+    "store_inventory": "store_daily_inventory.csv",
+}
+# Blocked in user SQL. Keywords use word boundaries (so a column like
+# "created_at" is fine); dangerous DuckDB functions use substring matching
+# (so read_csv_auto / parquet_scan / glob can't slip past a word boundary).
+_SQL_FORBIDDEN_KW = (
+    "insert", "update", "delete", "drop", "create", "alter", "attach", "detach",
+    "copy", "pragma", "export", "call", "merge", "truncate", "grant", "replace",
+)
+_SQL_FORBIDDEN_SUB = (
+    "read_", "_scan", "glob", "sniff", "system", "getenv", "install", "load",
+)
+
+
+def _get_duck_con():
+    global _DUCK_CON
+    if _DUCK_CON is not None:
+        return _DUCK_CON
+    import duckdb
+
+    con = duckdb.connect(database=":memory:")
+    for name, csv in _SQL_VIEWS.items():
+        if (HUFT_DATA_DIR / csv).exists():
+            path = (HUFT_DATA_DIR / csv).as_posix()
+            con.execute(f"CREATE VIEW {name} AS SELECT * FROM read_csv_auto('{path}')")
+    _DUCK_CON = con
+    return con
+
+
+def _is_safe_select(sql: str) -> bool:
+    import re
+
+    s = sql.strip().rstrip(";").lower()
+    if not (s.startswith("select") or s.startswith("with")):
+        return False
+    if ";" in s:  # single statement only
+        return False
+    if any(re.search(rf"\b{kw}\b", s) for kw in _SQL_FORBIDDEN_KW):
+        return False
+    return not any(sub in s for sub in _SQL_FORBIDDEN_SUB)
+
+
+def tool_run_sql_query(sql: str, max_rows: int = 100) -> str:
+    """
+    Execute a read-only SQL SELECT against the data (DuckDB over the CSV tables)
+    and return the rows as a markdown table. For ad-hoc questions no dedicated
+    tool covers. Only a single SELECT is permitted.
+    """
+    try:
+        try:
+            import duckdb  # noqa: F401
+        except ImportError:
+            return "SQL querying is unavailable in this environment (duckdb not installed)."
+        if not _is_safe_select(sql):
+            return ("Only a single read-only SELECT (or WITH … SELECT) is allowed — "
+                    "no writes, DDL, or file access.")
+        con = _get_duck_con()
+        df = con.execute(sql).fetchdf()
+        total = len(df)
+        df = df.head(max_rows)
+        if df.empty:
+            return "Query ran successfully but returned no rows."
+
+        cols = list(df.columns)
+        head = "| " + " | ".join(str(c) for c in cols) + " |\n"
+        head += "|" + "|".join("---" for _ in cols) + "|\n"
+        body = ""
+        for row in df.itertuples(index=False):
+            body += "| " + " | ".join(str(v) for v in row) + " |\n"
+        note = f"\n\n_Showing {len(df)} of {total} rows._" if total > len(df) else ""
+        return f"Query returned **{total}** rows.\n\n{head}{body}{note}"
+    except Exception as e:
+        return f"TOOL_ERROR [run_sql_query]: {e}"
 
 
 def tool_get_price_elasticity_analysis(

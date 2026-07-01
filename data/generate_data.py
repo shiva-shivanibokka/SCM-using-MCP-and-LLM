@@ -2355,71 +2355,137 @@ def generate():
     print(f"huft_promotions.csv — {len(promo_df)} promotions")
 
     # ── 6. huft_sales_transactions.csv ───────────────────────────────────────
-    n_txn = 300000
+    # Real orders, not anonymous line items. Each order belongs to a specific
+    # customer_id and can contain several SKUs (a basket). The grain stays one
+    # row per line item, but every row now carries order_id + customer_id, so
+    # genuine per-customer purchase history AND multi-SKU co-purchase baskets
+    # exist — the exact signal a recommendation model needs (absent before).
+    n_orders = 180000
     skus_list = [p["sku_id"] for p in PRODUCTS]
     sku_prices = {p["sku_id"]: p["price_inr"] for p in PRODUCTS}
     sku_cats = {p["sku_id"]: p["category"] for p in PRODUCTS}
     sku_brands = {p["sku_id"]: p["brand"] for p in PRODUCTS}
     sku_costs = {p["sku_id"]: p["cost_inr"] for p in PRODUCTS}
-    # Demand-weighted SKU sampling
+
+    # Category → SKUs, used to give baskets realistic co-purchase structure.
+    categories = sorted(set(sku_cats.values()))
+    cat_to_skus = {c: [s for s in skus_list if sku_cats[s] == c] for c in categories}
+
+    # Demand-weighted SKU sampling for "discovery" draws (item outside a
+    # customer's usual categories) and the popularity fallback.
     weights = np.array([p["base_demand"] for p in PRODUCTS], dtype=float)
     weights /= weights.sum()
+
+    # Customer pool, aligned with cust_rows order (index i → CUST_{i+1:05d}).
+    cust_ids = [c["customer_id"] for c in cust_rows]
+    cust_segs = [c["segment"] for c in cust_rows]
+    cust_cities = [c["city"] for c in cust_rows]
+    cust_channels = [c["channel_preference"] for c in cust_rows]
+    # Each customer prefers 1–3 categories → repeat purchases (personalisation
+    # signal) and co-occurring items within a basket (collaborative signal).
+    n_cats = len(categories)
+    cust_pref_cats = [
+        list(rng.choice(categories, size=int(rng.integers(1, 4)), replace=False))
+        if n_cats >= 3 else list(categories)
+        for _ in cust_rows
+    ]
+    # Heavy buyers place more orders → repeat-customer signal for the recommender.
+    cust_weights = np.array([c["total_orders"] for c in cust_rows], dtype=float)
+    cust_weights /= cust_weights.sum()
+
+    retail_store_ids = [s[0] for s in STORES if s[4] not in ("Online", "App", "Spa")]
+
+    # Vectorised per-order draws (fast; avoids 180k× rng.choice over big arrays).
+    date_pool = pd.date_range("2023-01-01", "2025-12-31", freq="D")
+    order_date_idx = rng.integers(0, len(date_pool), size=n_orders)
+    order_cust_idx = rng.choice(len(cust_rows), size=n_orders, p=cust_weights)
+    order_sizes = rng.choice(
+        [1, 2, 3, 4, 5], size=n_orders, p=[0.45, 0.28, 0.15, 0.08, 0.04]
+    )
+
     txn_rows = []
-    for i in range(n_txn):
-        txn_date = pd.Timestamp(
-            rng.choice(pd.date_range("2023-01-01", "2025-12-31", freq="D"))
-        )
-        sku = rng.choice(skus_list, p=weights)
-        price = sku_prices[sku]
-        qty = int(rng.integers(1, 4))
-        channel = rng.choice(["Online", "Offline", "App"], p=[0.48, 0.42, 0.10])
-        city = rng.choice(CITIES)
-        seg = rng.choice(CUSTOMER_SEGMENTS)
-        # Apply promo discount if date falls in a promo window
-        discount = 0.0
-        for row in PROMOTIONS:
-            pstart = pd.Timestamp(row[2])
-            pend = pd.Timestamp(row[3])
-            if pstart <= txn_date <= pend:
-                # BUG-025 fix: explicit parentheses to prevent reader confusion
-                # about operator precedence (and binds tighter than or)
-                if (row[5] in ("All", channel)) or (
-                    row[5] == "Online" and channel in ("Online", "App")
-                ):
-                    if row[6] == "All" or row[6] == sku_cats[sku]:
-                        discount = row[4] / 100.0
-                        break
-        net_price = round(price * (1 - discount) * qty, 2)
-        gross_margin = round(
-            (sku_prices[sku] - sku_costs[sku]) * qty * (1 - discount), 2
-        )
-        txn_rows.append(
-            {
-                "txn_id": f"TXN_{i + 1:06d}",
-                "date": txn_date.strftime("%Y-%m-%d"),
-                "sku_id": sku,
-                "brand": sku_brands[sku],
-                "category": sku_cats[sku],
-                "quantity": qty,
-                "unit_price_inr": price,
-                "discount_pct": round(discount * 100, 1),
-                "net_revenue_inr": net_price,
-                "gross_margin_inr": gross_margin,
-                "channel": channel,
-                "city": city,
-                "customer_segment": seg,
-                # BUG-29 fix: only physical retail stores for Offline channel
-                # (exclude Online and Spa-only stores which don't sell retail products)
-                "store_id": rng.choice(
-                    [s[0] for s in STORES if s[4] not in ("Online", "App", "Spa")]
-                )
-                if channel == "Offline"
-                else ("ON001" if channel == "Online" else "ON002"),
-            }
-        )
+    line_no = 0
+    for o in range(n_orders):
+        ci = int(order_cust_idx[o])
+        txn_date = date_pool[int(order_date_idx[o])]
+        seg = cust_segs[ci]
+        city = cust_cities[ci]
+        cust_id = cust_ids[ci]
+        pref = cust_pref_cats[ci]
+        chan_pref = cust_channels[ci]
+        if chan_pref == "Both":
+            channel = rng.choice(["Online", "Offline", "App"], p=[0.48, 0.42, 0.10])
+        elif chan_pref == "Online":
+            channel = rng.choice(["Online", "App"], p=[0.85, 0.15])
+        else:
+            channel = "Offline"
+        # One store per order (a basket is bought in one place).
+        if channel == "Offline":
+            store_id = rng.choice(retail_store_ids)
+        else:
+            store_id = "ON001" if channel == "Online" else "ON002"
+        order_id = f"ORD_{o + 1:06d}"
+
+        # Build the basket: mostly SKUs from the customer's preferred categories
+        # (repeat + co-purchase signal), sometimes a demand-weighted discovery item.
+        basket: list[str] = []
+        for _ in range(int(order_sizes[o])):
+            if pref and rng.random() < 0.75:
+                cat = pref[int(rng.integers(0, len(pref)))]
+                pool = cat_to_skus[cat]
+                sku = pool[int(rng.integers(0, len(pool)))]
+            else:
+                sku = rng.choice(skus_list, p=weights)
+            if sku not in basket:  # no duplicate SKU within one order
+                basket.append(sku)
+
+        for sku in basket:
+            line_no += 1
+            price = sku_prices[sku]
+            qty = int(rng.integers(1, 4))
+            # Apply promo discount if date falls in a promo window.
+            discount = 0.0
+            for row in PROMOTIONS:
+                pstart = pd.Timestamp(row[2])
+                pend = pd.Timestamp(row[3])
+                if pstart <= txn_date <= pend:
+                    # Explicit parentheses: `and` binds tighter than `or`.
+                    if (row[5] in ("All", channel)) or (
+                        row[5] == "Online" and channel in ("Online", "App")
+                    ):
+                        if row[6] == "All" or row[6] == sku_cats[sku]:
+                            discount = row[4] / 100.0
+                            break
+            net_price = round(price * (1 - discount) * qty, 2)
+            gross_margin = round(
+                (sku_prices[sku] - sku_costs[sku]) * qty * (1 - discount), 2
+            )
+            txn_rows.append(
+                {
+                    "txn_id": f"TXN_{line_no:06d}",
+                    "order_id": order_id,
+                    "customer_id": cust_id,
+                    "date": txn_date.strftime("%Y-%m-%d"),
+                    "sku_id": sku,
+                    "brand": sku_brands[sku],
+                    "category": sku_cats[sku],
+                    "quantity": qty,
+                    "unit_price_inr": price,
+                    "discount_pct": round(discount * 100, 1),
+                    "net_revenue_inr": net_price,
+                    "gross_margin_inr": gross_margin,
+                    "channel": channel,
+                    "city": city,
+                    "customer_segment": seg,
+                    "store_id": store_id,
+                }
+            )
     txn_df = pd.DataFrame(txn_rows)
     txn_df.to_csv(OUT / "huft_sales_transactions.csv", index=False)
-    print(f"huft_sales_transactions.csv — {len(txn_df):,} transactions")
+    print(
+        f"huft_sales_transactions.csv — {len(txn_df):,} line items "
+        f"across {n_orders:,} orders ({txn_df['customer_id'].nunique():,} customers)"
+    )
 
     # ── 7. huft_returns.csv ───────────────────────────────────────────────────
     # ~3% return rate

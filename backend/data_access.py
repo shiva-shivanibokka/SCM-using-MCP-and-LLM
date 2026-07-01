@@ -78,16 +78,31 @@ def load_store_inventory() -> pd.DataFrame:
 
 
 def load_mart(name: str):
-    """Read a dbt mart from the `analytics` schema. Returns None if the mart
-    isn't built yet (or there's no DB) so callers can fall back to raw compute."""
+    """Read a dbt mart, preferring Postgres (`analytics` schema) and falling back
+    to a locally-built DuckDB file (data/petopia.duckdb, from db/build_marts.py).
+    Returns None if the mart isn't built anywhere so callers can fall back to raw
+    compute. The duckdb import is optional — absent on the deployed backend, the
+    fallback is simply skipped."""
     engine = get_engine()
-    if engine is None:
-        return None
-    try:
-        return pd.read_sql_table(name, engine, schema="analytics")
-    except Exception as e:
-        logger.info("dbt mart '%s' not available (%s) — using raw compute", name, e)
-        return None
+    if engine is not None:
+        try:
+            return pd.read_sql_table(name, engine, schema="analytics")
+        except Exception as e:
+            logger.info("dbt mart '%s' not in Postgres (%s) — trying DuckDB", name, e)
+
+    duck = _D / "petopia.duckdb"
+    if duck.exists():
+        try:
+            import duckdb  # optional; only present where marts are built locally
+
+            con = duckdb.connect(str(duck), read_only=True)
+            try:
+                return con.execute(f'select * from analytics."{name}"').df()
+            finally:
+                con.close()
+        except Exception as e:
+            logger.info("dbt mart '%s' not in DuckDB (%s) — using raw compute", name, e)
+    return None
 
 
 def sku_history(sku_id: str) -> list[float]:

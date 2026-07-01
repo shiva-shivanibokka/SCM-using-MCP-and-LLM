@@ -7,6 +7,10 @@ const LINKS = [
   ["/suppliers", "Suppliers", "🚚"],
   ["/stores", "Stores", "🏬"],
   ["/analytics", "Analytics", "🧁"],
+  ["/recommendations", "Recommendations", "🎯"],
+  ["/stockout", "Stockout", "⏳"],
+  ["/anomaly", "Anomaly", "🚨"],
+  ["/whatif", "What-If", "🧪"],
   ["/assistant", "AI Assistant", "🐕‍🦺"],
   ["/mlops", "MLOps", "⚙️"],
 ]

@@ -14,3 +14,13 @@ petopia:
       schema: "{{ env_var('DBT_SCHEMA', 'analytics') }}"
       sslmode: require
       threads: 4
+
+    # Free-tier / no-database target: builds the same marts into a local DuckDB
+    # file over the raw Parquet layer. No Postgres required. Driven by
+    # db/build_marts.py, which sets DUCKDB_PATH + RAW_DIR. Same models, swap the
+    # engine with `--target duck` — this is the dbt + DuckDB combo.
+    duck:
+      type: duckdb
+      path: "{{ env_var('DUCKDB_PATH', 'petopia.duckdb') }}"
+      schema: analytics
+      threads: 4

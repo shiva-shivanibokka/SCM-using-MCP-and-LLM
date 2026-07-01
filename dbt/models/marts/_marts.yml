@@ -1,0 +1,51 @@
+version: 2
+
+models:
+  - name: store_kpis
+    description: One row per store with revenue, margin, and inventory health.
+    columns:
+      - name: store_id
+        tests: [not_null, unique]
+      - name: gross_margin_pct
+        tests: [not_null]
+
+  - name: sku_performance
+    description: One row per SKU with units, revenue, and margin.
+    columns:
+      - name: sku_id
+        tests: [not_null, unique]
+
+  - name: supplier_scorecard
+    description: One row per supplier with averaged reliability metrics.
+    columns:
+      - name: supplier_name
+        tests: [not_null, unique]
+      - name: fill_rate_pct
+        tests: [not_null]
+
+  - name: co_purchase_pairs
+    description: >
+      Frequently-bought-together pairs from real multi-item baskets (order_id).
+      The baseline recommendation signal ("customers who bought X also bought Y").
+    columns:
+      - name: co_purchases
+        tests: [not_null]
+      - name: support_pct
+        tests: [not_null]
+
+  - name: customer_product_history
+    description: >
+      One row per (customer, SKU) with purchase frequency, units, and revenue —
+      the personalisation signal for reorder / "your usual" recommendations.
+    columns:
+      - name: customer_id
+        tests: [not_null]
+      - name: sku_id
+        tests: [not_null]
+
+  - name: sku_days_of_supply
+    description: >
+      Per-SKU inventory coverage rolled up across stores from the latest snapshot.
+    columns:
+      - name: sku_id
+        tests: [not_null, unique]

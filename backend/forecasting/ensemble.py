@@ -8,6 +8,7 @@ from .contract import validate_forecast
 from .chronos_model import forecast_chronos
 from .nhits_model import forecast_nhits
 from .catboost_model import forecast_catboost
+from .intermittent import classify_demand, croston_tsb_forecast, is_intermittent
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,16 @@ _NAMES = ("chronos", "nhits", "catboost")
 
 def ensemble_forecast(history: list[float], horizon: int = 30,
                       components: bool = False) -> dict:
+    # Intermittent/lumpy SKUs (long zero-runs) are forecast far better by
+    # Croston/TSB than by the smooth ML ensemble — route them out first.
+    if is_intermittent(history):
+        result = croston_tsb_forecast(history, horizon)
+        result["demand_class"] = classify_demand(history)
+        logger.info("routed to %s (%s demand)", result["method"], result["demand_class"])
+        if components:
+            result["components"] = {result["method"]: {k: result[k] for k in ("p10", "p50", "p90")}}
+        return result
+
     funcs = (forecast_chronos, forecast_nhits, forecast_catboost)
     got, weights, comp_out = [], [], {}
     for name, w, fn in zip(_NAMES, ENSEMBLE_WEIGHTS, funcs):

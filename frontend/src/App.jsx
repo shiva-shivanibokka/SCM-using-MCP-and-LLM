@@ -7,6 +7,10 @@ import Forecast from "./pages/Forecast"
 import Suppliers from "./pages/Suppliers"
 import Stores from "./pages/Stores"
 import Analytics from "./pages/Analytics"
+import Recommendations from "./pages/Recommendations"
+import Stockout from "./pages/Stockout"
+import Anomaly from "./pages/Anomaly"
+import WhatIf from "./pages/WhatIf"
 import AIAssistant from "./pages/AIAssistant"
 import MLOps from "./pages/MLOps"
 
@@ -23,6 +27,10 @@ export default function App() {
           <Route path="/suppliers" element={<Suppliers />} />
           <Route path="/stores" element={<Stores />} />
           <Route path="/analytics" element={<Analytics />} />
+          <Route path="/recommendations" element={<Recommendations />} />
+          <Route path="/stockout" element={<Stockout />} />
+          <Route path="/anomaly" element={<Anomaly />} />
+          <Route path="/whatif" element={<WhatIf />} />
           <Route path="/assistant" element={<AIAssistant />} />
           <Route path="/mlops" element={<MLOps />} />
         </Routes>
