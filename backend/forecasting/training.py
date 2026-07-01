@@ -63,7 +63,15 @@ def _backtest_one(series: np.ndarray, horizon: int) -> float | None:
 
 
 def retrain_catboost(n_skus: int = 8, horizon: int = 30) -> dict:
-    """Retrain + backtest CatBoost on the top SKUs. Returns the run summary."""
+    """Retrain + backtest CatBoost, then train and DURABLY persist the served model.
+
+    Two steps:
+      1. A fast, leak-free backtest (train on all-but-last-`horizon`, score sMAPE)
+         for the registry metric.
+      2. Train the persistent CatBoost (leak-free temporal split) and save it to
+         forecasting/.model_cache *and* to Neon (artifact_store), so the fine-tune
+         actually produces served weights that survive an HF Space restart.
+    """
     skus = _top_skus(n_skus)
     scores: list[float] = []
     rows = 0
@@ -74,10 +82,28 @@ def retrain_catboost(n_skus: int = 8, horizon: int = 30) -> dict:
         if score is not None:
             scores.append(score)
     logger.info("retrain_catboost: %d/%d SKUs scored, %d rows", len(scores), len(skus), rows)
+
+    # Step 2 — train + durably persist the served model (best-effort). Call the
+    # CatBoost path directly: the generic train() prefers TFT (20-40 min), far too
+    # slow for a button; CatBoost trains in ~1 min, leak-free, and _save_catboost
+    # persists it to .model_cache + Neon.
+    weights_persisted = False
+    val_mape = None
+    try:
+        from forecasting.ml_forecast import _train_catboost, is_trained
+
+        metrics = _train_catboost(load_demand())
+        val_mape = metrics.get("mape")
+        weights_persisted = is_trained()
+    except Exception as e:  # never fail the backtest/registry log over this
+        logger.warning("durable train/persist failed: %s", e)
+
     return {
         "model_name": "catboost",
         "backtest_smape": round(float(np.mean(scores)), 2) if scores else None,
+        "val_mape": round(float(val_mape), 2) if val_mape is not None else None,
         "n_skus": len(scores),
         "training_rows": rows,
         "horizon": horizon,
+        "weights_persisted": weights_persisted,
     }

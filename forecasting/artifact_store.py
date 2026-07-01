@@ -22,6 +22,9 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 _TABLE = "model_artifacts"
+# Keep only the most recent N versions per model (rollback history without
+# unbounded growth). Blobs are small, so a handful is plenty.
+_KEEP_LAST = 5
 
 
 def _engine():
@@ -85,6 +88,15 @@ def save_cache(cache_dir, model_name: str = "catboost") -> bool:
             conn.execute(
                 text(f"INSERT INTO {_TABLE} (model_name, payload) VALUES (:n, :p)"),
                 {"n": model_name, "p": payload},
+            )
+            # Retention: keep only the most recent _KEEP_LAST versions.
+            conn.execute(
+                text(
+                    f"DELETE FROM {_TABLE} WHERE model_name = :n AND id NOT IN ("
+                    f"  SELECT id FROM {_TABLE} WHERE model_name = :n"
+                    f"  ORDER BY created_at DESC LIMIT :k)"
+                ),
+                {"n": model_name, "k": _KEEP_LAST},
             )
         logger.info("artifact_store: saved %s weights to Neon (%d bytes)", model_name, len(payload))
         return True
