@@ -11,6 +11,41 @@ import json
 import re
 from pathlib import Path
 
+# Compact data dictionary handed to the LLM for natural-language → SQL.
+SCHEMA_TEXT = (
+    "transactions(txn_id, order_id, customer_id, date, sku_id, brand, category, "
+    "quantity, unit_price_inr, discount_pct, net_revenue_inr, gross_margin_inr, "
+    "channel, city, customer_segment, store_id)\n"
+    "products(sku_id, name, brand, category, pet_type, life_stage, price_inr, "
+    "cost_inr, margin_pct, supplier, lead_time_days)\n"
+    "stores(store_id, city, state, region, store_type)\n"
+    "demand(sku_id, date, demand, inventory)\n"
+    "customers(customer_id, city, segment, pet_type, lifetime_value_inr)\n"
+    "store_inventory(date, store_id, sku_id, name, category, demand, inventory, "
+    "lead_time_days, days_of_supply, risk_status, price_inr, cost_inr)\n"
+    "suppliers(supplier_name, on_time_delivery_pct, defect_rate_pct, fill_rate_pct)\n"
+    "returns(return_id, sku_id, category, return_reason, refund_inr)\n"
+    "Notes: GMV = unit_price_inr*quantity; NR = net_revenue_inr."
+)
+
+
+def extract_sql(text: str) -> str:
+    """Pull a single SQL statement out of an LLM response (strip prose/fences)."""
+    if not text:
+        return ""
+    m = re.search(r"```(?:sql)?\s*(.+?)```", text, re.S | re.I)
+    if m:
+        text = m.group(1)
+    t = text.strip()
+    # Bare SQL: starts with SELECT or a WITH-CTE.
+    if re.match(r"(?is)^\s*(select|with)\b", t):
+        return t.split(";")[0].strip()
+    # Otherwise take from the first SELECT (a mid-prose "with" is too ambiguous
+    # to treat as a CTE start, so we don't match bare "with" here).
+    m = re.search(r"(?i)\bselect\b", t)
+    return t[m.start():].split(";")[0].strip() if m else ""
+
+
 # Friendly view name → source CSV in the data dir.
 VIEWS = {
     "products": "huft_products.csv",

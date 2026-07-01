@@ -30,6 +30,51 @@ def ask_data_sql(body: SqlBody):
     return run_query(body.sql, settings.DATA_DIR, max_rows=100)
 
 
+class AskBody(BaseModel):
+    question: str
+    provider: str = "groq"
+    model: str | None = None
+    api_key: str | None = None
+
+
+@router.post("/ask")
+async def ask_data_nl(body: AskBody):
+    """Natural-language → SQL. An LLM (BYOK, same providers as the chat) turns the
+    question into a single SQL SELECT, which is then guarded and executed. Returns
+    the same shape as /sql plus the generated `sql` so the UI can show/edit it."""
+    import os
+
+    from agent.agent import _call_llm, PROVIDER_ENV_KEYS, PROVIDERS
+    from intelligence.sql import SCHEMA_TEXT, extract_sql
+
+    provider = body.provider
+    model = body.model or PROVIDERS.get(provider, {}).get("default_model")
+    key = body.api_key or os.getenv(PROVIDER_ENV_KEYS.get(provider, ""), "")
+    empty = {"columns": [], "rows": [], "total": 0, "truncated": False, "sql": None}
+    if not key:
+        return {**empty, "error": f"No {provider} API key — enter one in the model bar."}
+
+    prompt = (
+        "You translate a business question into exactly ONE DuckDB SQL query.\n"
+        "Rules: a single read-only SELECT (or WITH … SELECT); DuckDB syntax; use only "
+        "the tables/columns in the schema; no writes, DDL, comments, or explanation. "
+        "Output ONLY the SQL.\n\n"
+        f"Schema:\n{SCHEMA_TEXT}\n\nQuestion: {body.question}\n\nSQL:"
+    )
+    try:
+        res = await _call_llm([{"role": "user", "content": prompt}], [], provider, model, key)
+    except Exception as e:  # bad key, rate limit, etc.
+        return {**empty, "error": f"LLM error: {e}"}
+
+    sql = extract_sql(res.get("text") or "")
+    if not sql:
+        return {**empty, "error": "Could not turn that into SQL — try rephrasing.",
+                "sql": (res.get("text") or "").strip()[:400]}
+    result = run_query(sql, settings.DATA_DIR, max_rows=100)
+    result["sql"] = sql
+    return result
+
+
 @router.get("/stockout")
 def stockout(safety_stock_days: int = 7, risk: str | None = None, top_n: int = 100):
     """Per-SKU stockout risk: days-to-zero, reorder quantity, and risk bucket."""

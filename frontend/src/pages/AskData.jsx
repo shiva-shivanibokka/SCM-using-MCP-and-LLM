@@ -1,7 +1,9 @@
 import { useState } from "react"
 import { apiPost } from "../lib/api"
+import { useLLMStore } from "../stores/llmStore"
 import PageHeader from "../components/PageHeader"
 import ChartCard from "../components/ChartCard"
+import LlmSelector from "../components/LlmSelector"
 import Glossary from "../components/Glossary"
 
 const EXAMPLES = [
@@ -32,6 +34,9 @@ export default function AskData() {
   const [sql, setSql] = useState(EXAMPLES[0].sql)
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [question, setQuestion] = useState("")
+  const [asking, setAsking] = useState(false)
+  const { provider, model, apiKey } = useLLMStore()
 
   async function run() {
     setLoading(true)
@@ -44,6 +49,23 @@ export default function AskData() {
     }
   }
 
+  // Plain-English → SQL: the LLM writes the query into the editor, and we run it.
+  async function ask() {
+    if (!question.trim()) return
+    setAsking(true)
+    try {
+      const res = await apiPost("/api/intelligence/ask", {
+        question, provider, model, api_key: apiKey,
+      })
+      if (res.sql) setSql(res.sql)   // drop the generated SQL into the editor (editable)
+      setResult(res)
+    } catch (e) {
+      setResult({ error: String(e), columns: [], rows: [] })
+    } finally {
+      setAsking(false)
+    }
+  }
+
   return (
     <div>
       <PageHeader
@@ -51,6 +73,29 @@ export default function AskData() {
         title="Ask Your Data"
         blurb="Run ad-hoc SQL against the warehouse for anything the dashboards don't cover. Read-only and guarded — explore freely. Prefer plain English? The AI Assistant writes this SQL for you."
       />
+
+      <div className="mb-6">
+        <LlmSelector />
+        <ChartCard title="Ask in plain English"
+          hint="Type a question — the model writes the SQL into the editor below, then runs it. You can tweak the SQL and re-run.">
+          <div className="flex flex-wrap items-center gap-3 py-1">
+            <input
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && ask()}
+              placeholder="e.g. top 5 categories by net revenue this year"
+              className="flex-1 min-w-[240px] px-3 py-2 rounded-xl border border-ink/15 text-sm focus:outline-none focus:ring-2 focus:ring-teal/40"
+            />
+            <button onClick={ask} disabled={asking || !question.trim()}
+              className="pill bg-teal text-white hover:bg-teal/90 disabled:opacity-40">
+              {asking ? "Thinking…" : "✨ Generate & run"}
+            </button>
+          </div>
+          <p className="text-[11px] text-ink/45 mt-2 px-1">
+            Uses your selected provider/key above. The generated SQL appears in the editor so you can verify or edit it.
+          </p>
+        </ChartCard>
+      </div>
 
       <div className="grid lg:grid-cols-[1fr_320px] gap-6">
         <div>
