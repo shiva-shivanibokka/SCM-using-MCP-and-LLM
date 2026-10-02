@@ -1,0 +1,4 @@
+[ORIGINAL_65c1c06] eval_set rows=14400  scored(validation) rows=14400  overlap=14400 (100.0% of scored rows)  -> FAIL (leak: early stopping sees the scored rows)
+[FIXED_worktree] eval_set rows=4800  scored(validation) rows=14400  overlap=0 (0.0% of scored rows)  -> PASS
+RESULT: leak reproduced on original and absent after fix
+python exit code: 0

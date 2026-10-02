@@ -1,0 +1,42 @@
+{
+  "before_leaky": {
+    "mape": 11.96,
+    "mae": 15.25,
+    "rmse": 38.97,
+    "train_rows": 156480,
+    "val_rows": 14400,
+    "n_features": 25,
+    "n_skus": 160,
+    "best_iterations": {
+      "p10": 498,
+      "p50": 498,
+      "p90": 490
+    },
+    "data_source": "Pet Store CSV",
+    "trained_at": "2026-10-02 01:22 UTC",
+    "engine": "CatBoost (fallback)",
+    "val_smape_p50": 12.309,
+    "runtime_s": 84.5
+  },
+  "after_fixed": {
+    "mape": 11.97,
+    "mae": 15.26,
+    "rmse": 38.95,
+    "train_rows": 151680,
+    "es_rows": 4800,
+    "val_rows": 14400,
+    "n_features": 25,
+    "n_skus": 160,
+    "best_iterations": {
+      "p10": 492,
+      "p50": 496,
+      "p90": 449
+    },
+    "data_source": "Pet Store CSV",
+    "trained_at": "2026-10-02 01:24 UTC",
+    "engine": "CatBoost (fallback)",
+    "val_smape_p50": 12.325,
+    "runtime_s": 81.3
+  },
+  "note": "Both numbers are ONE-STEP-AHEAD on the last 90 days using TRUE lags (lag_1 etc. come from observed demand inside the validation window); they are not multi-step forecast accuracy. 'after' also fits on 30 fewer days (inner ES split), so the delta mixes leak removal with slightly less training data. Seed 42 (repo default), thread_count=-1 (repo default)."
+}
