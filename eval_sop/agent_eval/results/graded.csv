@@ -1,0 +1,505 @@
+qid,category,variant,ablation,seed,fix_relevant,strict,lenient,has_final,error,infra_error,budget_exceeded,tool_ok,n_tool_calls,n_failed_tool_calls,n_db_tool_calls,n_llm_calls,hit_max_iter,distractor_final,distractor_answer,flagged_conflict,exposed,ollama_prompt_tokens,output_tokens,est_context_tokens,wall_s,first_tool,final,file,model
+M01,multihop,after,reconcile,0,False,0,0,0,1,0,1,0,3,3,0,4,0,,,0,,15886,280,27460,11.5,run_sql_query,,ablation_reconcile.jsonl,llama3.1:8b
+M02,multihop,after,reconcile,0,False,0,0,1,0,0,0,1,1,0,0,2,0,,,0,,11121,72,13369,4.6,get_return_rate_analysis,CAT_001; Cat Food,ablation_reconcile.jsonl,llama3.1:8b
+M03,multihop,after,reconcile,0,False,0,0,0,1,0,1,0,3,3,0,4,0,,,0,,15817,235,27356,8.3,run_sql_query,,ablation_reconcile.jsonl,llama3.1:8b
+M04,multihop,after,reconcile,0,False,0,0,1,0,0,0,1,1,0,0,2,0,,,0,,11147,66,13409,4.7,get_return_rate_analysis,DOG_001; 2.5%; Expired or spoiled; 0.32; 3.1; 0.35; 0.31; 0.24;,ablation_reconcile.jsonl,llama3.1:8b
+M05,multihop,after,reconcile,0,False,0,0,0,0,0,0,0,0,0,0,1,0,,,0,,6229,29,6504,2.0,,,ablation_reconcile.jsonl,llama3.1:8b
+M06,multihop,after,reconcile,0,False,0,0,0,1,0,1,0,3,3,0,4,0,,,0,,16035,368,27794,11.0,run_sql_query,,ablation_reconcile.jsonl,llama3.1:8b
+M07,multihop,after,reconcile,0,False,0,0,1,0,0,0,0,2,2,0,2,0,,,0,,11127,242,13452,9.6,run_sql_query,Purina; Purina Puppy Chow,ablation_reconcile.jsonl,llama3.1:8b
+M08,multihop,after,reconcile,0,False,0,0,1,0,0,0,1,1,0,0,2,0,,,0,,10986,146,13227,5.9,run_sql_query,South; 0.038594279,ablation_reconcile.jsonl,llama3.1:8b
+M09,multihop,after,reconcile,0,False,0,0,0,1,0,1,0,3,3,0,4,0,,,0,,15784,220,27360,8.1,run_sql_query,,ablation_reconcile.jsonl,llama3.1:8b
+M10,multihop,after,reconcile,0,False,0,0,1,0,0,0,1,3,2,0,4,0,,,0,,20781,201,27184,8.6,run_sql_query,ON001; Kolkata,ablation_reconcile.jsonl,llama3.1:8b
+M11,multihop,after,reconcile,0,False,1,1,1,0,0,0,1,2,0,0,3,0,,,0,,15624,97,19871,4.1,run_sql_query,Heads Up For Tails; 7771567.49; 53,ablation_reconcile.jsonl,llama3.1:8b
+M12,multihop,after,reconcile,0,False,0,0,0,0,0,0,1,4,2,0,3,0,,,0,,15943,332,20437,12.3,run_sql_query,,ablation_reconcile.jsonl,llama3.1:8b
+M13,multihop,after,reconcile,0,False,0,0,0,0,0,0,0,2,2,0,2,0,,,0,,10970,399,13253,15.6,get_cold_chain_monitor,,ablation_reconcile.jsonl,llama3.1:8b
+M14,multihop,after,reconcile,0,False,0,0,1,0,0,0,1,1,0,0,2,0,,,0,,10896,71,13158,3.6,run_sql_query,1; 43977.79,ablation_reconcile.jsonl,llama3.1:8b
+C01,conflict,after,reconcile,0,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10825,32,13056,2.3,run_sql_query,92,ablation_reconcile.jsonl,llama3.1:8b
+C02,conflict,after,reconcile,0,True,1,1,1,0,0,0,1,3,0,0,2,0,0.0,0.0,0,0.0,10918,82,13165,4.5,get_sku_360,160;,ablation_reconcile.jsonl,llama3.1:8b
+C03,conflict,after,reconcile,0,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10814,34,13043,2.3,run_sql_query,25000,ablation_reconcile.jsonl,llama3.1:8b
+C04,conflict,after,reconcile,0,True,1,1,1,0,0,0,1,2,1,0,3,0,0.0,0.0,0,0.0,15508,51,19793,3.0,run_sql_query,"326,883",ablation_reconcile.jsonl,llama3.1:8b
+C05,conflict,after,reconcile,0,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10816,28,13044,2.8,run_sql_query,9806,ablation_reconcile.jsonl,llama3.1:8b
+C06,conflict,after,reconcile,0,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,11063,112,13276,4.8,get_sku_360,4.8 days,ablation_reconcile.jsonl,llama3.1:8b
+C07,conflict,after,reconcile,0,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,11067,46,13277,2.8,get_sku_360,15.6 days; 109.2 units/day,ablation_reconcile.jsonl,llama3.1:8b
+C08,conflict,after,reconcile,0,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,11071,104,13286,5.0,get_sku_360,4.3,ablation_reconcile.jsonl,llama3.1:8b
+C09,conflict,after,reconcile,0,True,0,0,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,11227,35,13439,2.7,get_stockout_risk,107 SKUs; 107,ablation_reconcile.jsonl,llama3.1:8b
+C10,conflict,after,reconcile,0,True,0,0,0,1,0,1,0,3,3,0,4,0,0.0,0.0,0,0.0,15749,204,27225,7.8,run_sql_query,,ablation_reconcile.jsonl,llama3.1:8b
+C11,conflict,after,reconcile,0,True,0,0,0,0,0,0,0,1,1,0,2,0,0.0,0.0,0,0.0,11373,313,13562,10.7,python_repl,,ablation_reconcile.jsonl,llama3.1:8b
+C12,conflict,after,reconcile,0,False,0,0,1,0,0,0,0,0,0,0,1,0,0.0,0.0,0,0.0,6222,42,6496,3.2,,92.5; 91.2,ablation_reconcile.jsonl,llama3.1:8b
+C13,conflict,after,reconcile,0,False,0,0,1,0,0,0,0,0,0,0,1,0,0.0,0.0,0,0.0,6247,202,6529,7.1,,supplier_name_with_worst_on_time_delivery; 74.2;,ablation_reconcile.jsonl,llama3.1:8b
+C14,conflict,after,reconcile,0,False,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,11039,65,13244,2.0,get_sku_360,375 units; 4.8 days; WARNING; 78.0 units/day; 41.8 units/day; → stable; 82 units; 312 units; 0 units,ablation_reconcile.jsonl,llama3.1:8b
+M01,multihop,after,reconcile,1,False,0,0,1,0,0,0,0,1,1,0,2,0,,,0,,10987,223,13266,10.3,run_sql_query,DOG_001; Royal Canin India; 2.1,ablation_reconcile.jsonl,llama3.1:8b
+M02,multihop,after,reconcile,1,False,0,0,1,0,0,0,1,1,0,0,2,0,,,0,,11121,129,13369,6.2,get_return_rate_analysis,DOG_001; Dog Food; 4.1%,ablation_reconcile.jsonl,llama3.1:8b
+M03,multihop,after,reconcile,1,False,0,0,0,0,0,0,0,1,1,0,2,0,,,0,,10963,240,13235,8.6,run_sql_query,,ablation_reconcile.jsonl,llama3.1:8b
+M04,multihop,after,reconcile,1,False,0,0,0,0,0,0,0,1,1,0,2,0,,,0,,10952,189,13242,7.8,run_sql_query,,ablation_reconcile.jsonl,llama3.1:8b
+M05,multihop,after,reconcile,1,False,0,0,0,0,0,0,0,0,0,0,1,0,,,0,,6229,36,6504,2.3,,,ablation_reconcile.jsonl,llama3.1:8b
+M06,multihop,after,reconcile,1,False,0,0,0,0,0,0,0,1,1,0,2,0,,,0,,10985,256,13281,8.2,run_sql_query,,ablation_reconcile.jsonl,llama3.1:8b
+M07,multihop,after,reconcile,1,False,0,0,1,0,0,0,0,2,2,0,2,0,,,0,,11087,626,13438,24.2,run_sql_query,Pedigree India; DOG_001; 1200000000; 50000,ablation_reconcile.jsonl,llama3.1:8b
+M08,multihop,after,reconcile,1,False,0,0,0,0,0,0,0,1,1,0,2,0,,,0,,11055,301,13294,11.3,run_sql_query,,ablation_reconcile.jsonl,llama3.1:8b
+M09,multihop,after,reconcile,1,False,0,0,0,0,0,0,0,1,1,0,2,0,,,0,,10944,113,13248,5.8,run_sql_query,,ablation_reconcile.jsonl,llama3.1:8b
+M10,multihop,after,reconcile,1,False,0,0,1,0,0,0,0,2,2,0,3,0,,,0,,15715,475,20037,17.1,run_sql_query,MUM_001; Mumbai,ablation_reconcile.jsonl,llama3.1:8b
+M11,multihop,after,reconcile,1,False,0,0,1,0,0,0,1,1,0,0,2,0,,,0,,11006,110,13260,5.3,get_return_rate_analysis,Royal Canin; 2.14%; Cat Food; Dog Food; 2.22%; 2.05%; pet didn't like it; duplicate order; damaged packaging; customer changed mind; product expired,ablation_reconcile.jsonl,llama3.1:8b
+M12,multihop,after,reconcile,1,False,0,0,0,0,0,0,0,1,1,0,2,0,,,0,,10969,178,13233,7.1,run_sql_query,,ablation_reconcile.jsonl,llama3.1:8b
+M13,multihop,after,reconcile,1,False,0,0,0,0,0,0,0,1,1,0,2,0,,,0,,10882,326,13127,13.0,get_cold_chain_monitor,,ablation_reconcile.jsonl,llama3.1:8b
+M14,multihop,after,reconcile,1,False,0,0,1,0,0,0,1,1,0,0,2,0,,,0,,10900,92,13153,5.1,run_sql_query,1; 43977.79,ablation_reconcile.jsonl,llama3.1:8b
+C01,conflict,after,reconcile,1,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10825,41,13056,2.5,run_sql_query,92,ablation_reconcile.jsonl,llama3.1:8b
+C02,conflict,after,reconcile,1,True,0,0,0,0,0,0,0,1,0,0,2,0,0.0,0.0,0,0.0,10813,50,13030,3.3,get_sku_360,,ablation_reconcile.jsonl,llama3.1:8b
+C03,conflict,after,reconcile,1,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10814,35,13043,2.4,run_sql_query,"25,000",ablation_reconcile.jsonl,llama3.1:8b
+C04,conflict,after,reconcile,1,True,0,0,0,0,0,0,0,1,1,0,2,0,0.0,0.0,0,0.0,10835,94,13097,4.0,run_sql_query,,ablation_reconcile.jsonl,llama3.1:8b
+C05,conflict,after,reconcile,1,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10816,41,13044,2.5,run_sql_query,9806,ablation_reconcile.jsonl,llama3.1:8b
+C06,conflict,after,reconcile,1,True,0,0,0,0,0,0,0,1,1,0,2,0,0.0,0.0,0,0.0,11053,223,13348,9.0,run_sql_query,,ablation_reconcile.jsonl,llama3.1:8b
+C07,conflict,after,reconcile,1,True,0,0,0,0,0,0,0,1,1,0,2,0,0.0,0.0,0,0.0,10953,194,13233,8.8,run_sql_query,,ablation_reconcile.jsonl,llama3.1:8b
+C08,conflict,after,reconcile,1,True,0,0,1,0,0,0,0,1,1,0,2,0,0.0,0.0,0,0.0,10943,369,13229,14.1,run_sql_query,17.45;,ablation_reconcile.jsonl,llama3.1:8b
+C09,conflict,after,reconcile,1,True,0,1,0,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10891,67,13143,4.1,get_stockout_risk,,ablation_reconcile.jsonl,llama3.1:8b
+C10,conflict,after,reconcile,1,True,0,0,1,0,0,0,0,1,1,0,2,0,0.0,0.0,0,0.0,10940,358,13221,14.1,run_sql_query,HUFT_001; 50; 10.2,ablation_reconcile.jsonl,llama3.1:8b
+C11,conflict,after,reconcile,1,True,0,0,1,0,0,0,0,0,0,0,1,0,0.0,0.0,0,0.0,6260,174,6537,7.1,,False; 145.93,ablation_reconcile.jsonl,llama3.1:8b
+C12,conflict,after,reconcile,1,False,0,0,0,0,0,0,0,1,1,0,2,0,0.0,0.0,0,1.0,10873,93,13142,2.7,get_supplier_lead_time_tracker,,ablation_reconcile.jsonl,llama3.1:8b
+C13,conflict,after,reconcile,1,False,0,0,1,0,0,0,0,0,0,0,1,0,0.0,0.0,0,0.0,6247,132,6529,5.7,,Supplier with worst average on-time delivery percentage in 2025: Pedigree India; 2025 average on-time delivery percentage: 82.1%; Total current inventory across Pedigree India's SKUs: 1234 units.,ablation_reconcile.jsonl,llama3.1:8b
+C14,conflict,after,reconcile,1,False,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,11039,36,13244,1.9,get_sku_360,375 units; 4.8 days; WARNING,ablation_reconcile.jsonl,llama3.1:8b
+M01,multihop,after,reconcile,2,False,0,0,0,1,0,1,0,3,3,0,4,0,,,0,,15900,294,27453,12.3,run_sql_query,,ablation_reconcile.jsonl,llama3.1:8b
+M02,multihop,after,reconcile,2,False,0,0,1,0,0,0,1,1,0,0,2,0,,,0,,11121,66,13369,4.7,get_return_rate_analysis,SKU: HUFT_SKU_008 (Cat Food); Category: Cat Food; Return Rate: 2.23%,ablation_reconcile.jsonl,llama3.1:8b
+M03,multihop,after,reconcile,2,False,0,0,0,1,0,1,0,3,3,0,4,0,,,0,,15883,286,27386,10.7,run_sql_query,,ablation_reconcile.jsonl,llama3.1:8b
+M04,multihop,after,reconcile,2,False,0,0,1,0,0,0,1,2,1,0,3,0,,,0,,15801,177,20130,7.2,run_sql_query,EXT_036; 1.0; Damaged packaging; 5,ablation_reconcile.jsonl,llama3.1:8b
+M05,multihop,after,reconcile,2,False,0,0,0,0,0,0,0,0,0,0,1,0,,,0,,6229,21,6504,1.9,,,ablation_reconcile.jsonl,llama3.1:8b
+M06,multihop,after,reconcile,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,11000,151,13238,5.9,run_sql_query,Lucknow; 52.12,ablation_reconcile.jsonl,llama3.1:8b
+M07,multihop,after,reconcile,2,False,0,0,0,1,0,1,0,3,3,0,4,0,,,0,,16041,442,27710,15.8,run_sql_query,,ablation_reconcile.jsonl,llama3.1:8b
+M08,multihop,after,reconcile,2,False,0,0,1,0,0,0,1,1,0,0,2,0,,,0,,10999,144,13224,6.3,run_sql_query,North; 100.1444091482,ablation_reconcile.jsonl,llama3.1:8b
+M09,multihop,after,reconcile,2,False,0,0,0,1,0,1,0,3,3,0,4,0,,,0,,15805,238,27436,9.3,run_sql_query,,ablation_reconcile.jsonl,llama3.1:8b
+M10,multihop,after,reconcile,2,False,0,0,0,1,0,1,0,3,3,0,4,0,,,0,,15785,163,27261,7.0,run_sql_query,,ablation_reconcile.jsonl,llama3.1:8b
+M11,multihop,after,reconcile,2,False,0,0,1,0,0,0,1,3,0,0,3,0,,,0,,15979,113,20244,5.3,get_return_rate_analysis,Pedigree; 10,ablation_reconcile.jsonl,llama3.1:8b
+M12,multihop,after,reconcile,2,False,0,0,1,0,0,0,1,3,2,0,2,0,,,0,,11106,423,13452,16.3,run_sql_query,DOG_001; 500,ablation_reconcile.jsonl,llama3.1:8b
+M13,multihop,after,reconcile,2,False,0,0,1,0,0,0,1,3,1,0,2,0,,,0,,11005,352,13298,13.5,get_cold_chain_monitor,0; 0,ablation_reconcile.jsonl,llama3.1:8b
+M14,multihop,after,reconcile,2,False,0,0,1,0,0,0,1,1,0,0,2,0,,,0,,10900,71,13153,3.7,run_sql_query,1; 43977.79,ablation_reconcile.jsonl,llama3.1:8b
+C01,conflict,after,reconcile,2,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10825,27,13056,2.8,run_sql_query,92,ablation_reconcile.jsonl,llama3.1:8b
+C02,conflict,after,reconcile,2,True,0,1,0,0,0,0,0,6,0,0,7,0,0.0,0.0,0,0.0,34543,149,46865,5.5,get_sku_360,,ablation_reconcile.jsonl,llama3.1:8b
+C03,conflict,after,reconcile,2,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10814,28,13043,2.2,run_sql_query,25000,ablation_reconcile.jsonl,llama3.1:8b
+C04,conflict,after,reconcile,2,True,1,1,1,0,0,0,1,2,1,0,3,0,0.0,0.0,0,0.0,15508,58,19793,3.2,run_sql_query,"326,883",ablation_reconcile.jsonl,llama3.1:8b
+C05,conflict,after,reconcile,2,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10816,34,13044,3.1,run_sql_query,9806,ablation_reconcile.jsonl,llama3.1:8b
+C06,conflict,after,reconcile,2,True,0,0,0,1,0,1,0,3,3,0,4,0,0.0,0.0,0,0.0,15920,305,27553,11.3,run_sql_query,,ablation_reconcile.jsonl,llama3.1:8b
+C07,conflict,after,reconcile,2,True,0,0,0,1,0,1,0,3,3,0,4,0,0.0,0.0,0,0.0,15981,370,27720,14.4,run_sql_query,,ablation_reconcile.jsonl,llama3.1:8b
+C08,conflict,after,reconcile,2,True,0,0,0,1,0,1,0,3,3,0,4,0,0.0,0.0,0,0.0,15979,373,27656,13.9,run_sql_query,,ablation_reconcile.jsonl,llama3.1:8b
+C09,conflict,after,reconcile,2,True,0,0,0,1,0,1,1,3,2,0,4,0,0.0,0.0,0,0.0,15628,65,27047,3.5,get_stockout_risk,,ablation_reconcile.jsonl,llama3.1:8b
+C10,conflict,after,reconcile,2,True,0,0,0,1,0,1,0,3,3,0,4,0,0.0,0.0,0,0.0,15842,214,27402,8.1,run_sql_query,,ablation_reconcile.jsonl,llama3.1:8b
+C11,conflict,after,reconcile,2,True,0,0,0,0,0,0,0,1,1,0,2,0,0.0,0.0,0,0.0,11167,524,13381,19.0,python_repl,,ablation_reconcile.jsonl,llama3.1:8b
+C12,conflict,after,reconcile,2,False,0,0,1,0,0,0,1,1,0,0,2,0,1.0,1.0,0,1.0,11107,42,13258,2.8,get_supplier_lead_time_tracker,89.7%,ablation_reconcile.jsonl,llama3.1:8b
+C13,conflict,after,reconcile,2,False,0,0,0,0,0,0,0,0,0,0,1,0,0.0,0.0,0,0.0,6247,133,6529,6.6,,,ablation_reconcile.jsonl,llama3.1:8b
+C14,conflict,after,reconcile,2,False,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,11039,87,13244,2.7,get_sku_360,375 units; 4.8 days; WARNING,ablation_reconcile.jsonl,llama3.1:8b
+M01,multihop,after,truncate,0,False,0,0,0,1,0,1,1,3,2,0,4,0,,,0,,15421,260,27917,11.3,run_sql_query,,ablation_truncate.jsonl,llama3.1:8b
+M02,multihop,after,truncate,0,False,0,0,0,1,0,1,1,1,0,0,2,0,,,0,,6074,22,13587,3.7,get_return_rate_analysis,,ablation_truncate.jsonl,llama3.1:8b
+M03,multihop,after,truncate,0,False,0,0,0,1,0,1,0,4,4,0,5,0,,,0,,20271,307,34020,8.7,run_sql_query,,ablation_truncate.jsonl,llama3.1:8b
+M04,multihop,after,truncate,0,False,0,0,0,1,0,1,0,3,3,0,4,0,,,0,,15795,477,27617,16.8,run_sql_query,,ablation_truncate.jsonl,llama3.1:8b
+M05,multihop,after,truncate,0,False,0,0,1,0,0,0,0,0,0,0,1,0,,,0,,6084,55,6357,3.0,,0.8; 12345,ablation_truncate.jsonl,llama3.1:8b
+M06,multihop,after,truncate,0,False,0,0,0,1,0,1,0,3,3,0,4,0,,,0,,15472,252,26980,8.1,run_sql_query,,ablation_truncate.jsonl,llama3.1:8b
+M07,multihop,after,truncate,0,False,0,0,1,0,0,0,0,2,2,0,2,0,,,0,,10842,366,13202,13.5,run_sql_query,Brand X; SKU Y,ablation_truncate.jsonl,llama3.1:8b
+M08,multihop,after,truncate,0,False,0,0,0,1,0,1,1,3,2,0,4,0,,,0,,15592,377,27029,15.3,run_sql_query,,ablation_truncate.jsonl,llama3.1:8b
+M09,multihop,after,truncate,0,False,0,0,1,0,0,0,0,0,0,0,1,0,,,0,,6090,52,6368,3.1,,Supplier XYZ; 85.2,ablation_truncate.jsonl,llama3.1:8b
+M10,multihop,after,truncate,0,False,0,0,0,1,0,1,0,4,4,0,5,0,,,0,,20211,247,33897,8.6,run_sql_query,,ablation_truncate.jsonl,llama3.1:8b
+M11,multihop,after,truncate,0,False,1,1,1,0,0,0,1,2,0,0,3,0,,,0,,15189,97,19427,5.1,run_sql_query,Heads Up For Tails; 7771567.49; 53,ablation_truncate.jsonl,llama3.1:8b
+M12,multihop,after,truncate,0,False,0,0,0,1,0,1,0,4,4,0,5,0,,,0,,20214,382,33734,14.0,run_sql_query,,ablation_truncate.jsonl,llama3.1:8b
+M13,multihop,after,truncate,0,False,0,0,0,0,0,0,0,1,1,0,2,0,,,0,,10592,141,12832,5.8,get_cold_chain_monitor,,ablation_truncate.jsonl,llama3.1:8b
+M14,multihop,after,truncate,0,False,0,0,1,0,0,0,1,1,0,0,2,0,,,0,,10606,71,12864,4.2,run_sql_query,1; 43977.79,ablation_truncate.jsonl,llama3.1:8b
+C01,conflict,after,truncate,0,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10535,32,12762,2.2,run_sql_query,92,ablation_truncate.jsonl,llama3.1:8b
+C02,conflict,after,truncate,0,True,1,1,1,0,0,0,0,1,0,0,2,0,0.0,0.0,0,0.0,10533,79,12740,4.7,get_sku_360,160,ablation_truncate.jsonl,llama3.1:8b
+C03,conflict,after,truncate,0,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10524,34,12748,3.0,run_sql_query,25000,ablation_truncate.jsonl,llama3.1:8b
+C04,conflict,after,truncate,0,True,1,1,1,0,0,0,1,2,1,0,3,0,0.0,0.0,0,0.0,15073,57,19350,3.7,run_sql_query,"326,883",ablation_truncate.jsonl,llama3.1:8b
+C05,conflict,after,truncate,0,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10526,28,12749,2.2,run_sql_query,9806,ablation_truncate.jsonl,llama3.1:8b
+C06,conflict,after,truncate,0,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10773,43,12981,2.8,get_sku_360,4.8 days; 312 units,ablation_truncate.jsonl,llama3.1:8b
+C07,conflict,after,truncate,0,True,1,1,1,0,0,0,0,2,2,0,3,0,0.0,0.0,0,0.0,15427,380,19770,13.7,run_sql_query,14.56;,ablation_truncate.jsonl,llama3.1:8b
+C08,conflict,after,truncate,0,True,0,0,1,0,0,0,0,1,1,0,2,0,0.0,0.0,0,0.0,10719,355,13004,12.6,run_sql_query,9.0 days of inventory cover;,ablation_truncate.jsonl,llama3.1:8b
+C09,conflict,after,truncate,0,True,0,0,1,0,0,0,0,1,1,0,2,0,0.0,0.0,0,0.0,10613,223,12875,9.7,get_stockout_risk,47;,ablation_truncate.jsonl,llama3.1:8b
+C10,conflict,after,truncate,0,True,0,0,1,0,0,0,0,2,2,0,3,0,0.0,0.0,0,0.0,15409,374,19805,14.4,run_sql_query,"{min_days_of_inventory_cover_sku['sku_id']}; {min_days_of_inventory_cover_sku['days_of_inventory_cover']}"")",ablation_truncate.jsonl,llama3.1:8b
+C11,conflict,after,truncate,0,True,0,0,0,0,0,0,0,1,1,0,2,0,0.0,0.0,0,0.0,10780,1197,13002,41.2,python_repl,,ablation_truncate.jsonl,llama3.1:8b
+C12,conflict,after,truncate,0,False,0,0,1,0,0,0,0,0,0,0,1,0,0.0,0.0,0,0.0,6077,42,6348,4.5,,92.5; 1.2,ablation_truncate.jsonl,llama3.1:8b
+C13,conflict,after,truncate,0,False,0,0,1,0,0,0,0,0,0,0,1,0,0.0,0.0,0,0.0,6102,261,6382,8.7,,worst_supplier; 3.2; [table with worst supplier's SKUs]; 14 days; 2023-02-28; SKU_001; 100 units; 10 units/day; cold chain; ₹10/unit; ₹5/unit; 20%,ablation_truncate.jsonl,llama3.1:8b
+C14,conflict,after,truncate,0,False,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10749,63,12950,2.0,get_sku_360,375 units; 4.8 days; WARNING; 78.0 units/day; 41.8; → stable; 82 units; 312 units; 0 units,ablation_truncate.jsonl,llama3.1:8b
+M01,multihop,after,truncate,1,False,0,0,1,0,0,0,0,2,1,0,2,0,,,1,,10761,389,13159,16.9,run_sql_query,SKU_ID; Supplier; 0.0;,ablation_truncate.jsonl,llama3.1:8b
+M02,multihop,after,truncate,1,False,0,0,0,1,0,1,1,1,0,0,2,0,,,0,,6074,36,13583,3.4,get_return_rate_analysis,,ablation_truncate.jsonl,llama3.1:8b
+M03,multihop,after,truncate,1,False,0,0,0,0,0,0,0,1,1,0,2,0,,,0,,10673,199,12939,6.4,run_sql_query,,ablation_truncate.jsonl,llama3.1:8b
+M04,multihop,after,truncate,1,False,0,0,0,0,0,0,0,1,1,0,2,0,,,0,,10651,193,12944,8.7,run_sql_query,,ablation_truncate.jsonl,llama3.1:8b
+M05,multihop,after,truncate,1,False,0,0,0,0,0,0,0,0,0,0,1,0,,,0,,6084,29,6357,2.0,,,ablation_truncate.jsonl,llama3.1:8b
+M06,multihop,after,truncate,1,False,0,0,0,0,0,0,0,2,2,0,3,0,,,0,,15472,445,19842,14.1,run_sql_query,,ablation_truncate.jsonl,llama3.1:8b
+M07,multihop,after,truncate,1,False,0,0,0,1,0,1,1,4,2,0,2,0,,,0,,6094,248,13477,9.4,run_sql_query,,ablation_truncate.jsonl,llama3.1:8b
+M08,multihop,after,truncate,1,False,0,0,1,0,0,0,0,1,1,0,2,0,,,0,,10753,576,12990,20.3,run_sql_query,North; 15.32%,ablation_truncate.jsonl,llama3.1:8b
+M09,multihop,after,truncate,1,False,0,0,0,0,0,0,0,1,1,0,2,0,,,0,,10654,166,12952,7.7,run_sql_query,,ablation_truncate.jsonl,llama3.1:8b
+M10,multihop,after,truncate,1,False,0,0,0,0,0,0,0,1,1,0,2,0,,,0,,10624,181,12886,7.6,run_sql_query,,ablation_truncate.jsonl,llama3.1:8b
+M11,multihop,after,truncate,1,False,0,0,0,0,0,0,1,1,0,0,2,0,,,0,,10716,85,12964,3.8,get_return_rate_analysis,,ablation_truncate.jsonl,llama3.1:8b
+M12,multihop,after,truncate,1,False,0,0,0,0,0,0,1,1,0,0,2,0,,,0,,10651,149,12871,6.2,run_sql_query,,ablation_truncate.jsonl,llama3.1:8b
+M13,multihop,after,truncate,1,False,0,0,0,0,0,0,0,1,1,0,2,0,,,0,,10592,140,12832,6.0,get_cold_chain_monitor,,ablation_truncate.jsonl,llama3.1:8b
+M14,multihop,after,truncate,1,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10610,113,12869,5.3,run_sql_query,2530; 27291.69,ablation_truncate.jsonl,llama3.1:8b
+C01,conflict,after,truncate,1,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10535,41,12762,2.6,run_sql_query,92,ablation_truncate.jsonl,llama3.1:8b
+C02,conflict,after,truncate,1,True,0,0,0,0,0,0,0,1,0,0,2,0,0.0,0.0,0,0.0,10523,129,12734,5.4,get_sku_360,,ablation_truncate.jsonl,llama3.1:8b
+C03,conflict,after,truncate,1,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10524,35,12748,3.5,run_sql_query,"25,000",ablation_truncate.jsonl,llama3.1:8b
+C04,conflict,after,truncate,1,True,0,0,0,0,0,0,0,1,1,0,2,0,0.0,0.0,0,0.0,10545,60,12802,2.9,run_sql_query,,ablation_truncate.jsonl,llama3.1:8b
+C05,conflict,after,truncate,1,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10526,28,12749,2.8,run_sql_query,9806,ablation_truncate.jsonl,llama3.1:8b
+C06,conflict,after,truncate,1,True,0,0,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10608,105,12838,4.9,python_repl,14.21,ablation_truncate.jsonl,llama3.1:8b
+C07,conflict,after,truncate,1,True,0,0,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10608,87,12838,5.0,python_repl,48;,ablation_truncate.jsonl,llama3.1:8b
+C08,conflict,after,truncate,1,True,0,0,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10731,251,12954,9.2,python_repl,7.34,ablation_truncate.jsonl,llama3.1:8b
+C09,conflict,after,truncate,1,True,0,0,0,0,0,0,0,1,1,0,2,0,0.0,0.0,0,0.0,10613,85,12875,3.5,get_stockout_risk,,ablation_truncate.jsonl,llama3.1:8b
+C10,conflict,after,truncate,1,True,0,0,1,0,0,0,0,1,1,0,2,0,0.0,0.0,0,0.0,10674,123,12944,5.5,run_sql_query,DOG_003,ablation_truncate.jsonl,llama3.1:8b
+C11,conflict,after,truncate,1,True,0,0,0,0,0,0,0,0,0,0,1,0,0.0,0.0,0,0.0,6115,165,6390,7.3,,,ablation_truncate.jsonl,llama3.1:8b
+C12,conflict,after,truncate,1,False,0,0,1,0,0,0,0,0,0,0,1,0,0.0,0.0,0,0.0,6077,54,6348,1.6,,92.1%,ablation_truncate.jsonl,llama3.1:8b
+C13,conflict,after,truncate,1,False,0,0,0,0,0,0,0,1,1,0,2,0,0.0,0.0,0,1.0,10629,230,13080,8.6,get_supplier_lead_time_tracker,,ablation_truncate.jsonl,llama3.1:8b
+C14,conflict,after,truncate,1,False,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10749,36,12950,2.5,get_sku_360,375 units; 4.8 days; WARNING,ablation_truncate.jsonl,llama3.1:8b
+M01,multihop,after,truncate,2,False,0,0,0,1,0,1,0,3,3,0,4,0,,,0,,15547,376,27060,14.7,run_sql_query,,ablation_truncate.jsonl,llama3.1:8b
+M02,multihop,after,truncate,2,False,0,0,0,1,0,1,1,1,0,0,2,0,,,0,,6074,35,13587,4.1,get_return_rate_analysis,,ablation_truncate.jsonl,llama3.1:8b
+M03,multihop,after,truncate,2,False,0,0,0,1,0,1,1,4,3,0,5,0,,,0,,20248,299,33957,8.9,run_sql_query,,ablation_truncate.jsonl,llama3.1:8b
+M04,multihop,after,truncate,2,False,0,0,0,1,0,1,0,4,4,0,5,0,,,0,,20367,385,34190,14.2,run_sql_query,,ablation_truncate.jsonl,llama3.1:8b
+M05,multihop,after,truncate,2,False,0,0,1,0,0,0,0,0,0,0,1,0,,,0,,6084,46,6357,2.6,,"₹1,234.56 (ratio)",ablation_truncate.jsonl,llama3.1:8b
+M06,multihop,after,truncate,2,False,0,0,1,0,0,0,1,2,1,0,3,0,,,0,,15453,183,19784,6.0,run_sql_query,Kolkata; 53.38,ablation_truncate.jsonl,llama3.1:8b
+M07,multihop,after,truncate,2,False,1,1,1,0,0,0,1,2,1,0,3,0,,,0,,15486,272,19773,9.8,run_sql_query,GROM_004; Heads Up For Tails; 6005.0,ablation_truncate.jsonl,llama3.1:8b
+M08,multihop,after,truncate,2,False,0,0,0,1,0,1,0,3,3,0,4,0,,,0,,15793,577,27425,20.1,run_sql_query,,ablation_truncate.jsonl,llama3.1:8b
+M09,multihop,after,truncate,2,False,0,0,0,0,0,0,0,2,2,0,3,0,,,0,,15349,222,19755,8.8,run_sql_query,,ablation_truncate.jsonl,llama3.1:8b
+M10,multihop,after,truncate,2,False,0,0,0,0,0,0,1,1,0,0,2,0,,,0,,10608,225,12883,9.4,run_sql_query,,ablation_truncate.jsonl,llama3.1:8b
+M11,multihop,after,truncate,2,False,0,0,1,0,0,0,1,1,0,0,2,0,,,0,,10746,155,12991,5.8,get_return_rate_analysis,Pedigree; 37,ablation_truncate.jsonl,llama3.1:8b
+M12,multihop,after,truncate,2,False,0,0,0,1,0,1,0,4,4,0,5,0,,,0,,20302,402,34142,14.9,run_sql_query,,ablation_truncate.jsonl,llama3.1:8b
+M13,multihop,after,truncate,2,False,0,0,0,1,0,1,1,32,17,0,2,0,,,0,,6086,1024,17179,37.1,get_cold_chain_monitor,,ablation_truncate.jsonl,llama3.1:8b
+M14,multihop,after,truncate,2,False,0,0,1,0,0,0,1,1,0,0,2,0,,,0,,10610,71,12859,2.1,run_sql_query,1; 43977.79,ablation_truncate.jsonl,llama3.1:8b
+C01,conflict,after,truncate,2,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10535,27,12762,2.2,run_sql_query,92,ablation_truncate.jsonl,llama3.1:8b
+C02,conflict,after,truncate,2,True,0,0,0,1,0,1,0,11,0,0,12,0,0.0,0.0,0,0.0,52844,220,80773,7.5,get_sku_360,,ablation_truncate.jsonl,llama3.1:8b
+C03,conflict,after,truncate,2,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10524,28,12748,2.2,run_sql_query,25000,ablation_truncate.jsonl,llama3.1:8b
+C04,conflict,after,truncate,2,True,1,1,1,0,0,0,1,2,1,0,3,0,0.0,0.0,0,0.0,15073,57,19350,3.2,run_sql_query,"326,883",ablation_truncate.jsonl,llama3.1:8b
+C05,conflict,after,truncate,2,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10526,34,12749,3.8,run_sql_query,9806,ablation_truncate.jsonl,llama3.1:8b
+C06,conflict,after,truncate,2,True,0,0,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10621,117,12848,5.3,python_repl,0.070397;,ablation_truncate.jsonl,llama3.1:8b
+C07,conflict,after,truncate,2,True,0,0,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10621,183,12848,6.4,python_repl,20 days,ablation_truncate.jsonl,llama3.1:8b
+C08,conflict,after,truncate,2,True,0,0,1,0,0,0,1,1,0,0,2,0,1.0,1.0,0,0.0,10611,130,12842,5.8,python_repl,3.33,ablation_truncate.jsonl,llama3.1:8b
+C09,conflict,after,truncate,2,True,0,1,1,0,0,0,0,1,1,0,2,0,0.0,0.0,0,0.0,10613,305,12875,11.4,get_stockout_risk,57;,ablation_truncate.jsonl,llama3.1:8b
+C10,conflict,after,truncate,2,True,0,0,0,1,0,1,0,4,4,0,5,0,0.0,0.0,0,0.0,20300,295,34146,10.8,run_sql_query,,ablation_truncate.jsonl,llama3.1:8b
+C11,conflict,after,truncate,2,True,0,0,0,1,0,1,0,2,2,0,3,0,0.0,0.0,0,0.0,10925,704,20400,24.0,python_repl,,ablation_truncate.jsonl,llama3.1:8b
+C12,conflict,after,truncate,2,False,1,1,1,0,0,0,0,0,0,0,1,0,0.0,0.0,0,0.0,6077,63,6348,3.7,,95.4; 92.1; 89.2,ablation_truncate.jsonl,llama3.1:8b
+C13,conflict,after,truncate,2,False,0,0,0,0,0,0,0,0,0,0,1,0,0.0,0.0,0,0.0,6102,108,6382,3.9,,,ablation_truncate.jsonl,llama3.1:8b
+C14,conflict,after,truncate,2,False,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10749,61,12950,2.0,get_sku_360,375 units; 4.8 days; WARNING,ablation_truncate.jsonl,llama3.1:8b
+L01,lookup,before,none,0,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10701,50,12896,6.1,get_sku_360,₹720; 375 units; 4.8 days; WARNING; stable; ₹720,before.jsonl,llama3.1:8b
+L02,lookup,before,none,0,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10693,114,12896,4.6,get_sku_360,Sara's Kitchen (HUFT),before.jsonl,llama3.1:8b
+L03,lookup,before,none,0,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10721,37,12930,2.5,get_sku_360,10 days,before.jsonl,llama3.1:8b
+L04,lookup,before,none,0,False,0,0,1,0,0,0,0,0,0,0,1,0,,,0,,6049,40,6321,2.2,,Pune,before.jsonl,llama3.1:8b
+L05,lookup,before,none,0,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10512,37,12749,3.3,run_sql_query,37,before.jsonl,llama3.1:8b
+L06,lookup,before,none,0,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10521,45,12760,2.4,run_sql_query,25,before.jsonl,llama3.1:8b
+L07,lookup,before,none,0,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10526,44,12767,2.6,run_sql_query,EXT_012,before.jsonl,llama3.1:8b
+L08,lookup,before,none,0,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10698,150,12885,5.6,get_sku_360,"HUFT Beauty Lab; ₹299; 2,452 units; 19.1 days; OK; 128.6 units/day; → stable; 110 units; 1,009 units; 0 units",before.jsonl,llama3.1:8b
+L09,lookup,before,none,0,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10506,41,12741,2.4,run_sql_query,9,before.jsonl,llama3.1:8b
+L10,lookup,before,none,0,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10529,39,12767,2.5,run_sql_query,3,before.jsonl,llama3.1:8b
+L11,lookup,before,none,0,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10689,36,12891,2.4,get_sku_360,Accessories; Collar,before.jsonl,llama3.1:8b
+L12,lookup,before,none,0,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10493,27,12737,2.1,run_sql_query,24,before.jsonl,llama3.1:8b
+A01,aggregation,before,none,0,False,0,0,0,1,0,1,0,5,5,0,6,0,,,0,,24790,184,40628,6.5,run_sql_query,,before.jsonl,llama3.1:8b
+A02,aggregation,before,none,0,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10608,153,12858,5.5,run_sql_query,Online; ₹113700352.0; 50.16,before.jsonl,llama3.1:8b
+A03,aggregation,before,none,0,False,0,0,0,1,0,1,0,4,4,0,5,0,,,0,,20061,190,33925,6.5,run_sql_query,,before.jsonl,llama3.1:8b
+A04,aggregation,before,none,0,False,0,0,1,0,0,0,1,1,0,0,2,0,,,0,,10801,87,13061,5.1,get_return_rate_analysis,2.25% returns rate; 968 returns due to 'Product not as described',before.jsonl,llama3.1:8b
+A05,aggregation,before,none,0,False,0,0,1,0,0,0,0,0,0,0,1,0,0.0,0.0,0,0.0,6060,47,6340,2.6,,92.5; 91.2; 89.8,before.jsonl,llama3.1:8b
+A06,aggregation,before,none,0,False,0,0,0,0,0,0,0,0,0,0,1,0,,,0,,6058,41,6340,1.2,,,before.jsonl,llama3.1:8b
+A07,aggregation,before,none,0,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10524,45,12772,1.4,run_sql_query,South; 28,before.jsonl,llama3.1:8b
+A08,aggregation,before,none,0,False,0,0,0,0,0,0,0,2,2,0,3,0,,,0,,15103,118,19410,4.6,run_sql_query,,before.jsonl,llama3.1:8b
+A09,aggregation,before,none,0,False,0,0,0,0,0,0,0,3,3,0,4,0,,,0,,20091,258,26331,9.2,run_sql_query,,before.jsonl,llama3.1:8b
+A10,aggregation,before,none,0,False,0,0,0,1,0,1,0,5,5,0,6,0,,,0,,24839,212,40689,7.2,run_sql_query,,before.jsonl,llama3.1:8b
+A11,aggregation,before,none,0,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10508,42,12747,2.5,run_sql_query,4480,before.jsonl,llama3.1:8b
+A12,aggregation,before,none,0,False,0,0,0,1,0,1,0,4,4,0,5,0,,,0,,20068,216,33801,8.2,run_sql_query,,before.jsonl,llama3.1:8b
+A13,aggregation,before,none,0,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10523,39,12760,2.5,run_sql_query,31,before.jsonl,llama3.1:8b
+A14,aggregation,before,none,0,False,1,1,1,0,0,0,1,3,2,0,4,0,,,0,,19909,125,26293,4.9,run_sql_query,5097285.75,before.jsonl,llama3.1:8b
+A15,aggregation,before,none,0,False,0,0,0,1,0,1,0,4,4,0,5,0,,,0,,20195,289,34007,9.4,run_sql_query,,before.jsonl,llama3.1:8b
+A16,aggregation,before,none,0,False,1,1,1,0,0,0,1,2,1,0,3,0,,,0,,15191,122,19569,5.5,run_sql_query,Multi-Pet Household; 27291.693458498,before.jsonl,llama3.1:8b
+M01,multihop,before,none,0,False,0,0,0,1,0,1,0,3,3,0,4,0,,,0,,15481,337,27084,11.2,run_sql_query,,before.jsonl,llama3.1:8b
+M02,multihop,before,none,0,False,0,0,0,0,0,0,1,1,0,0,2,0,,,0,,10540,44,12794,2.6,get_return_rate_analysis,,before.jsonl,llama3.1:8b
+M03,multihop,before,none,0,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10590,78,12841,3.8,run_sql_query,Online,before.jsonl,llama3.1:8b
+M04,multihop,before,none,0,False,0,0,0,1,0,1,0,3,3,0,4,0,,,0,,15407,290,27069,9.9,run_sql_query,,before.jsonl,llama3.1:8b
+M05,multihop,before,none,0,False,0,0,1,0,0,0,1,2,1,0,3,0,,,0,,15262,133,19615,5.2,run_sql_query,PROMO_020; 0; 0; None,before.jsonl,llama3.1:8b
+M06,multihop,before,none,0,False,0,0,0,1,0,1,0,4,4,0,5,0,,,0,,20319,349,34213,13.0,run_sql_query,,before.jsonl,llama3.1:8b
+M07,multihop,before,none,0,False,1,1,1,0,0,0,1,3,0,0,2,0,,,0,,10944,260,13189,8.9,run_sql_query,Heads Up For Tails; GROM_004,before.jsonl,llama3.1:8b
+M08,multihop,before,none,0,False,0,0,1,0,0,0,1,3,2,0,4,0,,,0,,20544,375,26980,13.3,run_sql_query,East; -3.9861623646,before.jsonl,llama3.1:8b
+M09,multihop,before,none,0,False,0,0,0,0,0,0,0,0,0,0,1,0,,,0,,6074,26,6360,2.0,,,before.jsonl,llama3.1:8b
+M10,multihop,before,none,0,False,0,0,0,1,0,1,1,4,3,0,5,0,,,0,,20144,274,33680,8.6,run_sql_query,,before.jsonl,llama3.1:8b
+M11,multihop,before,none,0,False,1,1,1,0,0,0,1,2,0,0,3,0,,,0,,15141,97,19403,4.0,run_sql_query,Heads Up For Tails; 7771567.49; 53,before.jsonl,llama3.1:8b
+M12,multihop,before,none,0,False,0,0,0,0,0,0,1,2,1,0,3,0,,,0,,15270,204,19507,7.7,run_sql_query,,before.jsonl,llama3.1:8b
+M13,multihop,before,none,0,False,0,0,0,1,0,1,0,4,4,0,5,0,,,0,,20308,343,33994,12.6,run_sql_query,,before.jsonl,llama3.1:8b
+M14,multihop,before,none,0,False,0,0,1,0,0,0,1,1,0,0,2,0,,,0,,10574,71,12846,4.8,run_sql_query,1; 43977.79,before.jsonl,llama3.1:8b
+C01,conflict,before,none,0,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,1.0,10503,32,12744,2.2,run_sql_query,92,before.jsonl,llama3.1:8b
+C02,conflict,before,none,0,True,0,0,1,0,0,0,0,3,0,0,4,0,1.0,1.0,0,1.0,19559,177,25747,7.0,get_sku_360,65,before.jsonl,llama3.1:8b
+C03,conflict,before,none,0,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,1.0,10492,34,12731,2.2,run_sql_query,25000,before.jsonl,llama3.1:8b
+C04,conflict,before,none,0,True,1,1,1,0,0,0,1,2,1,0,3,0,0.0,0.0,0,1.0,15025,51,19326,2.8,run_sql_query,"326,883",before.jsonl,llama3.1:8b
+C05,conflict,before,none,0,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,1.0,10494,28,12732,2.2,run_sql_query,9806,before.jsonl,llama3.1:8b
+C06,conflict,before,none,0,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10741,40,12964,2.6,get_sku_360,4.8 days; 312 units,before.jsonl,llama3.1:8b
+C07,conflict,before,none,0,True,1,1,1,0,0,0,0,3,3,0,4,0,0.0,0.0,0,0.0,20293,487,26786,16.2,run_sql_query,15.2;,before.jsonl,llama3.1:8b
+C08,conflict,before,none,0,True,0,0,0,0,0,0,1,2,1,0,3,0,0.0,0.0,0,0.0,15194,332,19437,11.7,python_repl,,before.jsonl,llama3.1:8b
+C09,conflict,before,none,0,True,0,1,1,0,0,0,0,1,1,0,2,0,0.0,0.0,0,0.0,10581,331,12858,11.6,get_stockout_risk,34; 15,before.jsonl,llama3.1:8b
+C10,conflict,before,none,0,True,0,0,0,0,0,0,1,4,2,0,5,0,0.0,0.0,0,0.0,24548,237,32941,9.0,get_sku_360,,before.jsonl,llama3.1:8b
+C11,conflict,before,none,0,True,0,0,1,0,0,0,1,1,0,0,2,0,1.0,1.0,0,0.0,10787,29,13006,2.4,get_sku_360,YES; 312,before.jsonl,llama3.1:8b
+C12,conflict,before,none,0,False,0,0,1,0,0,0,0,0,0,0,1,0,0.0,0.0,0,0.0,6061,47,6340,2.7,,92.5; 1.2; 97.8,before.jsonl,llama3.1:8b
+C13,conflict,before,none,0,False,0,0,1,0,0,0,0,0,0,0,1,0,0.0,0.0,0,0.0,6086,301,6374,10.0,,supplier_with_worst_avg_delivery; 23.1; SKU_001: 120; SKU_002: 150; SKU_003: 100,before.jsonl,llama3.1:8b
+C14,conflict,before,none,0,False,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10717,63,12932,1.9,get_sku_360,375 units; 4.8 days; WARNING; 78.0 units/day; 41.8; → stable; 82 units; 312 units; 0 units,before.jsonl,llama3.1:8b
+L01,lookup,before,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10701,1029,12896,37.0,get_sku_360,₹720,before.jsonl,llama3.1:8b
+L02,lookup,before,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10693,79,12896,3.6,get_sku_360,Sara's Kitchen (HUFT),before.jsonl,llama3.1:8b
+L03,lookup,before,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10721,40,12930,2.7,get_sku_360,10 days,before.jsonl,llama3.1:8b
+L04,lookup,before,none,1,False,0,0,0,0,0,0,0,0,0,0,1,0,,,0,,6049,21,6321,1.8,,,before.jsonl,llama3.1:8b
+L05,lookup,before,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10512,44,12749,3.5,run_sql_query,37,before.jsonl,llama3.1:8b
+L06,lookup,before,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10521,45,12760,3.3,run_sql_query,25,before.jsonl,llama3.1:8b
+L07,lookup,before,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10547,65,12788,3.9,run_sql_query,EXT_012; 11440,before.jsonl,llama3.1:8b
+L08,lookup,before,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10698,116,12885,4.8,get_sku_360,"HUFT Beauty Lab; ₹299; 2,452; 19.1; OK; 128.6; 128.4; →; stable; 110; 1,009; 0; Monitor — reorder when below 1009 units.",before.jsonl,llama3.1:8b
+L09,lookup,before,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10506,41,12741,2.5,run_sql_query,9,before.jsonl,llama3.1:8b
+L10,lookup,before,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10520,50,12760,3.4,run_sql_query,3,before.jsonl,llama3.1:8b
+L11,lookup,before,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10689,39,12891,2.7,get_sku_360,Accessories / Collar,before.jsonl,llama3.1:8b
+L12,lookup,before,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10493,27,12737,2.2,run_sql_query,24,before.jsonl,llama3.1:8b
+A01,aggregation,before,none,1,False,0,0,1,0,0,0,1,1,0,0,2,0,,,0,,10554,98,12790,4.2,run_sql_query,"₹2,266,905,750.0",before.jsonl,llama3.1:8b
+A02,aggregation,before,none,1,False,0,0,0,0,0,0,0,1,1,0,2,0,,,0,,10724,317,12974,11.7,run_sql_query,,before.jsonl,llama3.1:8b
+A03,aggregation,before,none,1,False,1,1,1,0,0,0,0,1,1,0,2,0,,,0,,10595,301,12903,11.9,run_sql_query,Dog Food; 100000,before.jsonl,llama3.1:8b
+A04,aggregation,before,none,1,False,0,0,0,0,0,0,1,1,0,0,2,0,,,0,,10801,46,13061,5.1,get_return_rate_analysis,,before.jsonl,llama3.1:8b
+A05,aggregation,before,none,1,False,0,0,1,0,0,0,0,0,0,0,1,0,0.0,0.0,0,0.0,6060,54,6340,3.4,,92.1%,before.jsonl,llama3.1:8b
+A06,aggregation,before,none,1,False,0,0,1,0,0,0,0,0,0,0,1,0,,,0,,6058,60,6340,1.7,,"supplier_name=""Pedigree India""; on_time_delivery_pct=87.5; defect_rate_pct=2.1; fill_rate_pct=95.6",before.jsonl,llama3.1:8b
+A07,aggregation,before,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10524,60,12772,1.7,run_sql_query,South; 28,before.jsonl,llama3.1:8b
+A08,aggregation,before,none,1,False,0,0,0,0,0,0,0,1,1,0,2,0,,,0,,10549,98,12818,4.7,run_sql_query,,before.jsonl,llama3.1:8b
+A09,aggregation,before,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10575,95,12799,4.7,python_repl,71.27,before.jsonl,llama3.1:8b
+A10,aggregation,before,none,1,False,0,0,0,0,0,0,0,1,1,0,2,0,,,0,,10595,144,12867,6.1,run_sql_query,,before.jsonl,llama3.1:8b
+A11,aggregation,before,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10508,42,12747,3.2,run_sql_query,4480,before.jsonl,llama3.1:8b
+A12,aggregation,before,none,1,False,0,0,1,0,0,0,0,1,1,0,2,0,,,0,,10592,371,12878,13.6,run_sql_query,Mumbai; 1000000,before.jsonl,llama3.1:8b
+A13,aggregation,before,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10514,59,12753,3.1,run_sql_query,31,before.jsonl,llama3.1:8b
+A14,aggregation,before,none,1,False,0,0,0,0,0,0,0,1,1,0,2,0,,,0,,10585,144,12846,6.5,run_sql_query,,before.jsonl,llama3.1:8b
+A15,aggregation,before,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10581,111,12809,5.3,run_sql_query,July; 20301859.0,before.jsonl,llama3.1:8b
+A16,aggregation,before,none,1,False,0,0,1,0,0,0,0,1,1,0,2,0,,,0,,10581,211,12881,8.6,run_sql_query,Premium;,before.jsonl,llama3.1:8b
+M01,multihop,before,none,1,False,0,0,1,0,0,0,0,1,1,0,2,0,,,0,,10666,200,12955,8.8,run_sql_query,HUFT_SKU_001; Royal Canin India; 2.5,before.jsonl,llama3.1:8b
+M02,multihop,before,none,1,False,0,0,1,0,0,0,1,1,0,0,2,0,,,0,,10799,83,13057,4.1,get_return_rate_analysis,Treats; Cat Food,before.jsonl,llama3.1:8b
+M03,multihop,before,none,1,False,0,0,1,0,0,0,0,1,1,0,2,0,,,0,,10640,306,12922,12.5,run_sql_query,North,before.jsonl,llama3.1:8b
+M04,multihop,before,none,1,False,0,0,0,0,0,0,0,1,1,0,2,0,,,0,,10619,115,12926,4.5,run_sql_query,,before.jsonl,llama3.1:8b
+M05,multihop,before,none,1,False,0,0,0,0,0,0,0,0,0,0,1,0,,,0,,6068,31,6348,2.8,,,before.jsonl,llama3.1:8b
+M06,multihop,before,none,1,False,0,0,0,0,0,0,0,2,2,0,3,0,,,0,,15447,337,19845,10.4,run_sql_query,,before.jsonl,llama3.1:8b
+M07,multihop,before,none,1,False,1,1,1,0,0,0,1,3,0,0,2,0,,,0,,10793,225,13061,9.6,run_sql_query,Heads Up For Tails; GROM_004,before.jsonl,llama3.1:8b
+M08,multihop,before,none,1,False,0,0,1,0,0,0,0,1,1,0,2,0,,,0,,10934,397,13129,15.3,run_sql_query,;,before.jsonl,llama3.1:8b
+M09,multihop,before,none,1,False,0,0,1,0,0,0,0,1,1,0,2,0,,,0,,10622,351,12936,14.2,run_sql_query,Royal Canin India; 0.85; 5.2,before.jsonl,llama3.1:8b
+M10,multihop,before,none,1,False,0,0,1,0,0,0,0,1,1,0,2,0,,,0,,10592,272,12868,10.3,run_sql_query,MUM_001; Mumbai,before.jsonl,llama3.1:8b
+M11,multihop,before,none,1,False,0,0,1,0,0,0,1,1,0,0,2,0,,,0,,10684,85,12948,4.6,get_return_rate_analysis,Royal Canin; 2.14%,before.jsonl,llama3.1:8b
+M12,multihop,before,none,1,False,0,0,1,0,0,0,0,1,1,0,2,0,,,0,,10640,410,12904,15.9,run_sql_query,DOG_001; 10,before.jsonl,llama3.1:8b
+M13,multihop,before,none,1,False,0,0,0,0,0,0,0,1,1,0,2,0,,,0,,10560,179,12815,7.8,get_cold_chain_monitor,,before.jsonl,llama3.1:8b
+M14,multihop,before,none,1,False,0,0,1,0,0,0,1,1,0,0,2,0,,,0,,10576,121,12849,5.2,run_sql_query,1; 43977.79,before.jsonl,llama3.1:8b
+C01,conflict,before,none,1,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,1.0,10503,41,12744,3.6,run_sql_query,92,before.jsonl,llama3.1:8b
+C02,conflict,before,none,1,True,0,0,0,0,0,0,0,1,0,0,2,0,0.0,0.0,0,1.0,10491,75,12718,3.5,get_sku_360,,before.jsonl,llama3.1:8b
+C03,conflict,before,none,1,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,1.0,10492,34,12731,2.3,run_sql_query,25000,before.jsonl,llama3.1:8b
+C04,conflict,before,none,1,True,0,0,0,0,0,0,0,1,1,0,2,0,0.0,0.0,0,1.0,10513,78,12786,3.3,run_sql_query,,before.jsonl,llama3.1:8b
+C05,conflict,before,none,1,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,1.0,10494,42,12732,3.2,run_sql_query,9806;,before.jsonl,llama3.1:8b
+C06,conflict,before,none,1,True,0,0,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10659,370,12882,15.5,python_repl,5.17 days,before.jsonl,llama3.1:8b
+C07,conflict,before,none,1,True,1,1,1,0,0,0,0,1,1,0,2,0,0.0,1.0,0,0.0,10934,348,13201,13.2,python_repl,15.6,before.jsonl,llama3.1:8b
+C08,conflict,before,none,1,True,0,0,0,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10749,77,12974,3.8,get_sku_360,,before.jsonl,llama3.1:8b
+C09,conflict,before,none,1,True,0,0,0,0,0,0,0,1,1,0,2,0,0.0,0.0,0,0.0,10581,59,12858,4.4,get_stockout_risk,,before.jsonl,llama3.1:8b
+C10,conflict,before,none,1,True,0,0,1,0,0,0,0,1,1,0,2,0,0.0,0.0,0,0.0,10642,319,12926,12.1,run_sql_query,HUFT_SKU_001,before.jsonl,llama3.1:8b
+C11,conflict,before,none,1,True,0,0,0,0,0,0,0,1,1,0,2,0,0.0,0.0,0,0.0,10738,620,12980,23.6,python_repl,,before.jsonl,llama3.1:8b
+C12,conflict,before,none,1,False,0,0,1,0,0,0,0,0,0,0,1,0,0.0,0.0,0,0.0,6061,54,6340,4.2,,92.1%,before.jsonl,llama3.1:8b
+C13,conflict,before,none,1,False,0,0,0,0,0,0,0,0,0,0,1,0,0.0,0.0,0,0.0,6086,119,6374,4.1,,,before.jsonl,llama3.1:8b
+C14,conflict,before,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10717,36,12932,1.3,get_sku_360,375 units; 4.8 days; WARNING,before.jsonl,llama3.1:8b
+L01,lookup,before,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10701,59,12896,4.7,get_sku_360,₹720,before.jsonl,llama3.1:8b
+L02,lookup,before,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10693,151,12896,5.7,get_sku_360,Sara's Kitchen (HUFT),before.jsonl,llama3.1:8b
+L03,lookup,before,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10721,108,12930,5.0,get_sku_360,10 days,before.jsonl,llama3.1:8b
+L04,lookup,before,none,2,False,0,0,1,0,0,0,0,0,0,0,1,0,,,0,,6049,28,6321,2.0,,ST001 city,before.jsonl,llama3.1:8b
+L05,lookup,before,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10512,43,12749,3.5,run_sql_query,37,before.jsonl,llama3.1:8b
+L06,lookup,before,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10521,40,12760,2.3,run_sql_query,25,before.jsonl,llama3.1:8b
+L07,lookup,before,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10526,44,12767,2.5,run_sql_query,EXT_012,before.jsonl,llama3.1:8b
+L08,lookup,before,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10698,192,12885,7.4,get_sku_360,"HUFT Beauty Lab; ₹299; 2,452 units; 19.1 days; OK; 128.6 units/day; → stable; 0 units",before.jsonl,llama3.1:8b
+L09,lookup,before,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10506,41,12741,3.2,run_sql_query,9,before.jsonl,llama3.1:8b
+L10,lookup,before,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10520,34,12760,2.2,run_sql_query,3,before.jsonl,llama3.1:8b
+L11,lookup,before,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10689,84,12891,4.0,get_sku_360,Accessories/Collar; ₹700; 632 units; 6.1 days; 3 days; OK; 104.2 units/day; 105.6 units/day; stable; 59 units; 376 units; 0 units,before.jsonl,llama3.1:8b
+L12,lookup,before,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10493,32,12737,2.3,run_sql_query,24,before.jsonl,llama3.1:8b
+A01,aggregation,before,none,2,False,0,0,0,1,0,1,0,5,5,0,6,0,,,0,,24770,185,40607,7.2,run_sql_query,,before.jsonl,llama3.1:8b
+A02,aggregation,before,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10623,159,12878,7.0,run_sql_query,Online; 113700352; 50.16,before.jsonl,llama3.1:8b
+A03,aggregation,before,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10554,61,12802,4.2,run_sql_query,Dog Food; 37400.0,before.jsonl,llama3.1:8b
+A04,aggregation,before,none,2,False,0,0,1,0,0,0,1,1,0,0,2,0,,,0,,10801,69,13061,5.3,get_return_rate_analysis,"""Product Not As Described"" is the most common return reason across all returns, with 968 returns having this reason.",before.jsonl,llama3.1:8b
+A05,aggregation,before,none,2,False,0,0,0,0,0,0,0,0,0,0,1,0,0.0,0.0,0,0.0,6060,46,6340,2.5,,,before.jsonl,llama3.1:8b
+A06,aggregation,before,none,2,False,0,0,1,0,0,0,0,0,0,0,1,0,,,0,,6058,66,6340,1.8,,"{'supplier_name': 'Drools', 'on_time_delivery_pct': 80.12}",before.jsonl,llama3.1:8b
+A07,aggregation,before,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10529,56,12773,1.7,run_sql_query,South; 28,before.jsonl,llama3.1:8b
+A08,aggregation,before,none,2,False,0,0,0,1,0,1,0,7,7,0,8,0,,,0,,34071,178,54247,6.7,run_sql_query,,before.jsonl,llama3.1:8b
+A09,aggregation,before,none,2,False,0,0,1,0,0,0,0,1,1,0,2,0,,,0,,10573,827,12793,25.7,python_repl,283.33;,before.jsonl,llama3.1:8b
+A10,aggregation,before,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10565,66,12788,4.0,run_sql_query,5918.0,before.jsonl,llama3.1:8b
+A11,aggregation,before,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10508,42,12747,2.5,run_sql_query,4480,before.jsonl,llama3.1:8b
+A12,aggregation,before,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10545,75,12785,4.2,run_sql_query,Pune; 17052458.0,before.jsonl,llama3.1:8b
+A13,aggregation,before,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10514,34,12753,3.0,run_sql_query,31,before.jsonl,llama3.1:8b
+A14,aggregation,before,none,2,False,1,1,1,0,0,0,1,3,2,0,4,0,,,0,,19910,126,26293,5.4,run_sql_query,5097285.75,before.jsonl,llama3.1:8b
+A15,aggregation,before,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10575,92,12808,4.7,run_sql_query,July; 20301859.0,before.jsonl,llama3.1:8b
+A16,aggregation,before,none,2,False,1,1,1,0,0,0,1,3,2,0,4,0,,,0,,19979,170,26569,6.6,run_sql_query,Multi-Pet Household; 27291.693458498,before.jsonl,llama3.1:8b
+M01,multihop,before,none,2,False,0,0,0,1,0,1,0,3,3,0,4,0,,,0,,15555,343,27118,12.5,run_sql_query,,before.jsonl,llama3.1:8b
+M02,multihop,before,none,2,False,0,0,1,0,0,0,1,1,0,0,2,0,,,0,,10799,46,13057,2.9,get_return_rate_analysis,SKU_001 in Cat Food category,before.jsonl,llama3.1:8b
+M03,multihop,before,none,2,False,0,0,0,1,0,1,1,4,3,0,5,0,,,0,,20175,288,33893,11.0,run_sql_query,,before.jsonl,llama3.1:8b
+M04,multihop,before,none,2,False,0,0,0,1,0,1,1,3,2,0,4,0,,,0,,15454,364,27016,12.5,run_sql_query,,before.jsonl,llama3.1:8b
+M05,multihop,before,none,2,False,0,0,0,0,0,0,0,0,0,0,1,0,,,0,,6068,21,6348,1.9,,,before.jsonl,llama3.1:8b
+M06,multihop,before,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10678,154,12926,5.2,run_sql_query,Lucknow; 52.12,before.jsonl,llama3.1:8b
+M07,multihop,before,none,2,False,0,0,1,0,0,0,1,3,2,0,4,0,,,0,,20396,413,26820,14.8,run_sql_query,Purina; GROM_004; 6005.0,before.jsonl,llama3.1:8b
+M08,multihop,before,none,2,False,0,0,0,1,0,1,0,3,3,0,4,0,,,0,,15535,339,27056,13.0,run_sql_query,,before.jsonl,llama3.1:8b
+M09,multihop,before,none,2,False,0,0,0,1,0,1,0,4,4,0,5,0,,,0,,20111,261,33960,9.1,run_sql_query,,before.jsonl,llama3.1:8b
+M10,multihop,before,none,2,False,0,0,0,0,0,0,1,1,0,0,2,0,,,0,,10576,160,12821,7.2,run_sql_query,,before.jsonl,llama3.1:8b
+M11,multihop,before,none,2,False,0,0,1,0,0,0,1,1,0,0,2,0,,,0,,10714,98,12974,5.3,get_return_rate_analysis,Pedigree; 27,before.jsonl,llama3.1:8b
+M12,multihop,before,none,2,False,1,1,1,0,0,0,1,2,1,0,3,0,,,0,,15435,249,19649,8.6,run_sql_query,GROM_004; 2452,before.jsonl,llama3.1:8b
+M13,multihop,before,none,2,False,0,0,1,0,0,0,1,3,1,0,2,0,,,0,,10730,189,13119,8.2,get_cold_chain_monitor,;,before.jsonl,llama3.1:8b
+M14,multihop,before,none,2,False,0,0,1,0,0,0,1,1,0,0,2,0,,,0,,10578,71,12841,3.4,run_sql_query,1; 43977.79,before.jsonl,llama3.1:8b
+C01,conflict,before,none,2,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,1.0,10503,27,12744,2.1,run_sql_query,92,before.jsonl,llama3.1:8b
+C02,conflict,before,none,2,True,0,0,1,0,0,0,0,6,0,0,7,0,1.0,1.0,0,1.0,33416,152,45773,5.8,get_sku_360,65;,before.jsonl,llama3.1:8b
+C03,conflict,before,none,2,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,1.0,10492,28,12731,2.3,run_sql_query,25000,before.jsonl,llama3.1:8b
+C04,conflict,before,none,2,True,1,1,1,0,0,0,1,2,1,0,3,0,0.0,0.0,0,1.0,15025,56,19326,2.9,run_sql_query,326883,before.jsonl,llama3.1:8b
+C05,conflict,before,none,2,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,1.0,10494,34,12732,2.3,run_sql_query,9806,before.jsonl,llama3.1:8b
+C06,conflict,before,none,2,True,0,0,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10589,90,12830,4.1,python_repl,7.04 days of inventory cover,before.jsonl,llama3.1:8b
+C07,conflict,before,none,2,True,1,1,1,0,0,0,0,0,0,0,1,0,0.0,0.0,0,0.0,6076,80,6360,4.2,,15.0 days,before.jsonl,llama3.1:8b
+C08,conflict,before,none,2,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10749,35,12974,1.3,get_sku_360,4.3 days; 653 units,before.jsonl,llama3.1:8b
+C09,conflict,before,none,2,True,0,0,1,0,0,0,1,3,2,0,4,0,0.0,0.0,0,0.0,20101,92,26424,4.5,get_stockout_risk,107; GIFT_002; GIFT_001; FOOD_D011; EXT_052; EXT_051,before.jsonl,llama3.1:8b
+C10,conflict,before,none,2,True,0,0,0,1,0,1,0,4,4,0,5,0,0.0,0.0,0,0.0,20117,297,33844,11.6,run_sql_query,,before.jsonl,llama3.1:8b
+C11,conflict,before,none,2,True,0,0,0,0,0,0,0,1,1,0,2,0,0.0,0.0,0,0.0,10901,641,13165,22.6,python_repl,,before.jsonl,llama3.1:8b
+C12,conflict,before,none,2,False,0,0,1,0,0,0,0,1,1,0,2,0,0.0,0.0,0,1.0,10552,186,12832,7.2,get_supplier_lead_time_tracker,92.5,before.jsonl,llama3.1:8b
+C13,conflict,before,none,2,False,0,0,0,1,0,1,0,3,2,0,2,0,0.0,0.0,0,1.0,6086,1024,14297,35.7,get_supplier_lead_time_tracker,,before.jsonl,llama3.1:8b
+C14,conflict,before,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10717,92,12932,3.6,get_sku_360,375 units; 4.8 days; WARNING,before.jsonl,llama3.1:8b
+L01,lookup,after,none,0,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10733,39,12913,2.7,get_sku_360,₹720,main_after.jsonl,llama3.1:8b
+L02,lookup,after,none,0,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10725,168,12912,5.1,get_sku_360,Sara's Kitchen (HUFT),main_after.jsonl,llama3.1:8b
+L03,lookup,after,none,0,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10753,100,12947,3.5,get_sku_360,10 days,main_after.jsonl,llama3.1:8b
+L04,lookup,after,none,0,False,1,1,1,0,0,0,0,0,0,0,1,0,,,0,,6065,53,6330,2.2,,ST001; Mumbai,main_after.jsonl,llama3.1:8b
+L05,lookup,after,none,0,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10544,37,12767,2.3,run_sql_query,37,main_after.jsonl,llama3.1:8b
+L06,lookup,after,none,0,False,0,0,1,0,0,0,0,0,0,0,1,0,,,0,,6074,32,6341,1.7,,20,main_after.jsonl,llama3.1:8b
+L07,lookup,after,none,0,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10558,43,12784,1.2,run_sql_query,EXT_012,main_after.jsonl,llama3.1:8b
+L08,lookup,after,none,0,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10730,166,12903,5.1,get_sku_360,"HUFT Beauty Lab; ₹299; 2,452 units; 19.1 days; OK; 128.6 units/day; → stable; 110 units; 1,009 units; 0 units",main_after.jsonl,llama3.1:8b
+L09,lookup,after,none,0,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10538,41,12759,2.0,run_sql_query,9,main_after.jsonl,llama3.1:8b
+L10,lookup,after,none,0,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10561,39,12784,2.0,run_sql_query,3,main_after.jsonl,llama3.1:8b
+L11,lookup,after,none,0,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10721,81,12909,3.1,get_sku_360,Accessories; ₹700; 632 units; 6.1 days; 3 days; OK; 104.2 units/day; 105.6 units/day; → stable; 59 units; 376 units; 0 units,main_after.jsonl,llama3.1:8b
+L12,lookup,after,none,0,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10525,32,12755,1.8,run_sql_query,24,main_after.jsonl,llama3.1:8b
+A01,aggregation,after,none,0,False,0,0,0,1,0,1,0,5,5,0,6,0,,,0,,24908,215,40731,6.4,run_sql_query,,main_after.jsonl,llama3.1:8b
+A02,aggregation,after,none,0,False,0,0,1,0,0,0,0,2,2,0,3,0,,,0,,15476,363,19840,9.6,run_sql_query,Online; 42.17%,main_after.jsonl,llama3.1:8b
+A03,aggregation,after,none,0,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10579,66,12817,2.7,run_sql_query,Dog Food; 18764.0,main_after.jsonl,llama3.1:8b
+A04,aggregation,after,none,0,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10567,48,12812,2.2,run_sql_query,Customer changed mind; 1268,main_after.jsonl,llama3.1:8b
+A05,aggregation,after,none,0,False,0,0,1,0,0,0,0,0,0,0,1,0,0.0,0.0,0,0.0,6076,54,6348,2.3,,92.5%,main_after.jsonl,llama3.1:8b
+A06,aggregation,after,none,0,False,0,0,0,0,0,0,0,0,0,0,1,0,,,0,,6074,26,6349,0.7,,,main_after.jsonl,llama3.1:8b
+A07,aggregation,after,none,0,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10556,45,12788,1.2,run_sql_query,South; 28,main_after.jsonl,llama3.1:8b
+A08,aggregation,after,none,0,False,0,0,1,0,0,0,0,3,3,0,4,0,,,0,,19801,148,26170,4.7,run_sql_query,0;,main_after.jsonl,llama3.1:8b
+A09,aggregation,after,none,0,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10605,69,12804,2.8,python_repl,71.27,main_after.jsonl,llama3.1:8b
+A10,aggregation,after,none,0,False,0,0,0,1,0,1,0,5,5,0,6,0,,,0,,24919,205,40740,6.2,run_sql_query,,main_after.jsonl,llama3.1:8b
+A11,aggregation,after,none,0,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10543,44,12768,2.2,run_sql_query,4480,main_after.jsonl,llama3.1:8b
+A12,aggregation,after,none,0,False,0,0,0,1,0,1,0,4,4,0,5,0,,,0,,20132,216,33844,6.4,run_sql_query,,main_after.jsonl,llama3.1:8b
+A13,aggregation,after,none,0,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10555,39,12777,2.1,run_sql_query,31,main_after.jsonl,llama3.1:8b
+A14,aggregation,after,none,0,False,1,1,1,0,0,0,1,3,2,0,4,0,,,0,,19973,133,26327,4.5,run_sql_query,5097285.75,main_after.jsonl,llama3.1:8b
+A15,aggregation,after,none,0,False,0,0,0,1,0,1,0,4,4,0,5,0,,,0,,20259,290,34052,8.2,run_sql_query,,main_after.jsonl,llama3.1:8b
+A16,aggregation,after,none,0,False,1,1,1,0,0,0,1,3,2,0,4,0,,,0,,20043,169,26604,5.4,run_sql_query,Multi-Pet Household; 27291.693458498,main_after.jsonl,llama3.1:8b
+M01,multihop,after,none,0,False,0,0,0,1,0,1,1,3,2,0,4,0,,,0,,15421,258,26995,7.4,run_sql_query,,main_after.jsonl,llama3.1:8b
+M02,multihop,after,none,0,False,0,0,1,0,0,0,1,1,0,0,2,0,,,0,,10831,70,13074,4.1,get_return_rate_analysis,HUFT_SKU_001; Cat Treats,main_after.jsonl,llama3.1:8b
+M03,multihop,after,none,0,False,0,0,1,0,0,0,0,3,3,0,4,0,,,0,,20266,243,26750,7.2,run_sql_query,North;,main_after.jsonl,llama3.1:8b
+M04,multihop,after,none,0,False,0,0,0,1,0,1,0,3,3,0,4,0,,,0,,15795,477,27617,13.0,run_sql_query,,main_after.jsonl,llama3.1:8b
+M05,multihop,after,none,0,False,0,0,1,0,0,0,0,0,0,0,1,0,,,0,,6084,55,6357,2.6,,0.8; 12345,main_after.jsonl,llama3.1:8b
+M06,multihop,after,none,0,False,0,0,0,1,0,1,0,3,3,0,4,0,,,0,,15472,252,26980,6.5,run_sql_query,,main_after.jsonl,llama3.1:8b
+M07,multihop,after,none,0,False,0,0,1,0,0,0,0,2,2,0,2,0,,,0,,10842,366,13202,10.5,run_sql_query,Brand X; SKU Y,main_after.jsonl,llama3.1:8b
+M08,multihop,after,none,0,False,0,0,0,1,0,1,1,3,2,0,4,0,,,0,,15592,377,27029,11.0,run_sql_query,,main_after.jsonl,llama3.1:8b
+M09,multihop,after,none,0,False,0,0,1,0,0,0,0,0,0,0,1,0,,,0,,6090,52,6368,2.5,,Supplier XYZ; 85.2,main_after.jsonl,llama3.1:8b
+M10,multihop,after,none,0,False,0,0,0,1,0,1,0,4,4,0,5,0,,,0,,20211,247,33897,6.5,run_sql_query,,main_after.jsonl,llama3.1:8b
+M11,multihop,after,none,0,False,1,1,1,0,0,0,1,2,0,0,3,0,,,0,,15189,97,19427,3.8,run_sql_query,Heads Up For Tails; 7771567.49; 53,main_after.jsonl,llama3.1:8b
+M12,multihop,after,none,0,False,0,0,0,1,0,1,0,4,4,0,5,0,,,0,,20214,382,33734,11.5,run_sql_query,,main_after.jsonl,llama3.1:8b
+M13,multihop,after,none,0,False,0,0,0,0,0,0,0,1,1,0,2,0,,,0,,10592,141,12832,5.2,get_cold_chain_monitor,,main_after.jsonl,llama3.1:8b
+M14,multihop,after,none,0,False,0,0,1,0,0,0,1,1,0,0,2,0,,,0,,10606,71,12864,3.3,run_sql_query,1; 43977.79,main_after.jsonl,llama3.1:8b
+C01,conflict,after,none,0,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10535,32,12762,2.1,run_sql_query,92,main_after.jsonl,llama3.1:8b
+C02,conflict,after,none,0,True,1,1,1,0,0,0,0,1,0,0,2,0,0.0,0.0,0,0.0,10533,79,12740,3.3,get_sku_360,160,main_after.jsonl,llama3.1:8b
+C03,conflict,after,none,0,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10524,34,12748,2.3,run_sql_query,25000,main_after.jsonl,llama3.1:8b
+C04,conflict,after,none,0,True,1,1,1,0,0,0,1,2,1,0,3,0,0.0,0.0,0,0.0,15073,57,19350,2.8,run_sql_query,"326,883",main_after.jsonl,llama3.1:8b
+C05,conflict,after,none,0,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10526,28,12749,2.0,run_sql_query,9806,main_after.jsonl,llama3.1:8b
+C06,conflict,after,none,0,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10773,43,12981,2.5,get_sku_360,4.8 days; 312 units,main_after.jsonl,llama3.1:8b
+C07,conflict,after,none,0,True,1,1,1,0,0,0,0,2,2,0,3,0,0.0,0.0,0,0.0,15427,380,19770,11.7,run_sql_query,14.56;,main_after.jsonl,llama3.1:8b
+C08,conflict,after,none,0,True,0,0,1,0,0,0,0,1,1,0,2,0,0.0,0.0,0,0.0,10719,355,13004,10.8,run_sql_query,9.0 days of inventory cover;,main_after.jsonl,llama3.1:8b
+C09,conflict,after,none,0,True,0,0,1,0,0,0,0,1,1,0,2,0,0.0,0.0,0,0.0,10613,223,12875,6.9,get_stockout_risk,47;,main_after.jsonl,llama3.1:8b
+C10,conflict,after,none,0,True,0,0,1,0,0,0,0,2,2,0,3,0,0.0,0.0,0,0.0,15409,374,19805,12.2,run_sql_query,"{min_days_of_inventory_cover_sku['sku_id']}; {min_days_of_inventory_cover_sku['days_of_inventory_cover']}"")",main_after.jsonl,llama3.1:8b
+C11,conflict,after,none,0,True,0,0,0,0,0,0,0,1,1,0,2,0,0.0,0.0,0,0.0,10780,1197,13002,34.7,python_repl,,main_after.jsonl,llama3.1:8b
+C12,conflict,after,none,0,False,0,0,1,0,0,0,0,0,0,0,1,0,0.0,0.0,0,0.0,6077,42,6348,2.2,,92.5; 1.2,main_after.jsonl,llama3.1:8b
+C13,conflict,after,none,0,False,0,0,1,0,0,0,0,0,0,0,1,0,0.0,0.0,0,0.0,6102,261,6382,7.2,,worst_supplier; 3.2; [table with worst supplier's SKUs]; 14 days; 2023-02-28; SKU_001; 100 units; 10 units/day; cold chain; ₹10/unit; ₹5/unit; 20%,main_after.jsonl,llama3.1:8b
+C14,conflict,after,none,0,False,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10749,63,12950,2.0,get_sku_360,375 units; 4.8 days; WARNING; 78.0 units/day; 41.8; → stable; 82 units; 312 units; 0 units,main_after.jsonl,llama3.1:8b
+L01,lookup,after,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10733,37,12913,3.3,get_sku_360,₹720,main_after.jsonl,llama3.1:8b
+L02,lookup,after,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10725,73,12912,3.4,get_sku_360,Sara's Kitchen (HUFT),main_after.jsonl,llama3.1:8b
+L03,lookup,after,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10753,59,12947,3.0,get_sku_360,10 days,main_after.jsonl,llama3.1:8b
+L04,lookup,after,none,1,False,0,0,0,0,0,0,0,0,0,0,1,0,,,0,,6065,21,6330,1.9,,,main_after.jsonl,llama3.1:8b
+L05,lookup,after,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10544,44,12767,3.5,run_sql_query,37,main_after.jsonl,llama3.1:8b
+L06,lookup,after,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10553,45,12777,2.4,run_sql_query,25,main_after.jsonl,llama3.1:8b
+L07,lookup,after,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10579,71,12805,3.4,run_sql_query,EXT_012; 11440,main_after.jsonl,llama3.1:8b
+L08,lookup,after,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10730,39,12903,3.2,get_sku_360,HUFT Beauty Lab,main_after.jsonl,llama3.1:8b
+L09,lookup,after,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10538,41,12759,2.5,run_sql_query,9,main_after.jsonl,llama3.1:8b
+L10,lookup,after,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10552,50,12777,2.7,run_sql_query,3,main_after.jsonl,llama3.1:8b
+L11,lookup,after,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10721,39,12909,3.7,get_sku_360,Accessories / Collar,main_after.jsonl,llama3.1:8b
+L12,lookup,after,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10525,32,12755,2.3,run_sql_query,24,main_after.jsonl,llama3.1:8b
+A01,aggregation,after,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10586,44,12808,2.6,run_sql_query,226690575.0,main_after.jsonl,llama3.1:8b
+A02,aggregation,after,none,1,False,0,0,1,0,0,0,0,2,2,0,3,0,,,0,,15357,707,19723,24.7,run_sql_query,Channel; 25.6%,main_after.jsonl,llama3.1:8b
+A03,aggregation,after,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10586,101,12818,4.8,run_sql_query,Dog Food; 37400.0,main_after.jsonl,llama3.1:8b
+A04,aggregation,after,none,1,False,0,0,1,0,0,0,1,1,0,0,2,0,,,0,,10833,62,13078,5.5,get_return_rate_analysis,2.25%; Cat Food,main_after.jsonl,llama3.1:8b
+A05,aggregation,after,none,1,False,0,0,1,0,0,0,0,0,0,0,1,0,0.0,0.0,0,0.0,6076,37,6348,2.3,,92.5,main_after.jsonl,llama3.1:8b
+A06,aggregation,after,none,1,False,0,0,1,0,0,0,0,0,0,0,1,0,,,0,,6074,60,6349,1.9,,"supplier_name=""Pedigree India""; on_time_delivery_pct=87.5; defect_rate_pct=2.1; fill_rate_pct=95.6",main_after.jsonl,llama3.1:8b
+A07,aggregation,after,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10556,60,12788,1.8,run_sql_query,South; 28,main_after.jsonl,llama3.1:8b
+A08,aggregation,after,none,1,False,0,0,1,0,0,0,0,1,1,0,2,0,,,0,,10581,60,12836,3.0,run_sql_query,0,main_after.jsonl,llama3.1:8b
+A09,aggregation,after,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10954,118,12996,5.1,python_repl,72.4,main_after.jsonl,llama3.1:8b
+A10,aggregation,after,none,1,False,0,0,1,0,0,0,0,1,1,0,2,0,,,0,,10627,171,12885,6.9,run_sql_query,"12,345;",main_after.jsonl,llama3.1:8b
+A11,aggregation,after,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10540,42,12763,2.6,run_sql_query,4480,main_after.jsonl,llama3.1:8b
+A12,aggregation,after,none,1,False,0,0,1,0,0,0,0,1,1,0,2,0,,,0,,10608,135,12874,5.8,run_sql_query,None,main_after.jsonl,llama3.1:8b
+A13,aggregation,after,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10546,34,12769,2.5,run_sql_query,31,main_after.jsonl,llama3.1:8b
+A14,aggregation,after,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10584,60,12794,3.1,run_sql_query,5097285.75,main_after.jsonl,llama3.1:8b
+A15,aggregation,after,none,1,False,0,1,1,0,0,0,1,1,0,0,2,0,,,0,,10614,119,12827,5.4,run_sql_query,2025-07-01T00:00:00.000; 20301859.0,main_after.jsonl,llama3.1:8b
+A16,aggregation,after,none,1,False,0,0,1,0,0,0,0,1,1,0,2,0,,,0,,10610,266,12901,10.8,run_sql_query,Premium; 102400,main_after.jsonl,llama3.1:8b
+M01,multihop,after,none,1,False,0,0,0,0,0,0,0,3,2,0,2,0,,,0,,10862,206,13195,8.8,run_sql_query,,main_after.jsonl,llama3.1:8b
+M02,multihop,after,none,1,False,0,0,0,0,0,0,1,1,0,0,2,0,,,0,,10829,91,13070,4.9,get_return_rate_analysis,,main_after.jsonl,llama3.1:8b
+M03,multihop,after,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10637,133,12867,5.7,run_sql_query,"Online; ₹134,832,333.0",main_after.jsonl,llama3.1:8b
+M04,multihop,after,none,1,False,0,0,0,0,0,0,0,1,1,0,2,0,,,0,,10651,193,12944,7.5,run_sql_query,,main_after.jsonl,llama3.1:8b
+M05,multihop,after,none,1,False,0,0,0,0,0,0,0,0,0,0,1,0,,,0,,6084,29,6357,2.1,,,main_after.jsonl,llama3.1:8b
+M06,multihop,after,none,1,False,0,0,0,0,0,0,0,2,2,0,3,0,,,0,,15472,445,19842,14.7,run_sql_query,,main_after.jsonl,llama3.1:8b
+M07,multihop,after,none,1,False,0,0,0,1,0,1,1,4,2,0,2,0,,,0,,6094,248,13477,11.0,run_sql_query,,main_after.jsonl,llama3.1:8b
+M08,multihop,after,none,1,False,0,0,1,0,0,0,0,1,1,0,2,0,,,0,,10753,576,12990,19.0,run_sql_query,North; 15.32%,main_after.jsonl,llama3.1:8b
+M09,multihop,after,none,1,False,0,0,0,0,0,0,0,1,1,0,2,0,,,0,,10654,166,12952,6.7,run_sql_query,,main_after.jsonl,llama3.1:8b
+M10,multihop,after,none,1,False,0,0,0,0,0,0,0,1,1,0,2,0,,,0,,10624,181,12886,7.8,run_sql_query,,main_after.jsonl,llama3.1:8b
+M11,multihop,after,none,1,False,0,0,0,0,0,0,1,1,0,0,2,0,,,0,,10716,85,12964,5.2,get_return_rate_analysis,,main_after.jsonl,llama3.1:8b
+M12,multihop,after,none,1,False,0,0,0,0,0,0,1,1,0,0,2,0,,,0,,10651,149,12871,5.2,run_sql_query,,main_after.jsonl,llama3.1:8b
+M13,multihop,after,none,1,False,0,0,0,0,0,0,0,1,1,0,2,0,,,0,,10592,140,12832,6.3,get_cold_chain_monitor,,main_after.jsonl,llama3.1:8b
+M14,multihop,after,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10610,113,12869,5.3,run_sql_query,2530; 27291.69,main_after.jsonl,llama3.1:8b
+C01,conflict,after,none,1,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10535,41,12762,3.2,run_sql_query,92,main_after.jsonl,llama3.1:8b
+C02,conflict,after,none,1,True,0,0,0,0,0,0,0,1,0,0,2,0,0.0,0.0,0,0.0,10523,129,12734,5.5,get_sku_360,,main_after.jsonl,llama3.1:8b
+C03,conflict,after,none,1,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10524,35,12748,2.3,run_sql_query,"25,000",main_after.jsonl,llama3.1:8b
+C04,conflict,after,none,1,True,0,0,0,0,0,0,0,1,1,0,2,0,0.0,0.0,0,0.0,10545,60,12802,2.9,run_sql_query,,main_after.jsonl,llama3.1:8b
+C05,conflict,after,none,1,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10526,28,12749,2.3,run_sql_query,9806,main_after.jsonl,llama3.1:8b
+C06,conflict,after,none,1,True,0,0,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10608,105,12838,5.2,python_repl,14.21,main_after.jsonl,llama3.1:8b
+C07,conflict,after,none,1,True,0,0,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10608,87,12838,4.0,python_repl,48;,main_after.jsonl,llama3.1:8b
+C08,conflict,after,none,1,True,0,0,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10731,251,12954,9.8,python_repl,7.34,main_after.jsonl,llama3.1:8b
+C09,conflict,after,none,1,True,0,0,0,0,0,0,0,1,1,0,2,0,0.0,0.0,0,0.0,10613,85,12875,4.3,get_stockout_risk,,main_after.jsonl,llama3.1:8b
+C10,conflict,after,none,1,True,0,0,1,0,0,0,0,1,1,0,2,0,0.0,0.0,0,0.0,10674,123,12944,5.5,run_sql_query,DOG_003,main_after.jsonl,llama3.1:8b
+C11,conflict,after,none,1,True,0,0,0,0,0,0,0,0,0,0,1,0,0.0,0.0,0,0.0,6115,165,6390,6.1,,,main_after.jsonl,llama3.1:8b
+C12,conflict,after,none,1,False,0,0,1,0,0,0,0,0,0,0,1,0,0.0,0.0,0,0.0,6077,54,6348,1.5,,92.1%,main_after.jsonl,llama3.1:8b
+C13,conflict,after,none,1,False,0,0,0,0,0,0,0,1,1,0,2,0,0.0,0.0,0,1.0,10629,230,13080,8.7,get_supplier_lead_time_tracker,,main_after.jsonl,llama3.1:8b
+C14,conflict,after,none,1,False,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10749,36,12950,3.1,get_sku_360,375 units; 4.8 days; WARNING,main_after.jsonl,llama3.1:8b
+L01,lookup,after,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10733,34,12913,3.1,get_sku_360,₹720,main_after.jsonl,llama3.1:8b
+L02,lookup,after,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10725,54,12912,3.0,get_sku_360,Sara's Kitchen (HUFT),main_after.jsonl,llama3.1:8b
+L03,lookup,after,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10753,40,12947,2.7,get_sku_360,10 days,main_after.jsonl,llama3.1:8b
+L04,lookup,after,none,2,False,0,0,1,0,0,0,0,0,0,0,1,0,,,0,,6065,28,6330,2.1,,ST001 city,main_after.jsonl,llama3.1:8b
+L05,lookup,after,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10544,43,12767,3.5,run_sql_query,37,main_after.jsonl,llama3.1:8b
+L06,lookup,after,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10553,40,12777,2.5,run_sql_query,25,main_after.jsonl,llama3.1:8b
+L07,lookup,after,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10558,44,12784,3.3,run_sql_query,EXT_012,main_after.jsonl,llama3.1:8b
+L08,lookup,after,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10730,114,12903,4.8,get_sku_360,"HUFT Beauty Lab; ₹299; 2,452 units; 19.1 days; OK; 128.6 units/day; 110 units; 1,009 units",main_after.jsonl,llama3.1:8b
+L09,lookup,after,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10538,41,12759,3.7,run_sql_query,9,main_after.jsonl,llama3.1:8b
+L10,lookup,after,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10552,39,12777,3.1,run_sql_query,3,main_after.jsonl,llama3.1:8b
+L11,lookup,after,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10721,84,12909,3.6,get_sku_360,Accessories/Collar; ₹700; 632 units; 6.1 days; 3 days; OK; 104.2 units/day; 105.6 units/day; stable; 59 units; 376 units; 0 units,main_after.jsonl,llama3.1:8b
+L12,lookup,after,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10525,27,12755,2.8,run_sql_query,24,main_after.jsonl,llama3.1:8b
+A01,aggregation,after,none,2,False,0,0,0,1,0,1,0,5,5,0,6,0,,,0,,24850,199,40678,7.1,run_sql_query,,main_after.jsonl,llama3.1:8b
+A02,aggregation,after,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10650,148,12880,6.8,run_sql_query,Online; 50.16,main_after.jsonl,llama3.1:8b
+A03,aggregation,after,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10579,71,12817,4.0,run_sql_query,Dog Food; 18764.0,main_after.jsonl,llama3.1:8b
+A04,aggregation,after,none,2,False,0,0,1,0,0,0,1,1,0,0,2,0,,,0,,10833,70,13078,4.7,get_return_rate_analysis,"2.50% returns had the reason ""Product Not as Expected"" (788 out of 31,567 items in the Cat Treats category)",main_after.jsonl,llama3.1:8b
+A05,aggregation,after,none,2,False,0,0,1,0,0,0,0,0,0,0,1,0,0.0,0.0,0,0.0,6076,38,6348,2.3,,95.5%,main_after.jsonl,llama3.1:8b
+A06,aggregation,after,none,2,False,0,0,1,0,0,0,0,0,0,0,1,0,,,0,,6074,67,6349,2.0,,"{'supplier_name': 'Pet Store Private Label', 'on_time_delivery_pct': 92.5}",main_after.jsonl,llama3.1:8b
+A07,aggregation,after,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10561,49,12789,1.6,run_sql_query,South; 28,main_after.jsonl,llama3.1:8b
+A08,aggregation,after,none,2,False,0,0,1,0,0,0,0,2,2,0,3,0,,,0,,15151,97,19437,5.3,run_sql_query,245;,main_after.jsonl,llama3.1:8b
+A09,aggregation,after,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10597,62,12798,3.3,python_repl,70.74;,main_after.jsonl,llama3.1:8b
+A10,aggregation,after,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10597,66,12805,3.9,run_sql_query,5918.0,main_after.jsonl,llama3.1:8b
+A11,aggregation,after,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10540,42,12763,3.2,run_sql_query,4480,main_after.jsonl,llama3.1:8b
+A12,aggregation,after,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10577,70,12802,3.4,run_sql_query,Pune; 17052458.0,main_after.jsonl,llama3.1:8b
+A13,aggregation,after,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,,,0,,10546,40,12769,2.6,run_sql_query,31,main_after.jsonl,llama3.1:8b
+A14,aggregation,after,none,2,False,1,1,1,0,0,0,1,3,2,0,4,0,,,0,,19974,125,26327,5.8,run_sql_query,5097285.75,main_after.jsonl,llama3.1:8b
+A15,aggregation,after,none,2,False,0,0,1,0,0,0,1,1,0,0,2,0,,,0,,10590,84,12817,3.7,run_sql_query,7; 20301859.0,main_after.jsonl,llama3.1:8b
+A16,aggregation,after,none,2,False,1,1,1,0,0,0,1,2,1,0,3,0,,,0,,15239,123,19594,5.6,run_sql_query,Multi-Pet Household; 27291.693458498,main_after.jsonl,llama3.1:8b
+M01,multihop,after,none,2,False,0,0,0,1,0,1,0,4,4,0,5,0,,,0,,20428,412,34259,16.3,run_sql_query,,main_after.jsonl,llama3.1:8b
+M02,multihop,after,none,2,False,0,0,1,0,0,0,1,1,0,0,2,0,,,0,,10831,47,13074,3.6,get_return_rate_analysis,SKU_001; Cat Treats;,main_after.jsonl,llama3.1:8b
+M03,multihop,after,none,2,False,0,0,0,1,0,1,1,4,3,0,5,0,,,0,,20248,303,33957,12.0,run_sql_query,,main_after.jsonl,llama3.1:8b
+M04,multihop,after,none,2,False,0,0,0,1,0,1,0,4,4,0,5,0,,,0,,20367,385,34190,13.0,run_sql_query,,main_after.jsonl,llama3.1:8b
+M05,multihop,after,none,2,False,0,0,1,0,0,0,0,0,0,0,1,0,,,0,,6084,46,6357,3.2,,"₹1,234.56 (ratio)",main_after.jsonl,llama3.1:8b
+M06,multihop,after,none,2,False,0,0,1,0,0,0,1,2,1,0,3,0,,,0,,15453,183,19784,6.8,run_sql_query,Kolkata; 53.38,main_after.jsonl,llama3.1:8b
+M07,multihop,after,none,2,False,1,1,1,0,0,0,1,2,1,0,3,0,,,0,,15486,272,19773,11.2,run_sql_query,GROM_004; Heads Up For Tails; 6005.0,main_after.jsonl,llama3.1:8b
+M08,multihop,after,none,2,False,0,0,0,1,0,1,0,3,3,0,4,0,,,0,,15793,577,27425,22.2,run_sql_query,,main_after.jsonl,llama3.1:8b
+M09,multihop,after,none,2,False,0,0,0,0,0,0,0,2,2,0,3,0,,,0,,15349,222,19755,9.0,run_sql_query,,main_after.jsonl,llama3.1:8b
+M10,multihop,after,none,2,False,0,0,0,0,0,0,1,1,0,0,2,0,,,0,,10608,225,12883,8.3,run_sql_query,,main_after.jsonl,llama3.1:8b
+M11,multihop,after,none,2,False,0,0,1,0,0,0,1,1,0,0,2,0,,,0,,10746,155,12991,7.2,get_return_rate_analysis,Pedigree; 37,main_after.jsonl,llama3.1:8b
+M12,multihop,after,none,2,False,0,0,0,1,0,1,0,4,4,0,5,0,,,0,,20302,402,34142,16.5,run_sql_query,,main_after.jsonl,llama3.1:8b
+M13,multihop,after,none,2,False,0,0,0,1,0,1,1,32,17,0,2,0,,,0,,6086,1024,17179,39.2,get_cold_chain_monitor,,main_after.jsonl,llama3.1:8b
+M14,multihop,after,none,2,False,0,0,1,0,0,0,1,1,0,0,2,0,,,0,,10610,71,12859,2.1,run_sql_query,1; 43977.79,main_after.jsonl,llama3.1:8b
+C01,conflict,after,none,2,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10535,27,12762,2.1,run_sql_query,92,main_after.jsonl,llama3.1:8b
+C02,conflict,after,none,2,True,0,0,0,1,0,1,0,11,0,0,12,0,0.0,0.0,0,0.0,52844,220,80773,8.0,get_sku_360,,main_after.jsonl,llama3.1:8b
+C03,conflict,after,none,2,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10524,28,12748,2.9,run_sql_query,25000,main_after.jsonl,llama3.1:8b
+C04,conflict,after,none,2,True,1,1,1,0,0,0,1,2,1,0,3,0,0.0,0.0,0,0.0,15073,57,19350,3.2,run_sql_query,"326,883",main_after.jsonl,llama3.1:8b
+C05,conflict,after,none,2,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10526,34,12749,3.0,run_sql_query,9806,main_after.jsonl,llama3.1:8b
+C06,conflict,after,none,2,True,0,0,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10621,117,12848,5.3,python_repl,0.070397;,main_after.jsonl,llama3.1:8b
+C07,conflict,after,none,2,True,0,0,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10621,183,12848,7.8,python_repl,20 days,main_after.jsonl,llama3.1:8b
+C08,conflict,after,none,2,True,0,0,1,0,0,0,1,1,0,0,2,0,1.0,1.0,0,0.0,10611,130,12842,6.4,python_repl,3.33,main_after.jsonl,llama3.1:8b
+C09,conflict,after,none,2,True,0,1,1,0,0,0,0,1,1,0,2,0,0.0,0.0,0,0.0,10613,305,12875,10.6,get_stockout_risk,57;,main_after.jsonl,llama3.1:8b
+C10,conflict,after,none,2,True,0,0,0,1,0,1,0,4,4,0,5,0,0.0,0.0,0,0.0,20300,295,34146,11.0,run_sql_query,,main_after.jsonl,llama3.1:8b
+C11,conflict,after,none,2,True,0,0,0,1,0,1,0,2,2,0,3,0,0.0,0.0,0,0.0,10925,704,20400,25.5,python_repl,,main_after.jsonl,llama3.1:8b
+C12,conflict,after,none,2,False,1,1,1,0,0,0,0,0,0,0,1,0,0.0,0.0,0,0.0,6077,63,6348,3.6,,95.4; 92.1; 89.2,main_after.jsonl,llama3.1:8b
+C13,conflict,after,none,2,False,0,0,0,0,0,0,0,0,0,0,1,0,0.0,0.0,0,0.0,6102,108,6382,3.2,,,main_after.jsonl,llama3.1:8b
+C14,conflict,after,none,2,False,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10749,61,12950,2.8,get_sku_360,375 units; 4.8 days; WARNING,main_after.jsonl,llama3.1:8b
