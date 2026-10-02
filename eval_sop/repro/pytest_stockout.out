@@ -1,0 +1,12 @@
+### pytest tests/test_stockout_velocity.py against BASE 65c1c06:intelligence/stockout.py
+>       assert row["risk"] != "critical", row
+E       AssertionError: {'sku_id': 'A', 'name': 'Prod A', 'category': 'Grooming', 'brand': 'X', ...}
+E       assert 'critical' != 'critical'
+test_stockout_velocity.py:27: AssertionError
+E       TypeError: predict_stockouts() got an unexpected keyword argument 'velocity_window_days'
+test_stockout_velocity.py:32: TypeError
+2 failed, 1 passed in 6.56s
+
+### pytest against FIXED (this branch)
+........                                                                 [100%]
+8 passed in 6.08s
