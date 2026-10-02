@@ -1,0 +1,442 @@
+[
+ {
+  "variant": "before",
+  "qid": "C06",
+  "quantity": "days of cover EXT_059",
+  "tool": "get_stockout_prediction",
+  "tool_value": 1.2,
+  "truth": 4.81,
+  "tol": 0.33653846153846156,
+  "agrees_with_truth": false
+ },
+ {
+  "variant": "before",
+  "qid": "C06",
+  "quantity": "days of cover EXT_059",
+  "tool": "get_sku_360",
+  "tool_value": 4.8,
+  "truth": 4.81,
+  "tol": 0.33653846153846156,
+  "agrees_with_truth": true
+ },
+ {
+  "variant": "before",
+  "qid": "C06",
+  "quantity": "days of cover EXT_059",
+  "tool": "get_inventory_status",
+  "tool_value": 4.9,
+  "truth": 4.81,
+  "tol": 0.33653846153846156,
+  "agrees_with_truth": true
+ },
+ {
+  "variant": "before",
+  "qid": "C06",
+  "quantity": "days of cover EXT_059",
+  "tool": "get_stockout_risk",
+  "tool_value": 4.9,
+  "truth": 4.81,
+  "tol": 0.33653846153846156,
+  "agrees_with_truth": true
+ },
+ {
+  "variant": "before",
+  "qid": "C07",
+  "quantity": "days of cover EXT_077",
+  "tool": "get_stockout_prediction",
+  "tool_value": 4.4,
+  "truth": 15.58,
+  "tol": 1.0903846153846155,
+  "agrees_with_truth": false
+ },
+ {
+  "variant": "before",
+  "qid": "C07",
+  "quantity": "days of cover EXT_077",
+  "tool": "get_sku_360",
+  "tool_value": 15.6,
+  "truth": 15.58,
+  "tol": 1.0903846153846155,
+  "agrees_with_truth": true
+ },
+ {
+  "variant": "before",
+  "qid": "C07",
+  "quantity": "days of cover EXT_077",
+  "tool": "get_inventory_status",
+  "tool_value": 15.6,
+  "truth": 15.58,
+  "tol": 1.0903846153846155,
+  "agrees_with_truth": true
+ },
+ {
+  "variant": "before",
+  "qid": "C07",
+  "quantity": "days of cover EXT_077",
+  "tool": "get_stockout_risk",
+  "tool_value": 15.6,
+  "truth": 15.58,
+  "tol": 1.0903846153846155,
+  "agrees_with_truth": true
+ },
+ {
+  "variant": "before",
+  "qid": "C08",
+  "quantity": "days of cover FOOD_D011",
+  "tool": "get_stockout_prediction",
+  "tool_value": 3.3,
+  "truth": 4.31,
+  "tol": 0.3019717858287913,
+  "agrees_with_truth": false
+ },
+ {
+  "variant": "before",
+  "qid": "C08",
+  "quantity": "days of cover FOOD_D011",
+  "tool": "get_sku_360",
+  "tool_value": 4.3,
+  "truth": 4.31,
+  "tol": 0.3019717858287913,
+  "agrees_with_truth": true
+ },
+ {
+  "variant": "before",
+  "qid": "C08",
+  "quantity": "days of cover FOOD_D011",
+  "tool": "get_inventory_status",
+  "tool_value": 4.4,
+  "truth": 4.31,
+  "tol": 0.3019717858287913,
+  "agrees_with_truth": true
+ },
+ {
+  "variant": "before",
+  "qid": "C08",
+  "quantity": "days of cover FOOD_D011",
+  "tool": "get_stockout_risk",
+  "tool_value": 4.4,
+  "truth": 4.31,
+  "tol": 0.3019717858287913,
+  "agrees_with_truth": true
+ },
+ {
+  "variant": "before",
+  "qid": "C09",
+  "quantity": "# critical SKUs",
+  "tool": "get_stockout_prediction",
+  "tool_value": 3.0,
+  "truth": 0.0,
+  "tol": 0.01,
+  "agrees_with_truth": false
+ },
+ {
+  "variant": "before",
+  "qid": "C09",
+  "quantity": "# critical SKUs",
+  "tool": "get_supply_chain_dashboard",
+  "tool_value": 0.0,
+  "truth": 0.0,
+  "tol": 0.01,
+  "agrees_with_truth": true
+ },
+ {
+  "variant": "before",
+  "qid": "C09",
+  "quantity": "# critical SKUs",
+  "tool": "get_reorder_list (SKUs needing reorder)",
+  "tool_value": 0.0,
+  "truth": 0.0,
+  "tol": 0.01,
+  "agrees_with_truth": true
+ },
+ {
+  "variant": "before",
+  "qid": "C10",
+  "quantity": "SKU with lowest cover",
+  "tool": "get_stockout_prediction",
+  "tool_value": "EXT_059",
+  "truth": "GIFT_002",
+  "tol": null,
+  "agrees_with_truth": false
+ },
+ {
+  "variant": "before",
+  "qid": "C10",
+  "quantity": "SKU with lowest cover",
+  "tool": "get_stockout_risk",
+  "tool_value": "GIFT_002",
+  "truth": "GIFT_002",
+  "tol": null,
+  "agrees_with_truth": true
+ },
+ {
+  "variant": "before",
+  "qid": "C12",
+  "quantity": "2025 OTD % Trixie India",
+  "tool": "get_supplier_lead_time_tracker",
+  "tool_value": 89.7,
+  "truth": 89.24,
+  "tol": 0.1,
+  "agrees_with_truth": false
+ },
+ {
+  "variant": "before",
+  "qid": "A05",
+  "quantity": "2025 OTD % Royal Canin India",
+  "tool": "get_supplier_lead_time_tracker",
+  "tool_value": 96.5,
+  "truth": 96.75,
+  "tol": 0.1,
+  "agrees_with_truth": false
+ },
+ {
+  "variant": "before",
+  "qid": "C14",
+  "quantity": "inventory EXT_059",
+  "tool": "get_stockout_prediction (store-level sum)",
+  "tool_value": 348.0,
+  "truth": 375.0,
+  "tol": 0.5,
+  "agrees_with_truth": false
+ },
+ {
+  "variant": "before",
+  "qid": "C14",
+  "quantity": "inventory EXT_059",
+  "tool": "get_sku_360",
+  "tool_value": 375.0,
+  "truth": 375.0,
+  "tol": 0.5,
+  "agrees_with_truth": true
+ },
+ {
+  "variant": "before",
+  "qid": "C14",
+  "quantity": "inventory EXT_059",
+  "tool": "get_inventory_status",
+  "tool_value": 375.0,
+  "truth": 375.0,
+  "tol": 0.5,
+  "agrees_with_truth": true
+ },
+ {
+  "variant": "after",
+  "qid": "C06",
+  "quantity": "days of cover EXT_059",
+  "tool": "get_stockout_prediction",
+  "tool_value": 4.6,
+  "truth": 4.81,
+  "tol": 0.33653846153846156,
+  "agrees_with_truth": true
+ },
+ {
+  "variant": "after",
+  "qid": "C06",
+  "quantity": "days of cover EXT_059",
+  "tool": "get_sku_360",
+  "tool_value": 4.8,
+  "truth": 4.81,
+  "tol": 0.33653846153846156,
+  "agrees_with_truth": true
+ },
+ {
+  "variant": "after",
+  "qid": "C06",
+  "quantity": "days of cover EXT_059",
+  "tool": "get_inventory_status",
+  "tool_value": 4.9,
+  "truth": 4.81,
+  "tol": 0.33653846153846156,
+  "agrees_with_truth": true
+ },
+ {
+  "variant": "after",
+  "qid": "C06",
+  "quantity": "days of cover EXT_059",
+  "tool": "get_stockout_risk",
+  "tool_value": 4.9,
+  "truth": 4.81,
+  "tol": 0.33653846153846156,
+  "agrees_with_truth": true
+ },
+ {
+  "variant": "after",
+  "qid": "C07",
+  "quantity": "days of cover EXT_077",
+  "tool": "get_stockout_prediction",
+  "tool_value": 17.2,
+  "truth": 15.58,
+  "tol": 1.0903846153846155,
+  "agrees_with_truth": false
+ },
+ {
+  "variant": "after",
+  "qid": "C07",
+  "quantity": "days of cover EXT_077",
+  "tool": "get_sku_360",
+  "tool_value": 15.6,
+  "truth": 15.58,
+  "tol": 1.0903846153846155,
+  "agrees_with_truth": true
+ },
+ {
+  "variant": "after",
+  "qid": "C07",
+  "quantity": "days of cover EXT_077",
+  "tool": "get_inventory_status",
+  "tool_value": 15.6,
+  "truth": 15.58,
+  "tol": 1.0903846153846155,
+  "agrees_with_truth": true
+ },
+ {
+  "variant": "after",
+  "qid": "C07",
+  "quantity": "days of cover EXT_077",
+  "tool": "get_stockout_risk",
+  "tool_value": 15.6,
+  "truth": 15.58,
+  "tol": 1.0903846153846155,
+  "agrees_with_truth": true
+ },
+ {
+  "variant": "after",
+  "qid": "C08",
+  "quantity": "days of cover FOOD_D011",
+  "tool": "get_stockout_prediction",
+  "tool_value": 4.1,
+  "truth": 4.31,
+  "tol": 0.3019717858287913,
+  "agrees_with_truth": true
+ },
+ {
+  "variant": "after",
+  "qid": "C08",
+  "quantity": "days of cover FOOD_D011",
+  "tool": "get_sku_360",
+  "tool_value": 4.3,
+  "truth": 4.31,
+  "tol": 0.3019717858287913,
+  "agrees_with_truth": true
+ },
+ {
+  "variant": "after",
+  "qid": "C08",
+  "quantity": "days of cover FOOD_D011",
+  "tool": "get_inventory_status",
+  "tool_value": 4.4,
+  "truth": 4.31,
+  "tol": 0.3019717858287913,
+  "agrees_with_truth": true
+ },
+ {
+  "variant": "after",
+  "qid": "C08",
+  "quantity": "days of cover FOOD_D011",
+  "tool": "get_stockout_risk",
+  "tool_value": 4.4,
+  "truth": 4.31,
+  "tol": 0.3019717858287913,
+  "agrees_with_truth": true
+ },
+ {
+  "variant": "after",
+  "qid": "C09",
+  "quantity": "# critical SKUs",
+  "tool": "get_stockout_prediction",
+  "tool_value": 0.0,
+  "truth": 0.0,
+  "tol": 0.01,
+  "agrees_with_truth": true
+ },
+ {
+  "variant": "after",
+  "qid": "C09",
+  "quantity": "# critical SKUs",
+  "tool": "get_supply_chain_dashboard",
+  "tool_value": 0.0,
+  "truth": 0.0,
+  "tol": 0.01,
+  "agrees_with_truth": true
+ },
+ {
+  "variant": "after",
+  "qid": "C09",
+  "quantity": "# critical SKUs",
+  "tool": "get_reorder_list (SKUs needing reorder)",
+  "tool_value": 0.0,
+  "truth": 0.0,
+  "tol": 0.01,
+  "agrees_with_truth": true
+ },
+ {
+  "variant": "after",
+  "qid": "C10",
+  "quantity": "SKU with lowest cover",
+  "tool": "get_stockout_prediction",
+  "tool_value": "GIFT_002",
+  "truth": "GIFT_002",
+  "tol": null,
+  "agrees_with_truth": true
+ },
+ {
+  "variant": "after",
+  "qid": "C10",
+  "quantity": "SKU with lowest cover",
+  "tool": "get_stockout_risk",
+  "tool_value": "GIFT_002",
+  "truth": "GIFT_002",
+  "tol": null,
+  "agrees_with_truth": true
+ },
+ {
+  "variant": "after",
+  "qid": "C12",
+  "quantity": "2025 OTD % Trixie India",
+  "tool": "get_supplier_lead_time_tracker",
+  "tool_value": 89.7,
+  "truth": 89.24,
+  "tol": 0.1,
+  "agrees_with_truth": false
+ },
+ {
+  "variant": "after",
+  "qid": "A05",
+  "quantity": "2025 OTD % Royal Canin India",
+  "tool": "get_supplier_lead_time_tracker",
+  "tool_value": 96.5,
+  "truth": 96.75,
+  "tol": 0.1,
+  "agrees_with_truth": false
+ },
+ {
+  "variant": "after",
+  "qid": "C14",
+  "quantity": "inventory EXT_059",
+  "tool": "get_stockout_prediction (store-level sum)",
+  "tool_value": 348.0,
+  "truth": 375.0,
+  "tol": 0.5,
+  "agrees_with_truth": false
+ },
+ {
+  "variant": "after",
+  "qid": "C14",
+  "quantity": "inventory EXT_059",
+  "tool": "get_sku_360",
+  "tool_value": 375.0,
+  "truth": 375.0,
+  "tol": 0.5,
+  "agrees_with_truth": true
+ },
+ {
+  "variant": "after",
+  "qid": "C14",
+  "quantity": "inventory EXT_059",
+  "tool": "get_inventory_status",
+  "tool_value": 375.0,
+  "truth": 375.0,
+  "tol": 0.5,
+  "agrees_with_truth": true
+ }
+]

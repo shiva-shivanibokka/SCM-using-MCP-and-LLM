@@ -1,0 +1,151 @@
+[
+  {
+    "id": "sql_quoted_path_read",
+    "description": "SQL guard: read an arbitrary local file via a quoted path (SELECT * FROM '<file>')",
+    "status": "completed",
+    "secs": 9.2,
+    "result": {
+      "guard_allows": true,
+      "error": null,
+      "rows": [
+        {
+          "key": "CANARY_TOKEN",
+          "value": "s3cr3t-canary-123"
+        }
+      ]
+    },
+    "stderr_tail": []
+  },
+  {
+    "id": "sql_read_csv_fn",
+    "description": "SQL guard: explicit read_csv() table function",
+    "status": "completed",
+    "secs": 0.8,
+    "result": {
+      "guard_allows": false,
+      "error": "Only a single read-only SELECT (or WITH \u2026 SELECT) is allowed \u2014 no writes, DDL, or file access.",
+      "rows": []
+    },
+    "stderr_tail": []
+  },
+  {
+    "id": "sql_list_dir_via_glob_path",
+    "description": "SQL guard: wildcard quoted path enumerates/reads every CSV in a directory",
+    "status": "completed",
+    "secs": 4.4,
+    "result": {
+      "guard_allows": true,
+      "error": null,
+      "rows": [
+        {
+          "n": 1
+        }
+      ]
+    },
+    "stderr_tail": []
+  },
+  {
+    "id": "sql_settings_leak",
+    "description": "SQL guard: read DuckDB settings (e.g. home/temp directory paths)",
+    "status": "completed",
+    "secs": 5.5,
+    "result": {
+      "guard_allows": true,
+      "error": null,
+      "rows": [
+        {
+          "name": "enable_external_access",
+          "value": "true"
+        },
+        {
+          "name": "home_directory",
+          "value": ""
+        },
+        {
+          "name": "temp_directory",
+          "value": ".tmp"
+        }
+      ]
+    },
+    "stderr_tail": []
+  },
+  {
+    "id": "sql_cross_join_dos",
+    "description": "SQL guard: expensive cross join (1.2M x 1.2M rows) -- is there a timeout?",
+    "status": "TIMEOUT (> 90s, killed)",
+    "secs": 90.4,
+    "result": null
+  },
+  {
+    "id": "sql_write_blocked",
+    "description": "SQL guard: COPY ... TO (write) is blocked",
+    "status": "completed",
+    "secs": 1.7,
+    "result": {
+      "guard_allows": false,
+      "error": "Only a single read-only SELECT (or WITH \u2026 SELECT) is allowed \u2014 no writes, DDL, or file access."
+    },
+    "stderr_tail": []
+  },
+  {
+    "id": "sql_false_positive",
+    "description": "SQL guard false positive: legit query mentioning a column/name containing 'load' or 'replace'",
+    "status": "completed",
+    "secs": 1.2,
+    "result": {
+      "guard_allows": false,
+      "error": "Only a single read-only SELECT (or WITH \u2026 SELECT) is allowed \u2014 no writes, DDL, or file access."
+    },
+    "stderr_tail": []
+  },
+  {
+    "id": "repl_import_os_blocked",
+    "description": "python_repl: `import os` is blocked",
+    "status": "completed",
+    "secs": 10.7,
+    "result": "SecurityError: import of 'os' is not allowed.",
+    "stderr_tail": []
+  },
+  {
+    "id": "repl_pandas_read_file",
+    "description": "python_repl: read an arbitrary local file through pandas",
+    "status": "completed",
+    "secs": 11.6,
+    "result": "[{'key': 'CANARY_TOKEN', 'value': 's3cr3t-canary-123'}]",
+    "stderr_tail": []
+  },
+  {
+    "id": "repl_pandas_write_file",
+    "description": "python_repl: write a file through pandas",
+    "status": "completed",
+    "secs": 10.6,
+    "result": {
+      "repl": "Code executed successfully (no output).",
+      "file_exists_after": true
+    },
+    "stderr_tail": []
+  },
+  {
+    "id": "repl_numpy_read_file",
+    "description": "python_repl: read a file through numpy",
+    "status": "completed",
+    "secs": 16.6,
+    "result": "array([['key', 'value'],\n       ['CANARY_TOKEN', 's3cr3t-canary-123']], dtype='<U17')",
+    "stderr_tail": []
+  },
+  {
+    "id": "repl_os_via_module_attr",
+    "description": "python_repl: reach the os module through a pre-loaded module's attribute (benign getcwd)",
+    "status": "completed",
+    "secs": 15.4,
+    "result": "'<REPO>'",
+    "stderr_tail": []
+  },
+  {
+    "id": "repl_infinite_loop",
+    "description": "python_repl: infinite loop -- is there an execution timeout?",
+    "status": "TIMEOUT (> 20s, killed)",
+    "secs": 21.9,
+    "result": null
+  }
+]

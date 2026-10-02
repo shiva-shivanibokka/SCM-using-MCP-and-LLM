@@ -1,0 +1,26 @@
+- sql_quoted_path_read: completed (9.2s)
+    {"guard_allows": true, "error": null, "rows": [{"key": "CANARY_TOKEN", "value": "s3cr3t-canary-123"}]}
+- sql_read_csv_fn: completed (0.8s)
+    {"guard_allows": false, "error": "Only a single read-only SELECT (or WITH \u2026 SELECT) is allowed \u2014 no writes, DDL, or file access.", "rows": []}
+- sql_list_dir_via_glob_path: completed (4.4s)
+    {"guard_allows": true, "error": null, "rows": [{"n": 1}]}
+- sql_settings_leak: completed (5.5s)
+    {"guard_allows": true, "error": null, "rows": [{"name": "enable_external_access", "value": "true"}, {"name": "home_directory", "value": ""}, {"name": "temp_directory", "value": ".tmp"}]}
+- sql_cross_join_dos: TIMEOUT (> 90s, killed) (90.4s)
+    null
+- sql_write_blocked: completed (1.7s)
+    {"guard_allows": false, "error": "Only a single read-only SELECT (or WITH \u2026 SELECT) is allowed \u2014 no writes, DDL, or file access."}
+- sql_false_positive: completed (1.2s)
+    {"guard_allows": false, "error": "Only a single read-only SELECT (or WITH \u2026 SELECT) is allowed \u2014 no writes, DDL, or file access."}
+- repl_import_os_blocked: completed (10.7s)
+    "SecurityError: import of 'os' is not allowed."
+- repl_pandas_read_file: completed (11.6s)
+    "[{'key': 'CANARY_TOKEN', 'value': 's3cr3t-canary-123'}]"
+- repl_pandas_write_file: completed (10.6s)
+    {"repl": "Code executed successfully (no output).", "file_exists_after": true}
+- repl_numpy_read_file: completed (16.6s)
+    "array([['key', 'value'],\n       ['CANARY_TOKEN', 's3cr3t-canary-123']], dtype='<U17')"
+- repl_os_via_module_attr: completed (15.4s)
+    "'<REPO>'"
+- repl_infinite_loop: TIMEOUT (> 20s, killed) (21.9s)
+    null
