@@ -83,6 +83,26 @@ SUBSET = ["run_sql_query", "python_repl", "get_sku_360", "get_stockout_risk",
           "get_channel_revenue_attribution", "get_brand_performance"]
 TRUNC_CHARS = 4000
 
+# "compact" tool set for an 8192-token context budget: the full system prompt
+# (~4.3k llama3.1 tokens) + all 54 tool schemas (~7.9k) cannot fit in 8192, so
+# the constrained configuration offers 10 tools (~1.7k tokens), including the
+# buggy-before-fix get_stockout_prediction so the before/after test is live.
+COMPACT = ["run_sql_query", "python_repl", "get_sku_360", "get_stockout_prediction",
+           "get_stockout_risk", "get_supplier_lead_time_tracker", "get_return_rate_analysis",
+           "get_cold_chain_monitor", "get_channel_revenue_attribution", "get_brand_performance"]
+
+
+class ContextBudgetExceeded(RuntimeError):
+    pass
+
+
+def est_tokens(system: str, messages: list, tools: list) -> int:
+    # Calibrated on llama3.1:8b prompt_eval_count: system prompt 19,385 chars ->
+    # 4,330 tok (4.48 c/t); 10 tool schemas 6,790 chars -> 1,718 tok (3.95 c/t).
+    # Conversation text is counted conservatively at 3.3 chars/token.
+    conv = sum(len(json.dumps(m, ensure_ascii=False)) for m in messages)
+    return int(len(system) / 4.4 + len(json.dumps(tools)) / 3.9 + conv / 3.3) + 30
+
 
 class _Msg:
     def __init__(self, d):
@@ -166,6 +186,8 @@ class Runner:
             prompt = prompt + RECONCILE
         if ablation == "subset":
             tools = [t for t in tools if t["name"] in SUBSET]
+        if self.args.tools == "compact":
+            tools = [t for t in tools if t["name"] in COMPACT]
         A.SYSTEM_PROMPT = prompt
         self.tools = tools
         self.allowed = {t["name"] for t in tools}
@@ -184,12 +206,19 @@ class Runner:
     async def _call_llm(self, messages, mcp_tools, provider, model, api_key):
         a = self.args
         body = {"model": a.model, "messages": to_ollama(messages, self.A.SYSTEM_PROMPT),
-                "stream": False, "keep_alive": "30m",
+                "stream": False, "keep_alive": a.keep_alive,
                 "options": {"num_ctx": a.num_ctx, "temperature": a.temperature,
-                            "seed": self.seed, "num_predict": 4096}}
+                            "seed": self.seed, "num_predict": a.num_predict}}
         if mcp_tools:
             body["tools"] = self.A._mcp_tools_to_openai(mcp_tools)
         est_prompt_chars = len(json.dumps(body["messages"])) + len(json.dumps(body.get("tools", [])))
+        est_tok = est_tokens(self.A.SYSTEM_PROMPT, body["messages"][1:], body.get("tools", []))
+        if a.max_prompt_tokens and est_tok > a.max_prompt_tokens:
+            self.budget_exceeded = est_tok
+            self.llm.append({"t": 0, "prompt_eval_count": None, "eval_count": None,
+                             "est_prompt_tokens": est_tok, "done_reason": "context_budget_exceeded",
+                             "error": None})
+            raise ContextBudgetExceeded(f"estimated prompt {est_tok} tok > budget {a.max_prompt_tokens}")
         t0 = time.time()
         err = None
         j = {}
@@ -210,7 +239,7 @@ class Runner:
         dt = time.time() - t0
         msg = j.get("message", {}) if not err else {}
         self.llm.append({"t": round(dt, 1), "prompt_eval_count": j.get("prompt_eval_count"),
-                         "eval_count": j.get("eval_count"), "est_prompt_tokens": est_prompt_chars // 4,
+                         "eval_count": j.get("eval_count"), "est_prompt_tokens": est_tok, "est_prompt_chars": est_prompt_chars,
                          "done_reason": j.get("done_reason"), "error": err})
         if err:
             self.infra_error = err
@@ -244,8 +273,9 @@ class Runner:
             from agent.mcp_client import call_tool
             res = await call_tool(name, arguments if isinstance(arguments, dict) else {})
         full_len = len(res)
-        if self.ablation == "truncate" and len(res) > TRUNC_CHARS:
-            res = res[:TRUNC_CHARS] + f"\n...[truncated {full_len - TRUNC_CHARS} chars]"
+        lim = TRUNC_CHARS if self.ablation == "truncate" else self.args.trunc_chars
+        if lim and len(res) > lim:
+            res = res[:lim] + f"\n...[truncated {full_len - lim} chars]"
         self.calls.append({"name": name, "input": arguments, "result": res,
                            "full_len": full_len, "t": round(time.time() - t0, 2)})
         return res
@@ -255,6 +285,7 @@ class Runner:
         self.seed = seed
         self.calls, self.llm = [], []
         self.infra_error = None
+        self.budget_exceeded = None
         steps, answer, error = [], None, None
         t0 = time.time()
         try:
@@ -268,7 +299,8 @@ class Runner:
                     steps.append(ev["text"])
         except Exception as e:
             error = f"{type(e).__name__}: {e}"
-        return {"answer": answer, "error": error, "infra_error": self.infra_error, "thinking": steps, "tool_calls": self.calls,
+        return {"answer": answer, "error": error, "infra_error": self.infra_error,
+                "context_budget_exceeded": self.budget_exceeded, "thinking": steps, "tool_calls": self.calls,
                 "llm_calls": self.llm, "wall_s": round(time.time() - t0, 1)}
 
 
@@ -284,6 +316,13 @@ def main():
     ap.add_argument("--num-ctx", dest="num_ctx", type=int, default=32768)
     ap.add_argument("--temperature", type=float, default=0.7)
     ap.add_argument("--call-timeout", dest="call_timeout", type=float, default=1200)
+    ap.add_argument("--tools", choices=["all", "compact"], default="all")
+    ap.add_argument("--trunc-chars", dest="trunc_chars", type=int, default=0,
+                    help="truncate every tool result to N chars (0 = full output)")
+    ap.add_argument("--max-prompt-tokens", dest="max_prompt_tokens", type=int, default=0,
+                    help="end a run (counted as failed) if the estimated prompt exceeds this")
+    ap.add_argument("--num-predict", dest="num_predict", type=int, default=4096)
+    ap.add_argument("--keep-alive", dest="keep_alive", default="30m")
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
 
@@ -326,6 +365,8 @@ def main():
                    "ablation": args.ablation, "seed": seed, "model": args.model,
                    "model_digest": digest, "ollama_version": ver, "num_ctx": args.num_ctx,
                    "temperature": args.temperature, "n_tools_offered": len(runner.tools),
+                   "tools_config": args.tools, "trunc_chars": args.trunc_chars,
+                   "max_prompt_tokens": args.max_prompt_tokens, "num_predict": args.num_predict,
                    "ts": time.strftime("%Y-%m-%dT%H:%M:%S"), **res}
             with out.open("a", encoding="utf-8") as f:
                 f.write(json.dumps(rec, default=str) + "\n")
