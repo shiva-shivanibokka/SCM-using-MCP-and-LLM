@@ -2048,6 +2048,17 @@ def tool_python_repl(code: str) -> str:
         "termios",
         "tty",
     }
+    _BLOCKED_ATTRS = {
+        "os", "sys", "subprocess", "shutil", "pathlib", "io", "builtins", "importlib",
+        "ctypes", "socket", "load", "save", "savez", "savez_compressed", "loadtxt",
+        "savetxt", "genfromtxt", "fromfile", "tofile", "memmap", "fromregex",
+        "DataSource", "ExcelWriter", "HDFStore", "ExcelFile",
+    }
+    _BLOCKED_TO_IO = {
+        "to_csv", "to_excel", "to_parquet", "to_pickle", "to_json", "to_sql", "to_hdf",
+        "to_feather", "to_stata", "to_html", "to_xml", "to_latex", "to_clipboard", "to_orc",
+        "to_gbq",
+    }
     try:
         tree = ast.parse(code)
         for node in ast.walk(tree):
@@ -2070,6 +2081,20 @@ def tool_python_repl(code: str) -> str:
                         f"SecurityError: access to dunder attribute "
                         f"'{node.attr}' is not allowed in the sandbox."
                     )
+            # Block file / network I/O reachable through the pre-loaded pandas and
+            # numpy modules (pd.read_csv, df.to_csv, np.loadtxt, ...) and module
+            # attributes that lead back to os/sys (e.g. pd.io.common.os). Without
+            # this, the import blacklist above can be sidestepped entirely.
+            # NOTE: name-based blocklist = defence in depth, not a real sandbox.
+            if isinstance(node, ast.Attribute) and (
+                node.attr in _BLOCKED_ATTRS
+                or node.attr.startswith("read_")
+                or node.attr in _BLOCKED_TO_IO
+            ):
+                return (
+                    f"SecurityError: attribute '{node.attr}' (file/OS access) "
+                    f"is not allowed in the sandbox."
+                )
             # Block names that reference dunder globals
             if isinstance(node, ast.Name):
                 if node.id.startswith("__") and node.id.endswith("__"):

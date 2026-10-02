@@ -1,0 +1,7 @@
+### tests/test_python_repl_sandbox.py against BASE tool_python_repl (unchanged on branch so far)
+PASSED tests/test_python_repl_sandbox.py::test_normal_analysis_still_works
+FAILED tests/test_python_repl_sandbox.py::test_pandas_read_of_local_file_blocked
+FAILED tests/test_python_repl_sandbox.py::test_numpy_read_of_local_file_blocked
+FAILED tests/test_python_repl_sandbox.py::test_pandas_write_blocked - Asserti...
+FAILED tests/test_python_repl_sandbox.py::test_os_via_module_attribute_blocked
+4 failed, 1 passed in 13.13s

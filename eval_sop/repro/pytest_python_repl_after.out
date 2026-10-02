@@ -1,0 +1,7 @@
+### tests/test_python_repl_sandbox.py after fix
+PASSED tests/test_python_repl_sandbox.py::test_normal_analysis_still_works
+PASSED tests/test_python_repl_sandbox.py::test_pandas_read_of_local_file_blocked
+PASSED tests/test_python_repl_sandbox.py::test_numpy_read_of_local_file_blocked
+PASSED tests/test_python_repl_sandbox.py::test_pandas_write_blocked
+PASSED tests/test_python_repl_sandbox.py::test_os_via_module_attribute_blocked
+5 passed in 12.96s
