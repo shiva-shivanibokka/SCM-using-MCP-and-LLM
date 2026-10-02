@@ -1,0 +1,4 @@
+### tests/test_sql_guard.py against BASE intelligence/sql.py (unchanged on branch so far)
+E       assert None is not None
+E       TypeError: run_query() got an unexpected keyword argument 'timeout_s'
+2 failed, 1 passed in 6.37s
