@@ -123,6 +123,7 @@ def grade(run: dict, q: dict) -> dict:
         "seed": run["seed"], "fix_relevant": q["fix_relevant"],
         "strict": int(strict), "lenient": int(lenient), "has_final": int(fin is not None),
         "error": int(bool(run.get("error"))), "infra_error": int(bool(run.get("infra_error"))),
+        "budget_exceeded": int(bool(run.get("context_budget_exceeded"))),
         "tool_ok": int(bool(ok_names & acc_tools)),
         "n_tool_calls": len(calls), "n_failed_tool_calls": sum(not ok_result(c["result"]) for c in calls),
         "n_db_tool_calls": sum(n in DB_TOOLS for n in names),

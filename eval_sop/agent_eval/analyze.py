@@ -70,6 +70,7 @@ def summarise(df, label, rng, cols=("strict", "lenient", "tool_ok", "has_final")
         out[c] = {"mean": float(df[c].mean()), "median": float(df[c].median()), "std": float(df[c].std(ddof=1)) if len(df) > 1 else np.nan}
     out["hit_max_iter_rate"] = float(df.hit_max_iter.mean())
     out["error_rate"] = float(df.error.mean())
+    out["budget_exceeded_rate"] = float(df.budget_exceeded.mean()) if "budget_exceeded" in df else None
     return out
 
 
@@ -120,8 +121,8 @@ def main():
     df.to_csv(RES / "graded.csv", index=False)
     d = df[df.infra_error == 0]
     S = {"n_infra_error_runs_excluded": int(len(infra)), "groups": {}}
-    md = ["| Condition | n runs (Qs x seeds) | Accuracy strict (± seed std) [95% CI] | Accuracy lenient | Tool-selection OK | Mean LLM calls | Mean tool calls | Mean output tok | Mean est. context tok/run |",
-          "|---|---|---|---|---|---|---|---|---|"]
+    md = ["| Condition | n runs (Qs x seeds) | Accuracy strict (± seed std) [95% CI] | Accuracy lenient | Tool-selection OK | Mean LLM calls | Mean tool calls | Mean output tok | Mean est. context tok/run | Budget-exceeded |",
+          "|---|---|---|---|---|---|---|---|---|---|"]
     groups = []
     main_ = d[(d.variant == "after") & (d.ablation == "none")]
     groups.append(("after (fixed), all 56 Qs", main_))
@@ -129,8 +130,10 @@ def main():
         groups.append((f"after, {cat}", main_[main_.category == cat]))
     bef = d[(d.variant == "before") & (d.ablation == "none")]
     fr = sorted(bef.qid.unique())
-    groups.append(("before (base prompt + single-day velocity), fix-relevant Qs", bef))
-    groups.append(("after, same fix-relevant Qs", main_[main_.qid.isin(fr)]))
+    frq = [q for q, v in qs.items() if v["fix_relevant"]]
+    groups.append(("before (base prompt + single-day velocity), all Qs", bef))
+    groups.append(("before, fix-relevant Qs", bef[bef.qid.isin(frq)]))
+    groups.append(("after, same fix-relevant Qs", main_[main_.qid.isin(frq)]))
     cm = main_[main_.category.isin(["conflict", "multihop"])]
     for ab in ["reconcile", "subset", "truncate"]:
         a = d[(d.variant == "after") & (d.ablation == ab)]
@@ -144,12 +147,13 @@ def main():
         s = summarise(g, label, rng); S["groups"][label] = s
         md.append(f"| {label} | {s['n_runs']} ({s['n_questions']}x{len(s['seeds'])}) | {fmt(s['strict'])} | {fmt(s['lenient'])} | "
                   f"{fmt(s['tool_ok'])} | {s['n_llm_calls']['mean']:.1f} | {s['n_tool_calls']['mean']:.1f} | "
-                  f"{s['output_tokens']['mean']:.0f} | {s['est_context_tokens']['mean']:.0f} |")
+                  f"{s['output_tokens']['mean']:.0f} | {s['est_context_tokens']['mean']:.0f} | {100*s['budget_exceeded_rate']:.0f}% |")
     S["conflict_after"] = conflict_metrics(main_[main_.category == "conflict"], rng)
     if len(bef):
-        S["conflict_before"] = conflict_metrics(bef, rng)
-        S["conflict_after_same_qs"] = conflict_metrics(main_[main_.qid.isin(fr)], rng)
-        S["before_vs_after_strict"] = paired_diff(bef, main_[main_.qid.isin(fr)], "strict", rng)
+        S["conflict_before"] = conflict_metrics(bef[bef.category == "conflict"], rng)
+        S["before_vs_after_strict_all"] = paired_diff(bef, main_[main_.qid.isin(fr)], "strict", rng)
+        S["before_vs_after_strict_fix_relevant"] = paired_diff(bef[bef.qid.isin(frq)], main_[main_.qid.isin(frq)], "strict", rng)
+        S["before_vs_after_distractor_fix_relevant"] = paired_diff(bef[bef.qid.isin(frq)].dropna(subset=["distractor_final"]), main_[main_.qid.isin(frq)].dropna(subset=["distractor_final"]), "distractor_final", rng)
     for ab in ["reconcile", "subset", "truncate"]:
         a = d[(d.variant == "after") & (d.ablation == ab)]
         if len(a):
