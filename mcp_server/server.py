@@ -49,7 +49,7 @@ Exposes 50 MCP tools:
   38. get_marketing_campaign_recommendations — top 5 categories to promote / avoid
   39. get_inventory_financial_summary  — CFO-level inventory value, margin, working capital
   40. get_customer_cohort_demand_analysis — quarterly cohort LTV, retention, top products
-  41. get_store_level_demand_intelligence — 67-store demand intelligence, rebalancing
+  41. get_store_level_demand_intelligence — store-level demand intelligence, rebalancing
   42. get_supplier_negotiation_brief   — leverage score, YoY volume, negotiation talking points
   43. get_product_recommendation       — pet-specific product recommendations (breed/age/health)
   44. get_store_inventory_breakdown    — per-store live inventory from DB (city/region/risk)
@@ -5164,7 +5164,7 @@ MCP_TOOLS = [
     {
         "name": "get_customer_segmentation_insights",
         "description": (
-            "Customer segment analysis for the Pet Store's 5000 customers. "
+            "Customer segment analysis for the Pet Store's 25,000 customers. "
             "Shows: avg order value, purchase frequency, LTV, top categories, preferred channel per segment. "
             "Recommends inventory allocation per segment. "
             "USE THIS for: 'customer segments', 'who buys most', 'segment LTV', 'top customer profiles'."
@@ -5327,7 +5327,7 @@ MCP_TOOLS = [
     {
         "name": "get_store_level_demand_intelligence",
         "description": (
-            "Store-level demand intelligence for the Pet Store's 67 stores across India. "
+            "Store-level demand intelligence for the Pet Store's 92 stores across India. "
             "Identifies stores with unique demand vs national average, consistently under/overstocked stores. "
             "Shows top SKUs per store and inventory rebalancing opportunities. "
             "USE THIS for: 'store performance', 'city-wise demand', 'which city sells most', "
