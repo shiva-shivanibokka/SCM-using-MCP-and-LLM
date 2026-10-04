@@ -5,11 +5,11 @@ Everything here was measured on this machine on 2026-10-01; the LLM agent eval (
 ## 0. Bottom line
 
 - **Forecasting.** The evaluation is complete: 160 SKUs, 4 rolling origins, a 30-day multi-step horizon, 3 seeds, and baselines.
-  - The global CatBoost beats a 28-day moving average: 13.24% vs 14.77% sMAPE, a paired difference of −1.53 pp, 95% CI [−1.92, −1.10].
-  - **Most of that gain comes from one festival-season origin.**
-  - The per-SKU CatBoost behind the README's `backtest_smape` is **worse** than the moving average (17.80%).
-- **Tool consistency.** This check needs no LLM and is complete. On 10 quantities where overlapping tools could disagree, 8 of 22 tool readings were wrong against pandas ground truth before the fixes, and 4 of 22 after.
-- **Security.** Complete. Arbitrary local-file reads were possible through both `run_sql_query` and `python_repl`, and there was no SQL timeout. Both are fixed, and each has a regression test that fails on the base commit.
+  - Over all 4 origins the global CatBoost beats a 28-day moving average: 13.24% vs 14.77% sMAPE.
+  - **The gain comes *entirely* from one festival-season origin (Oct→Nov).** Drop it and CatBoost is +0.17 pp *worse* than MA28. An origin-clustered 95% CI for the difference is [−4.88, +0.48] and includes 0.
+  - The per-SKU CatBoost behind the README's `backtest_smape` is **worse** than the moving average at every origin (17.80% overall).
+- **Tool consistency.** This check needs no LLM and is complete. Of the overlapping tools, **only `get_stockout_prediction` was buggy**: it was wrong on 5 of 5 readings before the fix, and the fix brought 4 within tolerance (the 5th, C07, stays out only because the fix uses a 28-day window while the ground truth uses 30). The other cross-tool disagreements are **definition differences, not bugs** (all-months vs 2025 supplier averages; store-level vs SKU-level inventory; a reorder list that measures a different quantity). The evaluator chose the 10 quantities and the tolerances.
+- **Security.** Arbitrary local-file reads were possible through both `run_sql_query` and `python_repl`, and SQL had no timeout. The SQL path is now closed at the database-engine level and has a 20 s timeout. The Python tool is a **hardened blocklist, not a sandbox**: a first pass plus a review follow-up closed every file/process route I could enumerate (each with a test that fails on the prior code), but it has no OS-level isolation and no execution timeout, so an un-enumerated route could remain.
 - **LLM agent accuracy eval. Completed on 2026-10-02, but in a *constrained* configuration, not the deployed one.**
   - Setup: local `llama3.1:8b` with a context of at most 8,192 tokens.
     - The full system prompt (about 4.3k tokens) plus all 54 tool schemas (about 7.9k) does not fit in 8,192 tokens.
@@ -22,7 +22,9 @@ Everything here was measured on this machine on 2026-10-01; the LLM agent eval (
     | lookup | 91.7% | [80.6, 100] |
     | aggregation | 52.1% | [31.2, 72.9] |
     | multi-hop | 9.5% | [2.4, 16.7] |
-    | conflict | 42.9% | [21.4, 64.3] |
+    | conflict (all 14) | 42.9% | [21.4, 64.3] |
+    | &nbsp;&nbsp;· conflict: stale-count C01–C05 | 80.0% | [53.3, 100] |
+    | &nbsp;&nbsp;· conflict: real two-tool C06–C13 | **12.5%** (3/24) | [0, 25] |
 
   - **The before/after fix shows no measurable effect on the agent:**
     - All 56 questions: 47.6% before vs 47.6% after; paired difference 0.0 pp, CI [−6.0, +6.0].
@@ -52,7 +54,7 @@ python -m eval_sop.agent_eval.tool_conflicts           # tool vs ground truth, b
 python eval_sop/security/security_probe.py             # SQL / python_repl probes (scratch-dir canaries only)
 python eval_sop/repro/repro_stockout.py; python eval_sop/repro/repro_prompt_counts.py
 python -m eval_sop.agent_eval.questions                # rebuild question bank + ground truth
-PY=python bash eval_sop/agent_eval/run_all.sh          # agent eval (needs a responsive Ollama with qwen2.5:7b)
+PY=python bash eval_sop/agent_eval/run_all.sh          # agent eval (needs a responsive Ollama with llama3.1:8b)
 python -m eval_sop.agent_eval.analyze                  # grading + bootstrap CIs
 ```
 
@@ -63,7 +65,7 @@ python -m eval_sop.agent_eval.analyze                  # grading + bootstrap CIs
 - Origins: 2025-06-30, 08-31, 10-31, 12-01.
 - H = 30 days, recursive forecasts, with no data after the origin.
 - n = 640 SKU-origin pairs per model.
-- 95% CIs come from a SKU-cluster bootstrap (2,000 reps).
+- 95% CIs come from a SKU-cluster bootstrap (2,000 reps). **This CI treats each of the 160 SKUs as a cluster but still pools all 4 origins, so it does not capture origin-to-origin variance (see the per-origin caveat below) — with only 4 origins it is too narrow for a "general" claim.**
 - CatBoost results are averaged over seeds 0, 1 and 2.
 
 | model | sMAPE % mean ± SD [95% CI] | MASE₇ mean ± SD [95% CI] |
@@ -89,7 +91,10 @@ python -m eval_sop.agent_eval.analyze                  # grading + bootstrap CIs
 | Oct→Nov (Diwali) | 19.72 | 13.07 |
 | Dec | 14.51 | 14.06 |
 
-CatBoost **loses** at 2 of the 4 origins.
+**CatBoost's advantage comes *entirely* from the one Oct→Nov (Diwali) origin.**
+- Per-origin ΔsMAPE (CatBoost − MA28): Jun **+0.42**, Aug **+0.55**, Oct→Nov **−6.65**, Dec **−0.45**. CatBoost is worse at 2 of 4 origins and essentially tied at Dec.
+- **Drop the Oct→Nov origin and CatBoost is +0.17 pp *worse* than MA28** (13.29 vs 13.12 over the other 3 origins, 480 pairs).
+- Clustering the bootstrap by origin instead of SKU (resampling the 4 origin-level mean diffs) gives ΔsMAPE −1.53 pp, **95% CI [−4.88, +0.48] — it includes 0.** The narrow SKU-clustered CI [−1.92, −1.10] above overstates the evidence because it ignores that the whole effect rides on a single origin.
 
 **Seed SD of CatBoost global:** 0.13 pp.
 
@@ -116,10 +121,12 @@ Each MCP tool was called in-process. The value it reports was parsed and compare
 | EXT_059 inventory (C14) | get_stockout_prediction (store-level table) | **348** | **348** | 375 |
 | (the other 14 readings: get_sku_360, get_inventory_status, get_stockout_risk, dashboard, reorder list) | | correct | correct | |
 
-**Total: 14/22 readings correct before the fix, 18/22 after.** The remaining disagreements are *not* bugs in a single formula:
-- **Supplier OTD:** the tracker averages all 36 months, while the question asks about 2025.
-- **Store-level vs SKU-level inventory:** the tables disagree (348 vs 375). The store-level table also covers only 85 of the 92 stores.
-- **EXT_077:** after the fix, the 28-day store-level velocity differs from the 30-day SKU-level velocity.
+**Reframing (per the review).** The only genuine *bug* here is `get_stockout_prediction`: it was wrong on **5 of its 5 readings** before the fix (C06, C07, C08, C09, C10), and the fix brings **4 of 5** within tolerance. C07 stays outside tolerance only because the fix computes velocity over a 28-day window while this ground truth uses 30 days (17.2 vs 15.58) — a window choice, not a defect. The remaining non-matching readings are **not tool bugs**; they are legitimate definition differences, and the evaluator (me) chose both the 10 quantities and the tolerances, specifically to surface them:
+- **Supplier OTD (C12, A05):** `get_supplier_lead_time_tracker` reports a 36-month average; the question asks for 2025 only. (Design gap — no date filter — not an incorrect computation. Proposed fix in §6.)
+- **Inventory 348 vs 375 (C14):** a store-level table (summed over 85 of 92 stores) vs the SKU-level table. Two different sources, not a wrong number.
+- **`get_reorder_list`:** measures "SKUs above reorder point", a different quantity than days-of-cover.
+
+The aggregate "14/22 → 18/22" figure therefore describes **these ten evaluator-chosen quantities**, not the tool suite as a whole, and most of the delta is the single `get_stockout_prediction` fix.
 
 ### 2c. Stockout velocity bug (`eval_sop/repro/repro_stockout.out`, `tests/test_stockout_velocity.py`)
 
@@ -150,6 +157,19 @@ All probes ran locally, using canary files in the session scratch directory only
 | python_repl `pd.io.common.os.getcwd()` | **reached `os`** | SecurityError |
 | python_repl `while True: pass` | **no timeout** | **still no timeout** (not fixed; §6) |
 
+**Round-2 bypasses (found in adversarial review, closed in commit `d3c0c54`).** These are covered by `tests/test_python_repl_sandbox.py` (10 tests, all failing on branch HEAD `90606bc`, all passing after); `eval_sop/security/enumerate_io_routes.py` lists the routes walked. Booleans only — no probe echoes tool output.
+
+| round-2 probe | before (HEAD 90606bc) | after (`d3c0c54`) |
+|---|---|---|
+| `np.lib._datasource.open(path).read()` / `'w').write()` | **read canary / wrote file** | SecurityError |
+| `df.to_string(buf=path)` and `df.to_string(path)` | **wrote file** | SecurityError |
+| `df.info(buf=path)` | **wrote file** | SecurityError |
+| `np.lib.format.open_memmap(path, mode='w+')` | **created file** | SecurityError |
+| `ndarray.dump(path)` | **wrote file** | SecurityError |
+| `json.codecs.open(path).read()` / pandas `get_handle` | **read canary** | SecurityError |
+| `"{0.__globals__[sys]…}".format(obj)` | **traversed to os.environ** | SecurityError |
+| legit `to_string(index=False)`, `"{:,.2f}".format(x)`, f-strings | work | still work |
+
 ### 2e. LLM agent eval (`eval_sop/agent_eval/`; raw runs in `results/*.jsonl`, graded rows in `results/graded.csv`, aggregates in `results/summary.json`)
 
 **What was run.** The repo's own `run_agent_with_steps` loop, unmodified (up to 20 LLM turns), on local `llama3.1:8b`. Two seams are patched:
@@ -173,7 +193,8 @@ The run took about 1 hour for 504 runs, at about 6 s per run. There were 0 infra
 - **Lenient accuracy:** every part appears anywhere in the answer.
 - **Tool-selection OK:** at least one *successful* call to a tool that can answer the question.
 - **Committed-to-distractor:** the `FINAL:` line gives the value a stale prompt or buggy tool would give, and the answer is not correct.
-- **Missed contradiction:** among runs *exposed* to a distractor source, the fraction that neither got the right answer nor flagged a discrepancy.
+- **Missed contradiction:** among runs *exposed* to a distractor source, the fraction that neither got the right answer nor flagged a discrepancy. **"Flagged" is detected by a regex** (`grade.py` `FLAG_RE`: discrepan|conflict|inconsisten|mismatch|disagree|contradict|differ…). A run that noted a conflict in words the regex misses would be scored as not-flagged, so the flag rate is a lower bound.
+- **The "conflict" category mixes two kinds of question.** C01–C05 only need the correct count from the data (the stale prompt is the distractor); C06–C13 are the genuine case where two tools return different numbers and the agent must pick the right source; C14 is an inventory lookup that merely carries a distractor. They are reported as separate rows above because their difficulty differs sharply (80% vs 12.5% vs 100%).
 
 95% CIs come from a question-cluster bootstrap (10,000 reps, seed 12345); "±" is the SD across the 3 seeds. "Est. context tokens/run" is the calibrated estimate of input tokens summed over the run's LLM calls. Ollama's own `prompt_eval_count` undercounts because of KV-cache reuse, so it is not used.
 
@@ -183,7 +204,10 @@ The run took about 1 hour for 504 runs, at about 6 s per run. There were 0 infra
 | – lookup | 36 (12×3) | 91.7% ± 0.0 [80.6, 100] | 91.7% | 88.9% | 1.9 | 0.9 | 55 | 12,116 | 0% |
 | – aggregation | 48 (16×3) | 52.1% ± 9.5 [31.2, 72.9] | 54.2% | 60.4% | 2.5 | 1.5 | 116 | 16,341 | 10% |
 | – multi-hop | 42 (14×3) | 9.5% ± 4.1 [2.4, 16.7] | 9.5% | 45.2% | 2.7 | 2.6 | 242 | 18,283 | 31% |
-| – conflict | 42 (14×3) | 42.9% ± 14.3 [21.4, 64.3] | 45.2% | 50.0% | 2.3 | 1.3 | 165 | 14,869 | 7% |
+| – conflict (all 14) | 42 (14×3) | 42.9% ± 14.3 [21.4, 64.3] | 45.2% | 50.0% | 2.3 | 1.3 | 165 | 14,869 | 7% |
+| &nbsp;&nbsp;· conflict: stale-count C01–C05 | 15 (5×3) | 80.0% [53.3, 100] | 80.0% | 73.3% | 2.8 | 1.8 | 59 | 18,168 | 7% |
+| &nbsp;&nbsp;· conflict: real two-tool C06–C13 | 24 (8×3) | **12.5% [0, 25]** (3/24) | 16.7% | 29.2% | 2.0 | 1.0 | 245 | 13,047 | 8% |
+| &nbsp;&nbsp;· conflict: C14 (inventory lookup w/ distractor) | 3 (1×3) | 100% | 100% | 100% | 2.0 | 1.0 | 53 | 12,950 | 0% |
 | before (base prompt + single-day velocity), all 56 Qs | 168 (56×3) | 47.6% ± 6.3 [36.3, 58.9] | 48.2% | 61.9% | 2.4 | 1.5 | 155 | 15,944 | 11% |
 | ablation: + "reconcile conflicts" instruction (conflict + multi-hop) | 84 (28×3) | 23.8% ± 10.9 [11.9, 38.1] | 26.2% | 47.6% | 2.4 | 1.6 | 175 | 16,265 | 18% |
 | ablation: tool output 4,000 instead of 1,000 chars (conflict + multi-hop) | 84 (28×3) | 25.0% ± 7.1 [13.1, 39.3] | 26.2% | 46.4% | 2.5 | 1.9 | 205 | 16,606 | 24% |
@@ -199,9 +223,11 @@ The run took about 1 hour for 504 runs, at about 6 s per run. There were 0 infra
 | reconcile instruction − baseline | 28 | −2.4 pp [−8.3, +3.6] |
 | 4,000-char − 1,000-char outputs | 28 | −1.2 pp [−3.6, 0.0] |
 
-**Contradiction handling (conflict questions):**
-- **After the fix:** committed-to-distractor 2.4% [0, 7.1] of 42 runs. Only 1 run was exposed to a distractor source; the agent essentially never called `get_stockout_prediction` or `get_supplier_lead_time_tracker` on these questions.
-- **Before the fix:** 17 exposed runs. 15 of them were exposed through the stale prompt counts, which are always present in the "before" variant. Missed-contradiction rate 35.3% [9.5, 73.7]; committed-to-distractor 11.8% [0, 35.3]; **explicit conflict flagged in 0 of 17.**
+**Contradiction handling (before-fix conflict runs; exposure = the distractor value actually appeared, via the always-present stale prompt or a tool the agent called):**
+- **17 of 42 runs were exposed** to a value conflicting with the data (15 through the stale prompt counts on C01–C05, 2 through a tool on C12/C13).
+- In **11 of those 17** the agent still gave the correct data-derived answer; in **0 of 17** did it flag the discrepancy (regex-detected). The other 6 exposed runs were wrong for other reasons (2 of them echoed the stale count on C02).
+- On the genuine two-tool questions C06–C13 the agent was **rarely exposed at all** because it usually never called the second, disagreeing tool (24 of 27 C06–C14 runs saw only one source). So the before/after fix cannot move these answers: the fixed tool was not being called.
+- **After the fix:** only 1 of 42 conflict runs was exposed to a distractor; committed-to-distractor 2.4% [0, 7.1].
 
 **Failure modes** (main condition, 168 runs; counted from the raw runs):
 - **Malformed answers:**
@@ -231,7 +257,7 @@ The run took about 1 hour for 504 runs, at about 6 s per run. There were 0 infra
 | Ensemble weights hardcoded; backtest only CatBoost, top-8, one fold, no naive | **Confirmed.** The per-model 12.4/14.1/16.8 values are also hardcoded defaults. | `backend/forecasting/ensemble.py:16`, `registry.py:31-33`, `training.py:47-83` |
 | Stockout velocity uses a single day's demand | **Confirmed and reproduced**; fixed. | base `intelligence/stockout.py:56-64`; §2c |
 | System prompt has stale counts | **Confirmed: 8 of 8 stated counts wrong**; fixed. | `eval_sop/repro/repro_prompt_counts.out` |
-| SQL guard is a blacklist, no timeout; `python_repl` exposes pandas I/O | **Confirmed and exploited with canaries**; fixed, except the REPL timeout. | §2d |
+| SQL guard is a blacklist, no timeout; `python_repl` exposes pandas I/O | **Confirmed and exploited with canaries.** SQL fixed at engine level + timeout. `python_repl` hardened in two passes (round-2 review closed `_datasource`, `buf=`/path writers, `open_memmap`, `json.codecs`, `get_handle`, f2py subprocess, format-string traversal); still a blocklist, no execution timeout. | §2d |
 | Agent is a real tool loop (20 iterations, 54 tools); no correctness eval | **Confirmed.** This branch adds a 56-question ground-truth eval. Measured only in a constrained 10-tool, 8k-context configuration with `llama3.1:8b` (§2e). | `agent/agent.py:357`; `len(MCP_TOOLS) == 54` |
 
 Additional findings:
@@ -244,11 +270,11 @@ Additional findings:
 ## 4. What the numbers support, and what they don't
 
 **Supported:**
-- On this synthetic dataset, the repo's global CatBoost design beats naive, seasonal-naive, MA28 and Croston/TSB baselines over a 30-day multi-step horizon. The gain is concentrated in festival-season windows.
-- The per-SKU CatBoost behind the README's backtest figure does **not** beat MA28.
-- The stockout fix removes a specific, reproducible false-critical (3 → 0 critical SKUs) and brings that tool into agreement with three other tools.
-- The two file-read escapes and the missing SQL timeout were real and are now closed (tests in §8).
-- In the constrained configuration, `llama3.1:8b` answers 47.6% [36.3, 58.9] of the 56 questions strictly correctly. It is strong on single lookups (91.7%) and weak on multi-hop questions (9.5% [2.4, 16.7]). It flagged a contradiction explicitly in 0 of 17 runs that were exposed to one.
+- On this synthetic dataset, over all 4 origins the global CatBoost design beats naive, seasonal-naive, MA28 and Croston/TSB baselines over a 30-day multi-step horizon — but the advantage is **entirely** from the single Oct→Nov origin; without it CatBoost is +0.17 pp worse than MA28, and the origin-clustered CI for the difference includes 0.
+- The per-SKU CatBoost behind the README's backtest figure does **not** beat MA28 at any origin.
+- The stockout fix removes a specific, reproducible false-critical (3 → 0 critical SKUs) and brings `get_stockout_prediction` into agreement with the other inventory tools (the only genuine tool bug found).
+- The SQL path is closed at the engine level; the file-read escapes in both tools and the missing SQL timeout were real and are now closed (tests in §8). The Python tool is a **hardened blocklist, not a sandbox** (see Not supported).
+- In the constrained configuration, `llama3.1:8b` answers 47.6% [36.3, 58.9] of the 56 questions strictly correctly. It is strong on single lookups (91.7%) and weak on multi-hop (9.5% [2.4, 16.7]) and on the genuine two-tool-conflict questions (C06–C13: 3/24 = 12.5%). In the 17 before-fix runs exposed to a value conflicting with the data it gave the correct data value 11 times but flagged the discrepancy in 0 (regex-detected).
 
 **Not supported:**
 - Any claim about the **deployed** agent's accuracy, i.e. Claude-backed with all 54 tools. Only an 8B local model in a 10-tool, 8k-context configuration was measured.
@@ -257,7 +283,7 @@ Additional findings:
 - Any real-world retail forecasting accuracy (the data is synthetic, and its seasonal shape matches the model's calendar features).
 - Any claim about intermittent-demand handling (n = 0 intermittent SKUs).
 - Any claim about the Chronos/N-HiTS ensemble (not run).
-- Calling `python_repl` a sandbox. It is still a name blocklist with no timeout.
+- Calling `python_repl` a sandbox. After this round it is a **hardened name/AST blocklist, still not a sandbox**: it now also blocks leading-underscore attributes, path-like writer keywords, several more numpy/pandas/f2py I/O routes, and str.format traversal (§8), but it has no OS-level isolation and no execution timeout, so a route no one enumerated could still exist. The SQL path, by contrast, is closed at the engine level (`enable_external_access=false`).
 
 ## 5. Threats to validity
 
@@ -310,17 +336,17 @@ The free local run (§2e) took about 1 hour for 504 runs, but only in the constr
 1. **`f4b2bb9` fix(stockout).** `intelligence/stockout.py`
    - **What:** velocity is now the trailing mean over `velocity_window_days` (default 28) per (store, SKU), summed across stores. A single-date snapshot falls back to the old column, and `velocity_window_days=1` reproduces the old behaviour.
    - **Why:** a one-day spike made SKUs critical (§2c).
-   - **Evidence:** base `stockout.py:56-64`. The new `tests/test_stockout_velocity.py` fails on base (2 failed; `eval_sop/repro/pytest_stockout.out`) and passes here.
+   - **Evidence:** base `stockout.py:56-64`. In `tests/test_stockout_velocity.py`, the behavioural test `test_single_day_spike_is_not_critical` **fails on base for the right reason** (AssertionError: base classifies the spiked SKU `critical`). The other two tests fail on base with a TypeError only because they exercise the new `velocity_window_days` parameter, so they document the new behaviour rather than prove the bug; the real-reason evidence is that first test plus `eval_sop/repro/repro_stockout.out` (base vs fixed on real data). (`pytest_stockout.out` records this base run.)
    - **Preserved:** risk buckets, reorder formula, return shape, docstring rationale (extended, not removed).
 2. **`c399b89` fix(agent).** `agent/agent.py` system prompt, plus two tool descriptions in `mcp_server/server.py`.
    - **What:** replaced 8 stale counts (67→92 stores, 65→160 SKUs, 5,000→25,000 customers, 47,515→175,360 rows, 50,000→326,883 transactions, 1,500→9,806 returns, 624→936 reviews, 50→54 tools).
    - **Why:** "67 stores" leaked into a prior agent answer.
-   - **Evidence:** `eval_sop/repro/repro_prompt_counts.out` (8 mismatches → 0).
+   - **Evidence:** a **repro script** (`eval_sop/repro/repro_prompt_counts.out`), not a pytest test: 8 mismatches on base → 0 here.
    - **Preserved:** all tool guidance and wording other than the numbers.
 3. **`a49e3c8` fix(forecast).** `forecasting/ml_forecast.py::_train_catboost`
    - **What:** early stopping now uses the last 30 days of the training window, and `X_va` is used only for scoring. Adds `es_rows`.
    - **Why:** the scored rows were also the early-stopping rows.
-   - **Evidence:** `eval_sop/forecast/repro/repro_eval_set_leak_output.txt`: overlap 14,400/14,400 on base vs 0 here. `leak_check.json`: 11.96% → 11.97%.
+   - **Evidence:** a **repro script** (`eval_sop/forecast/repro/repro_eval_set_leak_output.txt`), not a pytest test: early-stopping/scored-row overlap 14,400/14,400 on base vs 0 here. `leak_check.json`: 11.96% → 11.97%.
    - **Preserved:** hyper-parameters, seed 42, metric definitions, comments.
 4. **`43293a8` fix(sql).** `intelligence/sql.py`
    - **What:**
@@ -329,7 +355,7 @@ The free local run (§2e) took about 1 hour for 504 runs, but only in the constr
      - A 20 s per-query timeout via `cursor.interrupt()`.
      - A warm-up query, and the progress bar is disabled.
    - **Why:** quoted-path file read; no timeout.
-   - **Evidence:** `tests/test_sql_guard.py`: 2 failed on base (`eval_sop/repro/pytest_sql_guard_before.out`), 3 passed here. Security probes are in §2d.
+   - **Evidence:** `tests/test_sql_guard.py`: 2 failed on base (`eval_sop/repro/pytest_sql_guard_before.out`), 3 pass here. **Caveat on "fails on base":** `test_quoted_path_access_is_blocked` fails on base for the right reason (base returns the canary rows), but `test_expensive_query_times_out` fails on base only with a TypeError (base `run_query` has no `timeout_s` parameter). The *behavioural* no-timeout evidence is the security probe `sql_cross_join_dos` in §2d (base: killed by the harness at 90 s; after: cancelled at 20 s). A real-reason pytest for the timeout is impractical because, without the fix, the query would hang the test run rather than fail.
    - **Preserved:** the keyword guard, view names, result shape, `SCHEMA_TEXT`.
    - **Trade-off:** the data is a snapshot taken at first connection (previously re-read on every query), and the first connection takes about 18-30 s here.
 5. **`54c9a80` fix(python_repl).** `mcp_server/server.py::tool_python_repl`
@@ -338,23 +364,42 @@ The free local run (§2e) took about 1 hour for 504 runs, but only in the constr
    - **Evidence:** `tests/test_python_repl_sandbox.py`: 4 failed on base, 5 passed here.
    - **Preserved:** every existing block and comment. `pd.to_datetime`, `to_dict`, `json.loads` still work (checked).
    - **Not fixed:** the execution timeout.
+   - **Superseded by `d3c0c54` (round 2), which closes bypasses this entry missed.**
+
+9. **`d3c0c54` fix(python_repl) — round 2, review follow-up.** `mcp_server/server.py::tool_python_repl`
+   - **What:** closed bypasses the round-1 blocklist missed: `np.lib._datasource.open` (read/write), `df.to_string(buf=)`/positional path, `df.info(buf=)`, `np.lib.format.open_memmap(mode='w+')`, `ndarray.dump`, `json.codecs.open`, pandas `get_handle`, f2py `subprocess`, and the `"{0.__globals__[sys]…}".format(obj)` gadget. Added: block ALL leading-underscore attributes; extend the name blocklist; block path-like writer keywords (`buf=`, `path=`, …) and positional paths on path-first writers; block str.format field traversal (format specs like `{:,.2f}` still allowed).
+   - **Why:** adversarial review found the round-1 blocklist was incomplete.
+   - **Evidence:** 10 new tests in `tests/test_python_repl_sandbox.py`; all 10 fail on branch HEAD `90606bc` (`eval_sop/repro/pytest_python_repl_bypass_before.out`) and the 17 pass after (`…_after.out`). `eval_sop/security/enumerate_io_routes.py` lists the routes walked. Assertions report booleans only — they never echo tool output (one earlier probe printed the process environment; that scratch file was deleted and never committed).
+   - **Honest limit:** still a name/AST blocklist, **not a sandbox**, and still no execution timeout.
+   - **Preserved:** all round-1 checks and comments.
+10. **`7bf3195` fix(tools).** `mcp_server/server.py`
+   - **What:** the SKU "not found" message now lists real prefixes via `_sku_not_found_msg()` (was hard-coded "DOG, CAT, MED, ACC", which match 0 SKUs and misled C02); fixed the module docstring "50 MCP tools" → 54.
+   - **Evidence:** repro script `eval_sop/repro/repro_sku_prefix_msg.out` (base advertises 4 zero-match prefixes); new pytest `test_sku_not_found_message_lists_real_prefixes` passes.
+   - **Preserved:** both call sites' other behaviour and surrounding comments.
+11. **`80559db` eval(agent) — grading only.** `eval_sop/agent_eval/grade.py`, `analyze.py`
+   - **What:** tool-selection now requires a *useful* result (a reached-but-empty call like "SKU not found" / "returned no rows" no longer counts); analyze reports the conflict category split C01–C05 vs C06–C13 vs C14.
+   - **Why:** review items 6 and 8.
+   - **Effect:** overall tool_ok ≈ unchanged (60.1%); real two-tool-conflict subgroup C06–C13 = 12.5% strict, tool_ok 29.2%. No reruns; `graded.csv`/`summary.*` regenerated; grader self-check still 19/19.
+12. **`a96e685` eval(agent) — metadata only.** `run_agent_eval.py` and the recorded JSONL
+   - **What:** record the *effective* per-result truncation (the `truncate` ablation forces 4,000 regardless of `--trunc-chars`); relabeled the already-recorded files (`trunc_chars` now 4,000 for `ablation_truncate`, 1,000 elsewhere; `trunc_chars_cli` keeps the CLI value).
+13. **`013ae32` privacy.** Scrubbed machine-specific absolute paths (the `C:\Users\<user>\…` home, scratch, and venv roots) from the committed agent-run JSONL, security results, and `leak_check_log.txt`; `security_probe.py` now redacts paths and canary content at write time.
 6. **`cb49166` eval(agent).** Eval-only code, no product code: `eval_sop/agent_eval/run_agent_eval.py` and `run_all.sh`.
    - **What:** added a constrained mode: the `--tools compact` 10-tool set, `--trunc-chars`, a `--max-prompt-tokens` guard, `--num-predict`, and `--keep-alive`. The schedule now runs on `llama3.1:8b`.
    - **Why:** the coordinator's limit of at most 8,192 tokens of context; prompt plus 54 tools measures about 12.2k tokens.
    - **Evidence:** token counts were measured with llama3.1 via Ollama: system prompt 4,330, 54 tool schemas about 7,906, 10 tool schemas 1,718.
    - **Preserved:** the previous defaults (`--tools all`, no truncation, no budget). The suite was run before committing (41 passed / 2 skipped).
    - After seeing the results, `grade.py` and `analyze.py` gained only a `budget_exceeded` column and before/after grouping. No grading rule was changed.
-7. **Non-code commits:**
-   - `c69f751`, `f52a8ef`, plus this commit: agent-eval harness and results.
+14. **Non-code commits:**
+   - `c69f751`, `f52a8ef`, `3875cf3`, `90606bc`: agent-eval harness and results.
    - `4dd67a7`, `80785d7`: forecast backtest and raw CSVs. The CSVs were force-added because the repo's `.gitignore` excludes `*.csv`; they total 1.8 MB.
-8. **Other:**
+15. **Other:**
    - No dependency changes. Nothing was installed.
    - The original working tree and the uncommitted `agent_traces_2026-10-01/` folder were not modified.
    - Nothing was pushed.
 
 ## 9. SOP-ready sentences (true as of this branch)
 
-1. "I built a ReAct-style LLM agent for supply-chain analytics that calls 54 data tools through a hand-written MCP-style JSON-RPC server. I then audited the tools against ground truth computed directly from the data. On ten quantities where overlapping tools could disagree, 8 of 22 tool readings were wrong. I traced the largest source to a stockout estimator that used a single day's demand, fixed it, and reduced the wrong readings to 4 of 22."
-2. "In a rolling-origin, 30-day multi-step backtest over 160 SKUs (synthetic data), the project's global CatBoost forecaster reached 13.2% sMAPE versus 14.8% for a 28-day moving average (paired difference −1.5 pp, 95% CI [−1.9, −1.1]). The gain came mostly from one festival-season window, and the per-SKU model behind the project's originally reported backtest figure did worse than the moving average."
-3. "A security review of the agent's tools found that both its SQL tool and its Python tool could read arbitrary local files and that SQL queries had no timeout. I closed these with engine-level file-access controls, an AST attribute blocklist, and a query timeout, each backed by a regression test that fails on the original code."
-4. "I wrote a 56-question evaluation with ground truth computed directly from the data, covering lookups, aggregations, multi-hop reasoning and conflicting tool outputs, and ran it over three seeds. In a 10-tool, 8k-context configuration, a local 8B model answered 47.6% of questions correctly (95% CI 36–59%): 92% of single lookups but under 10% of multi-hop questions, and it never explicitly flagged a contradiction it was exposed to."
+1. "I built a ReAct-style LLM agent for supply-chain analytics that exposes 54 tools via a hand-written MCP-style JSON-RPC server (in-process dispatch by default). Auditing the tools against ground truth computed directly from the data, I found that its stockout estimator derived demand velocity from a single day, so a one-day spike flagged a healthy SKU as critical; I replaced it with a trailing-window mean, which brought it into agreement with the other inventory tools and dropped the false 'critical' count from 3 to 0, verified by a regression test that fails on the original code."
+2. "In a rolling-origin, 30-day multi-step backtest over 160 SKUs of synthetic data, the project's global CatBoost forecaster averaged 13.2% sMAPE versus 14.8% for a 28-day moving-average baseline — but I found the advantage came entirely from one festival-season origin: excluding it, CatBoost was 0.2 pp worse than the baseline, and an origin-clustered confidence interval for the difference included zero. The per-SKU model behind the project's originally reported backtest number was worse than the moving average at every origin."
+3. "A security review of the agent's tools found that both its SQL tool and its Python tool could read arbitrary local files and that SQL queries had no timeout. I closed the SQL path at the database-engine level (external file access disabled) and added a query timeout, and I hardened the Python tool's blocklist against the file- and process-access routes I could enumerate — a hardened blocklist, not a true sandbox — backing each fix with regression tests, several of which fail on the original code."
+4. "I wrote a 56-question evaluation with ground truth computed directly from the data — lookups, aggregations, multi-hop reasoning, and questions where the prompt or one tool contradicts another — and ran a local 8B model on it three times each in a reduced 10-tool, 8k-context configuration (not the deployed setup). It answered 47.6% of questions correctly (95% CI 36–59%): 92% of single lookups but 12.5% of the genuine two-tool-conflict questions; and across the 11 runs where the prompt and a tool disagreed it chose the correct data value yet never once flagged the discrepancy (flagging detected by regex), while in the remaining exposed runs it did not surface the conflict either."
