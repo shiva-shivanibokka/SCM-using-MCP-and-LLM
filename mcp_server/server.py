@@ -2053,12 +2053,28 @@ def tool_python_repl(code: str) -> str:
         "ctypes", "socket", "load", "save", "savez", "savez_compressed", "loadtxt",
         "savetxt", "genfromtxt", "fromfile", "tofile", "memmap", "fromregex",
         "DataSource", "ExcelWriter", "HDFStore", "ExcelFile",
+        # Additional file / process / network routes found by adversarial review
+        # (eval_sop/security/enumerate_io_routes.py walks the pd/np/json object
+        # graphs). numpy.lib._datasource is reached by its single-underscore name,
+        # which the leading-underscore rule below also blocks.
+        "open", "open_memmap", "get_handle", "dump", "codecs", "urlopen", "popen",
+        "system", "fdopen", "write_array", "read_array", "load_library", "fromstring",
+        "frombuffer", "Popen", "call", "check_call", "check_output", "run",
+        "build_and_import_extension", "compile_extension_module", "run_subprocess",
+        "import_optional_dependency", "import_module",
     }
     _BLOCKED_TO_IO = {
         "to_csv", "to_excel", "to_parquet", "to_pickle", "to_json", "to_sql", "to_hdf",
         "to_feather", "to_stata", "to_html", "to_xml", "to_latex", "to_clipboard", "to_orc",
         "to_gbq",
     }
+    # Writer/renderer methods that take a destination as the FIRST positional
+    # argument or via a path-like keyword. We allow them with no destination
+    # (e.g. df.to_string(index=False) returns a string) but block any call that
+    # names a sink. The path-like keyword set is checked on EVERY call.
+    _PATH_FIRST_WRITERS = {"to_string", "to_markdown", "to_latex", "to_html", "to_xml", "info"}
+    _PATH_KWARGS = {"buf", "path", "path_or_buf", "path_or_buffer", "fname", "file",
+                    "filepath", "filepath_or_buffer", "excel_writer", "fp", "sheet_name_to_path"}
     try:
         tree = ast.parse(code)
         for node in ast.walk(tree):
@@ -2073,12 +2089,15 @@ def tool_python_repl(code: str) -> str:
                     root = name.split(".")[0]
                     if root in _BLOCKED_IMPORTS:
                         return f"SecurityError: import of '{root}' is not allowed."
-            # Block ALL dunder attribute access (e.g. __class__, __subclasses__)
-            # This closes the getattr() sandbox-escape chain even if getattr were present
+            # Block ALL leading-underscore attribute access. This covers the
+            # dunder escape chain (__class__, __globals__, __subclasses__) AND
+            # single-underscore private internals such as numpy.lib._datasource
+            # and pandas._libs that expose file/OS routes. Analysis code has no
+            # legitimate need for private attributes.
             if isinstance(node, ast.Attribute):
-                if node.attr.startswith("__") and node.attr.endswith("__"):
+                if node.attr.startswith("_"):
                     return (
-                        f"SecurityError: access to dunder attribute "
+                        f"SecurityError: access to private attribute "
                         f"'{node.attr}' is not allowed in the sandbox."
                     )
             # Block file / network I/O reachable through the pre-loaded pandas and
@@ -2095,12 +2114,43 @@ def tool_python_repl(code: str) -> str:
                     f"SecurityError: attribute '{node.attr}' (file/OS access) "
                     f"is not allowed in the sandbox."
                 )
+            # Block writer/renderer calls that name a file sink: a path-like
+            # keyword (buf=, path=, ...) on any call, or a positional destination
+            # on a path-first writer (df.to_string('/x'), df.info(buf=...)).
+            if isinstance(node, ast.Call):
+                for kw in node.keywords:
+                    if kw.arg in _PATH_KWARGS:
+                        return (
+                            f"SecurityError: writing to a file via '{kw.arg}=' "
+                            f"is not allowed in the sandbox."
+                        )
+                fn = node.func
+                if (
+                    isinstance(fn, ast.Attribute)
+                    and fn.attr in _PATH_FIRST_WRITERS
+                    and any(not isinstance(a, ast.Starred) for a in node.args)
+                ):
+                    return (
+                        f"SecurityError: writing to a file via "
+                        f"'{fn.attr}(<path>)' is not allowed in the sandbox."
+                    )
             # Block names that reference dunder globals
             if isinstance(node, ast.Name):
                 if node.id.startswith("__") and node.id.endswith("__"):
                     return (
                         f"SecurityError: reference to '{node.id}' "
                         f"is not allowed in the sandbox."
+                    )
+            # Block str.format payloads that traverse attributes/items, e.g.
+            # "{0.__globals__[sys]...}".format(obj). The dunder lives inside a
+            # string literal, so the Attribute check above cannot see it.
+            if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                # `.`/`[` before any `:` is field traversal; after `:` is a format
+                # spec (e.g. "{:,.2f}"), which stays allowed.
+                if re.search(r"\{[^{}:]*[.\[]", node.value):
+                    return (
+                        "SecurityError: format-string attribute/item access "
+                        "is not allowed in the sandbox."
                     )
     except SyntaxError as e:
         return f"SyntaxError: {e}"
