@@ -1,6 +1,6 @@
 # Pet Store Supply Chain Intelligence — Complete Tool Reference
 
-**AI Agent — 50 Tools in Plain English**
+**AI Agent — 54 Tools in Plain English**
 
 This document explains every tool the AI agent has access to, what it does, when to use it, and example questions you can ask.
 

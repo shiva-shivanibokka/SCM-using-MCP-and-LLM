@@ -46,7 +46,7 @@ Everything here was measured on this machine on 2026-10-01; the LLM agent eval (
 | Remote services | None were called. `DATABASE_URL` was forced empty (no Neon/Postgres). The HF Space and Vercel were not called. In the agent harness `web_search` is stubbed. |
 | LLM (agent eval, 2026-10-02) | `llama3.1:8b` Q4_K_M (digest `46e0c10c039e…`) on the main local Ollama 0.34.4 server (:11434), one request at a time. Settings: `num_ctx` 8192, `num_predict` 1024, temperature 0.7, Ollama `seed` 0/1/2, `OMP_NUM_THREADS=2`. The model was unloaded afterwards (`keep_alive: 0`). The 2026-10-01 smoke test used `qwen2.5:7b` at 32k context. |
 | Not run | Chronos, N-HiTS, TFT, and the blended ensemble: the heavy dependencies are not installed, so they were skipped. |
-| Test suite | Base: 30 passed / 2 skipped. Branch HEAD: **55 passed / 2 skipped (25 new tests)**. Command: `python -m pytest -q` (equivalently `pytest tests backend/tests`). The "41 passed (11 new)" figure quoted in earlier revisions of this file was the count at commit `cb49166`, before the round-2 `python_repl` tests and the traceback-disclosure test were added. |
+| Test suite | Base: 30 passed / 2 skipped. Branch HEAD: **55 passed / 2 skipped (25 new tests)**. Command: `python -m pytest -q` (equivalently `pytest tests backend/tests`). The "41 passed (11 new)" figure quoted in earlier revisions of this file was the count at commit `481d701`, before the round-2 `python_repl` tests and the traceback-disclosure test were added. |
 
 Reproduce from the repo root, with `DATABASE_URL=` empty:
 ```
@@ -175,9 +175,9 @@ All probes ran locally, using canary files in the session scratch directory only
 | python_repl `while True: pass` | **no timeout** | **still no timeout** (not fixed; §6) |
 | python_repl error traceback (`pd.to_datetime('not-a-date', format=…)`) | **full `format_exc()`: absolute pandas/stdlib paths, i.e. the server user's home** | only `<repl>` frames; no path fragments (§8) |
 
-**Round-2 bypasses (found in adversarial review, closed in commit `d3c0c54`).** These are covered by `tests/test_python_repl_sandbox.py` (10 tests, all failing on branch HEAD `90606bc`, all passing after); `eval_sop/security/enumerate_io_routes.py` lists the routes walked. Booleans only — no probe echoes tool output.
+**Round-2 bypasses (found in adversarial review, closed in commit `c4480fb`).** These are covered by `tests/test_python_repl_sandbox.py` (10 tests, all failing on branch HEAD `794a392`, all passing after); `eval_sop/security/enumerate_io_routes.py` lists the routes walked. Booleans only — no probe echoes tool output.
 
-| round-2 probe | before (HEAD 90606bc) | after (`d3c0c54`) |
+| round-2 probe | before (HEAD 794a392) | after (`c4480fb`) |
 |---|---|---|
 | `np.lib._datasource.open(path).read()` / `'w').write()` | **read canary / wrote file** | SecurityError |
 | `df.to_string(buf=path)` and `df.to_string(path)` | **wrote file** | SecurityError |
@@ -261,7 +261,7 @@ The run took about 1 hour for 504 runs, at about 6 s per run. There were 0 infra
   - One false negative: the answer said "July", but the `FINAL:` line held a date string.
   - One false positive: the `FINAL:` line listed three numbers, one of them within tolerance.
 - The grader also passes 19/19 synthetic self-checks.
-- **Scoped honestly: the answer-scoring rules were not changed after seeing the results, but one metric definition and one subgroup split were.** The strict/lenient answer-matching rules, the tolerances and the `FLAG_RE` regex are unchanged since before the runs, and no run was re-executed or re-scored. Two things *were* decided post-hoc, in commit `80559db` two days after the runs (§8 item 10):
+- **Scoped honestly: the answer-scoring rules were not changed after seeing the results, but one metric definition and one subgroup split were.** The strict/lenient answer-matching rules, the tolerances and the `FLAG_RE` regex are unchanged since before the runs, and no run was re-executed or re-scored. Two things *were* decided post-hoc, in commit `5476f94` two days after the runs (§8 item 10):
   1. **`tool_ok` ("tool-selection OK") was redefined** to require a *useful* result, so a call that reaches a tool but returns "SKU not found" / "returned no rows" / "no data available" no longer counts. **Measured effect** (`eval_sop/agent_eval/tool_ok_redefinition_effect.py` → `results/tool_ok_redefinition_effect.txt`, which re-grades all 504 committed runs under both definitions): it flipped **3 of 504 runs**, all three in the reconcile ablation, moving that row's tool-selection figure from 47.6% to **44.0%**. It changed *nothing* in the main condition (60.1% under both) and *nothing* in the C06–C13 subgroup (**29.2% under both**).
   2. **The conflict category was split** into C01–C05 / C06–C13 / C14. This is what moves the quoted tool-selection figure from 50.0% (the whole 14-question conflict category, reported before the split) down to 29.2% (the C06–C13 subgroup) — the split, not the `tool_ok` redefinition. The split now derives from the pre-registered `distractor_sources` field in `questions.jsonl` (§8 item 14), so it is not a slice chosen by accuracy, but the decision to report it was still taken after the numbers were visible.
 
@@ -375,16 +375,16 @@ The free local run (§2e) took about 1 hour for 504 runs, but only in the constr
    - **Evidence:** base `stockout.py:56-64`. In `tests/test_stockout_velocity.py`, the behavioural test `test_single_day_spike_is_not_critical` **fails on base for the right reason** (AssertionError: base classifies the spiked SKU `critical`). **Exactly one** other test fails on base with a TypeError only — `test_window_one_reproduces_old_behaviour`, which passes the new `velocity_window_days` parameter — so it documents the new behaviour rather than proving the bug. The third test, `test_single_snapshot_falls_back_to_snapshot_demand`, **passes on base**: the committed `eval_sop/repro/pytest_stockout.out` records `2 failed, 1 passed` on base (earlier revisions of this entry said "the other two tests fail on base with a TypeError", which the committed output contradicts). The real-reason evidence is the first test plus `eval_sop/repro/repro_stockout.out` (base vs fixed on real data).
    - **Preserved:** risk buckets, reorder formula, return shape, docstring rationale (extended, not removed).
 2. **`c399b89` fix(agent).** `agent/agent.py` system prompt, plus two tool descriptions in `mcp_server/server.py`.
-   - **What:** replaced 8 stale counts (67→92 stores, 65→160 SKUs, 5,000→25,000 customers, 47,515→175,360 rows, 50,000→326,883 transactions, 1,500→9,806 returns, 624→936 reviews, 50→54 tools).
+   - **What:** replaced 8 stale numeric counts (67→92 stores, 65→160 SKUs, 5,000→25,000 customers, 47,515→175,360 rows, 50,000→326,883 transactions, 1,500→9,806 returns, 624→936 reviews, 50→54 tools), plus **a 9th stale count that was reworded rather than renumbered**: the `get_store_level_demand_intelligence` tool description read "67-store demand vs national avg" and now reads "Store-level demand vs national avg", so the diff touches **9** stale counts in total. (The repro script below counts only the 8 numeric mismatches; the reworded one is not a number comparison.)
    - **Why:** "67 stores" leaked into a prior agent answer.
    - **Evidence:** a **repro script** (`eval_sop/repro/repro_prompt_counts.out`), not a pytest test: 8 mismatches on base → 0 here.
    - **Preserved:** all tool guidance and wording other than the numbers.
-3. **`a49e3c8` fix(forecast).** `forecasting/ml_forecast.py::_train_catboost`
+3. **`2eea96b` fix(forecast).** `forecasting/ml_forecast.py::_train_catboost`
    - **What:** early stopping now uses the last 30 days of the training window, and `X_va` is used only for scoring. Adds `es_rows`.
    - **Why:** the scored rows were also the early-stopping rows.
    - **Evidence:** a **repro script** (`eval_sop/forecast/repro/repro_eval_set_leak_output.txt`), not a pytest test: early-stopping/scored-row overlap 14,400/14,400 on base vs 0 here. `leak_check.json`: 11.96% → 11.97%.
    - **Preserved:** hyper-parameters, seed 42, metric definitions, comments.
-4. **`43293a8` fix(sql).** `intelligence/sql.py`
+4. **`5d00dac` fix(sql).** `intelligence/sql.py`
    - **What:**
      - CSVs are materialised as tables instead of views.
      - Then `SET enable_external_access=false` and `lock_configuration=true`.
@@ -394,74 +394,114 @@ The free local run (§2e) took about 1 hour for 504 runs, but only in the constr
    - **Evidence:** `tests/test_sql_guard.py`: 2 failed on base (`eval_sop/repro/pytest_sql_guard_before.out`), 3 pass here. **Caveat on "fails on base":** `test_quoted_path_access_is_blocked` fails on base for the right reason (base returns the canary rows), but `test_expensive_query_times_out` fails on base only with a TypeError (base `run_query` has no `timeout_s` parameter). The *behavioural* no-timeout evidence is the security probe `sql_cross_join_dos` in §2d (base: killed by the harness at 90 s; after: cancelled at 20 s). A real-reason pytest for the timeout is impractical because, without the fix, the query would hang the test run rather than fail.
    - **Preserved:** the keyword guard, view names, result shape, `SCHEMA_TEXT`.
    - **Trade-off:** the data is a snapshot taken at first connection (previously re-read on every query), and the first connection takes about 18-30 s here.
-5. **`54c9a80` fix(python_repl).** `mcp_server/server.py::tool_python_repl`
+5. **`afff0ea` fix(python_repl).** `mcp_server/server.py::tool_python_repl`
    - **What:** the AST check rejects `read_*`, file-writing `to_*`, numpy load/save/fromfile/…, and `os`/`sys`/`io`/… attribute names.
    - **Why:** pandas/numpy file read/write and the `pd.io.common.os` escape.
    - **Evidence:** `tests/test_python_repl_sandbox.py`: 4 failed on base, 5 passed here.
    - **Preserved:** every existing block and comment. `pd.to_datetime`, `to_dict`, `json.loads` still work (checked).
    - **Not fixed:** the execution timeout.
-   - **Superseded by `d3c0c54` (round 2), which closes bypasses this entry missed.**
+   - **Superseded by `c4480fb` (round 2), which closes bypasses this entry missed.**
 
-6. **`cb49166` eval(agent).** Eval-only code, no product code: `eval_sop/agent_eval/run_agent_eval.py` and `run_all.sh`.
+6. **`481d701` eval(agent).** Eval-only code, no product code: `eval_sop/agent_eval/run_agent_eval.py` and `run_all.sh`.
    - **What:** added a constrained mode: the `--tools compact` 10-tool set, `--trunc-chars`, a `--max-prompt-tokens` guard, `--num-predict`, and `--keep-alive`. The schedule now runs on `llama3.1:8b`.
    - **Why:** the coordinator's limit of at most 8,192 tokens of context; prompt plus 54 tools measures about 12.2k tokens.
    - **Evidence:** token counts were measured with llama3.1 via Ollama: system prompt 4,330, 54 tool schemas about 7,906, 10 tool schemas 1,718.
    - **Preserved:** the previous defaults (`--tools all`, no truncation, no budget). The suite was run before committing (41 passed / 2 skipped **at that commit**; HEAD is now 55 / 2).
    - After seeing the results, `grade.py` and `analyze.py` gained a `budget_exceeded` column and before/after grouping. No answer-scoring rule was changed; the one metric definition that *was* changed later is item 10 below.
-7. **`d3c0c54` fix(python_repl) — round 2, review follow-up.** `mcp_server/server.py::tool_python_repl`
+7. **`c4480fb` fix(python_repl) — round 2, review follow-up.** `mcp_server/server.py::tool_python_repl`
    - **What:** closed bypasses the round-1 blocklist missed: `np.lib._datasource.open` (read/write), `df.to_string(buf=)`/positional path, `df.info(buf=)`, `np.lib.format.open_memmap(mode='w+')`, `ndarray.dump`, `json.codecs.open`, pandas `get_handle`, f2py `subprocess`, and the `"{0.__globals__[sys]…}".format(obj)` gadget. Added: block ALL leading-underscore attributes; extend the name blocklist; block path-like writer keywords (`buf=`, `path=`, …) and positional paths on path-first writers; block str.format field traversal (format specs like `{:,.2f}` still allowed).
    - **Why:** adversarial review found the round-1 blocklist was incomplete.
-   - **Evidence:** 10 new tests in `tests/test_python_repl_sandbox.py`; all 10 fail on branch HEAD `90606bc` (`eval_sop/repro/pytest_python_repl_bypass_before.out`) and the 17 pass after (`…_after.out`). `eval_sop/security/enumerate_io_routes.py` lists the routes walked. Assertions report booleans only — they never echo tool output (one earlier probe printed the process environment; that scratch file was deleted and never committed).
+   - **Evidence:** 10 new tests in `tests/test_python_repl_sandbox.py`; all 10 fail on branch HEAD `794a392` (`eval_sop/repro/pytest_python_repl_bypass_before.out`) and the 17 pass after (`…_after.out`). `eval_sop/security/enumerate_io_routes.py` lists the routes walked. Assertions report booleans only — they never echo tool output (one earlier probe printed the process environment; that scratch file was deleted and never committed).
    - **Honest limit:** still a name/AST blocklist, **not a sandbox**, and still no execution timeout.
    - **Preserved:** all round-1 checks and comments.
-8. **`013ae32` privacy.** Scrubbed machine-specific absolute paths (the `C:\Users\<user>\…` home, scratch, and venv roots) from the committed agent-run JSONL, security results, and `leak_check_log.txt`; `security_probe.py` now redacts paths and canary content at write time.
-   - **Limitation — the scrub applies to HEAD only, not to this branch's history.** `git show` on any commit before `013ae32` still yields the unscrubbed blobs, so the absolute user paths remain recoverable: counting occurrences of the home-directory name, **90 across 9 files** at `013ae32^` versus **0 at HEAD** — `eval_sop/forecast/results/leak_check_log.txt` (2), the four agent-eval JSONL files (34 + 34 + 5 + 3), and `eval_sop/security/results_*.{json,txt}` (2 + 2 + 4 + 4). Nothing was rewritten here on purpose: this session's rules forbid rewriting git history, and the session owner handles that. **The history must be filtered (or the branch squashed) before this branch is published or pushed anywhere.** Treat the current scrub as "clean at HEAD, dirty in history".
+8. **`416ef6a` privacy.** Scrubbed machine-specific absolute paths (the `C:\Users\<user>\…` home, scratch, and venv roots) from the committed agent-run JSONL, security results, and `leak_check_log.txt`; `security_probe.py` now redacts paths and canary content at write time.
+   - **History status — resolved; the scrub now covers the whole branch.** The original version of this item recorded a HEAD-only scrub (**90 occurrences of the home-directory name across 9 files** at the pre-scrub parent versus 0 at HEAD) and said the branch had to be filtered or squashed before publication. That is no longer the position. The session owner subsequently rewrote this branch's history with `git filter-branch --tree-filter`, applying the same placeholder substitutions to **every** commit, followed by a second pass that rewrote the one commit message that contained an absolute path. Verified on the current branch:
+     - **No machine path survives in any commit's tracked content.** Grepping the full tree of all 23 commits in `main..HEAD` for the home-directory name returns 0 files at every commit. Grepping the same trees for `C:\Users`, `AppData` and `OneDrive` returns exactly one hit — this document's own placeholder-ised prose in the line above (`C:\Users\<user>\…`) — and none in any data, log or result file.
+     - **No commit message contains a path.** Grepping every commit message in `main..HEAD` for the home-directory name, `C:\Users`, `AppData` and `OneDrive` returns nothing. In the pre-rewrite history exactly one message did: this privacy commit's own body.
+     - **The final tree is byte-identical to before the rewrite.** `HEAD^{tree}`, `backup/pre-filter-scm^{tree}` and `backup/pre-msgfilter-scm^{tree}` are all `ed3a8b0bbf63ecaf0c86e8684b9684c5f959803e`, and `git diff HEAD backup/pre-filter-scm` is empty. The rewrite changed history only; it changed nothing at HEAD.
+     - **A backup of the pre-rewrite history exists locally**, on branches `backup/pre-filter-scm` (before the tree filter) and `backup/pre-msgfilter-scm` (before the message filter). They are local only and were not pushed. Because they keep the old objects reachable, a bare `git cat-file -e <old-sha>` still succeeds in this clone, so any hash check must test reachability from HEAD (`git merge-base --is-ancestor`) rather than mere object existence.
+     - **Consequence for this document:** every commit hash cited here was re-resolved after the rewrite by matching commit subject lines; 19 were stale and have been replaced (item 18).
+     - **Residual:** the rewrite is local. Anyone holding a clone taken before it, or either `backup/*` branch, still has the unscrubbed blobs; those branches must not be pushed.
    - **Root cause, now fixed upstream:** the paths inside the agent-run JSONL came from `python_repl` error tracebacks, which returned the full `format_exc()`. That disclosure is closed in item 12, so future runs will not reproduce the leak at the source.
-9. **`7bf3195` fix(tools).** `mcp_server/server.py`
+9. **`1bf77e2` fix(tools).** `mcp_server/server.py`
    - **What:** the SKU "not found" message now lists real prefixes via `_sku_not_found_msg()` (was hard-coded "DOG, CAT, MED, ACC", which match 0 SKUs and misled C02); fixed the module docstring "50 MCP tools" → 54.
    - **Evidence:** repro script `eval_sop/repro/repro_sku_prefix_msg.out` (base advertises 4 zero-match prefixes); new pytest `test_sku_not_found_message_lists_real_prefixes` passes.
    - **Preserved:** both call sites' other behaviour and surrounding comments.
-10. **`80559db` eval(agent) — grading only, and the one post-hoc metric change.** `eval_sop/agent_eval/grade.py`, `analyze.py`
+10. **`5476f94` eval(agent) — grading only, and the one post-hoc metric change.** `eval_sop/agent_eval/grade.py`, `analyze.py`
    - **What:** (a) tool-selection now requires a *useful* result (a reached-but-empty call like "SKU not found" / "returned no rows" no longer counts); (b) analyze reports the conflict category split C01–C05 vs C06–C13 vs C14.
    - **Why:** review items 6 and 8. Both decisions were taken **two days after the runs**, i.e. after the numbers were visible. No run was re-executed and no answer was re-scored; `graded.csv`/`summary.*` were regenerated and the grader self-check is still 19/19.
    - **Measured effect** (`eval_sop/agent_eval/tool_ok_redefinition_effect.py`, item 14): change (a) flipped **3 of 504 runs**, all in the reconcile ablation → that row's tool-selection goes 47.6% → **44.0%**. It changed nothing in the main condition (60.1% under both definitions) and nothing in C06–C13 (**29.2% under both**). The move from the 50.0% previously quoted for the whole 14-question conflict category to 29.2% is caused by change (b), the split, not by (a). The commit message's "the real-conflict subgroup drops to 29.2%" is therefore loosely worded: 29.2% is that subgroup's value under *either* definition.
-11. **`a96e685` eval(agent) — metadata only.** `run_agent_eval.py` and the recorded JSONL
+11. **`086687e` eval(agent) — metadata only.** `run_agent_eval.py` and the recorded JSONL
    - **What:** record the *effective* per-result truncation (the `truncate` ablation forces 4,000 regardless of `--trunc-chars`); relabeled the already-recorded files (`trunc_chars` now 4,000 for `ablation_truncate`, 1,000 elsewhere; `trunc_chars_cli` keeps the CLI value).
-12. **`45613a3` fix(python_repl) — round 3, traceback disclosure.** `mcp_server/server.py::tool_python_repl`
+12. **`8aae4b5` fix(python_repl) — round 3, traceback disclosure.** `mcp_server/server.py::tool_python_repl`
    - **What:** the error path returned `traceback.format_exc()` verbatim, so **every** execution error printed the absolute pandas/numpy/stdlib install paths — and therefore the server user's home directory — back to the model. New `_scrub_repl_traceback()` keeps only frames whose filename is the `<repl>` compile unit, over the whole `__cause__`/`__context__` chain.
    - **Why:** an undisclosed information-disclosure residual, found in round-2 review. It was not in §6's residual list, which mentioned only "no isolation" and "no timeout".
    - **Evidence:** new test `tests/test_python_repl_sandbox.py::test_execution_error_does_not_disclose_server_paths` **fails on the prior code for the right reason** — the captured failure shows a `site-packages\pandas\core\tools\datetimes.py` frame (`eval_sop/repro/pytest_repl_traceback_before.out`; the absolute paths in that captured message are hand-redacted there, since committing them would reintroduce exactly the leak the test is about) — and passes after.
    - **Preserved:** exception type and message, the "Output before error" suffix, and every existing AST/name check.
    - **Honest limit:** only the frame list is sanitised. The exception *message* is still returned verbatim, so a library that embeds a server path in its own message can still echo it (§6, residual 3).
-13. **`2114b0e` eval(forecast) — review follow-up, eval-only code.** `eval_sop/forecast/subset_ci.py`, `eval_sop/forecast/annual_snaive_baseline.py`
+13. **`adacdf9` eval(forecast) — review follow-up, eval-only code.** `eval_sop/forecast/subset_ci.py`, `eval_sop/forecast/annual_snaive_baseline.py`
    - **What:** (a) `subset_ci.py` computes SKU-clustered CIs for the excl-Diwali and per-origin deltas by re-using this backtest's own `paired()`/`boot_ci()` (2,000 reps, seed 20251231) on the committed `per_sku_origin.csv`, plus the origin-clustered CI; (b) `annual_snaive_baseline.py` adds the annual seasonal-naive baselines the main backtest omitted.
    - **Why:** the +0.17 pp excl-Diwali delta was stated as a bare point estimate and described as "worse" (it is indistinguishable from zero), and the baseline set had no annual period even though the one origin CatBoost wins is the festival origin.
    - **Evidence:** `results/subset_ci.{txt,json}`, `results/annual_snaive_baseline.{txt,json}`, `results/annual_snaive_per_sku_origin.csv` (force-added; the repo ignores `*.csv`). §2a and §5 quote these files.
    - **Preserved:** `backtest.py` is imported, not modified; no backtest was re-run.
-14. **`b964d58` eval(agent) — derive the conflict split; measure the `tool_ok` redefinition.** `eval_sop/agent_eval/analyze.py`, `eval_sop/agent_eval/tool_ok_redefinition_effect.py`
+14. **`0f2050d` eval(agent) — derive the conflict split; measure the `tool_ok` redefinition.** `eval_sop/agent_eval/analyze.py`, `eval_sop/agent_eval/tool_ok_redefinition_effect.py`
    - **What:** (a) `analyze.py` no longer hardcodes the C01–C05 / C06–C13 id lists; the split is derived from the `distractor_sources` field that `questions.py` writes into `questions.jsonl` before any run (`SYSTEM_PROMPT` vs a tool name), with C14 kept as a single named, documented exception (tool distractor, but answerable as a plain SKU lookup). (b) the new script re-grades all 504 committed runs under both `tool_ok` definitions.
    - **Why:** a hardcoded id list makes a pre-registered subgroup look like a post-hoc slice; and §2e needed the actual size of the post-hoc metric change.
-   - **Evidence:** regenerating gives byte-identical `graded.csv` and `summary.md`, i.e. the derived split is the same partition as the old hardcoded one. `results/tool_ok_redefinition_effect.txt` holds the 3-of-504 result.
+   - **Evidence:** regenerating gives byte-identical `graded.csv` and `summary.md`, i.e. the derived split is the same partition as the old hardcoded one. **Byte-identity holds on the environment of §1 (numpy 2.5.0) only** — see item 19: under a numpy 1.x install, which is what `requirements.txt` actually permits, one group *label* string in `summary.md`/`summary.json` differs. No numeric value changes. `results/tool_ok_redefinition_effect.txt` holds the 3-of-504 result.
 15. **Non-code commits:**
-   - `c69f751`, `f52a8ef`, `3875cf3`, `90606bc`: agent-eval harness and results.
-   - `4dd67a7`, `80785d7`: forecast backtest and raw CSVs. The CSVs were force-added because the repo's `.gitignore` excludes `*.csv`; they total 1.8 MB.
-   - `e32a97f`, `3b358fe`, and the round-2 review-fix commit at the end of this branch: `RESULTS.md` only.
+   - `c69f751`, `5c71355`, `46a86fd`, `794a392`: agent-eval harness and results.
+   - `cbcdcf1`, `ee878da`: forecast backtest and raw CSVs. The CSVs were force-added because the repo's `.gitignore` excludes `*.csv`. Across the branch there are now **six** force-added CSVs totalling **2,026,913 bytes** (measured with `git cat-file -s` on each blob at HEAD): `eval_sop/forecast/results/per_sku_origin.csv` 1,774,159; `eval_sop/forecast/results/annual_snaive_per_sku_origin.csv` 168,800; `eval_sop/agent_eval/results/graded.csv` 72,371; `eval_sop/forecast/results/summary.csv` 8,077; `eval_sop/agent_eval/results/per_question_main.csv` 2,384; `eval_sop/forecast/results/per_origin_means.csv` 1,122. Earlier revisions of this item said "1.8 MB", which was correct for the `ee878da` set alone; item 13 later added `annual_snaive_per_sku_origin.csv` (168,800 B). `ee878da`'s own commit message still says "1.8 MB total" and cannot be corrected without rewriting history.
+   - `eaddb62`, `7357bae`, and the round-2 review-fix commit at the end of this branch: `RESULTS.md` only.
 16. **Round-2 review corrections to this document (this revision, `RESULTS.md` only).** Every item was checked against the committed artifacts first; two reviewer claims did not hold and are noted as such.
    - §0, §2a, §4, §9 sentence 2: the excl-Diwali delta is no longer called "worse". It is **+0.17 pp, 95% CI [−0.17, +0.56], indistinguishable from zero**; §2a gains a full per-subset CI table from `subset_ci.py` (item 13), and the significant per-origin deltas (Jun, Aug) and non-significant Dec are now labelled as such.
-   - §1: the test-suite line said "41 passed / 2 skipped (11 new tests)". HEAD is **55 passed / 2 skipped**, i.e. 25 new tests over base's 30; 41/11 was the count at `cb49166`.
-   - §2e ablation table: the reconcile ablation's tool-selection-OK was 47.6%; **recounted from `graded.csv` it is 44.0% (37/84)**, matching `results/summary.md`. *The reviewer attributed this to the baseline row being copied down; it is actually the pre-`80559db` value — the baseline row's 47.6% is a coincidence (item 14).*
+   - §1: the test-suite line said "41 passed / 2 skipped (11 new tests)". HEAD is **55 passed / 2 skipped**, i.e. 25 new tests over base's 30; 41/11 was the count at `481d701`.
+   - §2e ablation table: the reconcile ablation's tool-selection-OK was 47.6%; **recounted from `graded.csv` it is 44.0% (37/84)**, matching `results/summary.md`. *The reviewer attributed this to the baseline row being copied down; it is actually the pre-`5476f94` value — the baseline row's 47.6% is a coincidence (item 14).*
    - §2e grader audit: "It was **not** changed after seeing the results" is now scoped. The answer-scoring rules were not, but `tool_ok` was redefined and the conflict category was split post-hoc, with the measured effect of each stated. *The reviewer's claim that the redefinition moved C06–C13 from ~50% to 29.2% does **not** hold: 29.2% is that subgroup's value under both definitions, the ~50% was the undivided 14-question category, and the redefinition flipped only 3 of 504 runs (all in the reconcile ablation).*
    - §0 and §2e: the **80% on C01–C05 is flagged inline as prompt recall, not reasoning**, and the +6.7 pp after−before delta on those questions is flagged as largely the answer having been moved into the prompt. §5 already said this; it is now at the point of use.
-   - §8 item 8 (`013ae32`): the path scrub is now stated to apply **at HEAD only**; the pre-`013ae32` blobs still contain the absolute user paths and the history must be filtered before publishing. No history was rewritten.
+   - §8 item 8 (`416ef6a`): at round-2 review time the path scrub applied **at HEAD only**, and this document said the history had to be filtered before publishing. **That has since been done** — the branch history was rewritten with `git filter-branch --tree-filter` plus a commit-message pass, the final tree is unchanged, and item 8 now records the verified post-rewrite position. The "must be filtered or squashed before publication" language has been removed as no longer true.
    - §8 item 1: "the other two tests fail on base with a TypeError" corrected to **one** — `pytest_stockout.out` records `2 failed, 1 passed` on base.
    - §2d, §4, §6: the **traceback path-disclosure residual** is now disclosed and §6's `python_repl` residual list is spelled out as three numbered risks (no isolation, no timeout, error-text disclosure) instead of one line.
    - §5: new **annual seasonal-naive baseline check** (item 13), with the honest exception that the level-scaled annual naive beats MA28 at the Diwali origin. *The reviewer reported these numbers as "worse than MA28 at every origin"; that holds at 3 of 4 origins, not at Diwali (18.18% vs 19.72%).*
-   - §8: renumbered 1–17 in commit order (it previously ran 1–5, 9–13, 6, 14–15).
+   - §8: renumbered in commit order (it previously ran 1–5, 9–13, 6, 14–15). It now runs 1–20: items 18–20 were added after the history rewrite (hash re-resolution, the numpy pin conflict, and the CI coverage gap).
    - §9: SOP sentence 2 rewritten; sentence 4 now gives "roughly one in eight (3 of 24 runs)" instead of leaning on 12.5%, and states 11 correct out of the 17 exposed runs.
 17. **Other:**
    - No dependency changes. Nothing was installed.
    - The original working tree and the uncommitted `agent_traces_2026-10-01/` folder were not modified.
    - Nothing was pushed.
+18. **Commit-hash re-resolution after the history rewrite (this revision, `RESULTS.md` and `TOOLS_README.md` only).** The `filter-branch` passes described in item 8 preserved the final tree byte-for-byte but changed every rewritten commit's SHA, so the hashes this document cited no longer identified commits on the branch. **19 of the 23 cited hashes were stale.** Each was re-resolved by matching the commit *subject line* between the old object and `git log main..HEAD`, and each replacement was checked both to exist (`git cat-file -e`) and to be reachable from HEAD (`git merge-base --is-ancestor`). The mapping applied, oldest commit first:
+
+    | old (pre-rewrite) | new (on `sop-eval`) | subject |
+    |---|---|---|
+    | `a49e3c8` | `2eea96b` | fix(forecast): stop CatBoost early-stopping on the window it is scored on |
+    | `4dd67a7` | `cbcdcf1` | eval(forecast): rolling-origin 30-day backtest |
+    | `80785d7` | `ee878da` | eval(forecast): add raw CSV outputs |
+    | `43293a8` | `5d00dac` | fix(sql): engine-level file-access block and a query timeout |
+    | `54c9a80` | `afff0ea` | fix(python_repl): block pandas/numpy file I/O and os access |
+    | `f52a8ef` | `5c71355` | eval: grader, analysis, tool-conflict audit, security probes |
+    | `e32a97f` | `eaddb62` | docs: RESULTS.md |
+    | `cb49166` | `481d701` | eval(agent): 8192-token-budget mode |
+    | `3875cf3` | `46a86fd` | eval(agent): llama3.1:8b runs (504) |
+    | `90606bc` | `794a392` | eval(agent): add graded.csv and per-question CSV |
+    | `d3c0c54` | `c4480fb` | fix(python_repl): close additional file/process bypasses |
+    | `013ae32` | `416ef6a` | privacy: scrub machine-specific absolute paths |
+    | `7bf3195` | `1bf77e2` | fix(tools): SKU "not found" message lists real prefixes |
+    | `80559db` | `5476f94` | eval(agent): tool-selection excludes no-data results |
+    | `a96e685` | `086687e` | eval(agent): record effective per-result truncation |
+    | `45613a3` | `8aae4b5` | fix(python_repl): strip non-`<repl>` frames from error tracebacks |
+    | `2114b0e` | `adacdf9` | eval(forecast): subset/per-origin CIs and annual seasonal-naive baseline |
+    | `b964d58` | `0f2050d` | eval(agent): derive the conflict split; measure the `tool_ok` redefinition |
+    | `3b358fe` | `7357bae` | docs(RESULTS): review follow-up |
+
+    Four cited hashes were **not** stale and are unchanged: `f4b2bb9`, `c399b89`, `c69f751` (they precede the first commit the filter touched) and `65c1c06` (the base commit on `main`). Also corrected in this revision: `TOOLS_README.md:3` said "50 Tools in Plain English" and now says 54, matching `len(MCP_TOOLS) == 54` and the already-corrected module docstring (item 9).
+19. **Limitation — the recorded environment conflicts with the declared dependency pins, so a clean install cannot reproduce `summary.json`/`summary.md` byte-for-byte.** §1 records the environment the numbers were produced in as **pandas 3.0.2, numpy 2.5.0**. But `backend/requirements.txt:6` pins `numpy>=1.26.0,<2.0`, and the root `requirements.txt:10` pins the same — so a reader who installs per the README gets **numpy 1.x**, not the numpy 2.5.0 the results were generated with.
+   - **What actually differs:** one *label string*. `analyze.py` formats a group label containing the seed list, and numpy >= 2 changed scalar `repr`, so the committed artifacts carry `seeds [np.int64(0), np.int64(1), np.int64(2)]` (`eval_sop/agent_eval/results/summary.md:15,17`; `summary.json:1024-1025`) where numpy 1.x prints `seeds [0, 1, 2]`.
+   - **Scope: ZERO numeric values are affected.** No rate, count, delta or confidence interval in `summary.*`, `graded.csv` or any other committed artifact depends on the numpy major version. The only difference a clean install would produce is that label string, in `summary.md` and `summary.json`.
+   - **So every byte-identity claim in this document is scoped to the §1 environment** (item 14, and §2e's regeneration check), not to a clean install from `requirements.txt`. Nothing was re-run under numpy 1.x.
+   - **Not fixed here:** the pins are product dependencies and were left alone (this branch makes no dependency changes, item 17). Resolving it means either widening the pin to admit numpy 2.x or having `analyze.py` coerce the seeds to `int` before formatting the label; the latter is the smaller change and would make the artifact numpy-version-independent.
+20. **Limitation — CI does not run any of this branch's regression tests.** `.github/workflows/backend.yml` runs exactly one test command: `python -m pytest backend/tests -v -k "not chronos and not nhits"`. It never runs the top-level `tests/` directory.
+   - **Consequence:** all **25 regression tests this branch adds live in `tests/`** — `tests/test_python_repl_sandbox.py`, `tests/test_sql_guard.py` and `tests/test_stockout_velocity.py` (`tests/` collects 32 tests at HEAD versus 7 on base). **None of them would run in CI.** Every `python_repl` sandbox escape closed in items 5, 7 and 12, the SQL file-access block and timeout (item 4), and the stockout velocity fix (item 1) could regress with CI still green.
+   - The suite is green only because it is run locally: the §1 figure (55 passed / 2 skipped) is `python -m pytest -q`, i.e. `tests` **and** `backend/tests` together.
+   - **The workflow was deliberately not changed** — it is CI configuration, outside the scope of the fixes on this branch. It is stated here so a reviewer does not read a green CI badge as covering the security work.
 
 ## 9. SOP-ready sentences (true as of this branch)
 
