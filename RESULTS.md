@@ -6,7 +6,7 @@ Everything here was measured on this machine on 2026-10-01; the LLM agent eval (
 
 - **Forecasting.** The evaluation is complete: 160 SKUs, 4 rolling origins, a 30-day multi-step horizon, 3 seeds, and baselines.
   - Over all 4 origins the global CatBoost beats a 28-day moving average: 13.24% vs 14.77% sMAPE.
-  - **The gain comes *entirely* from one festival-season origin (Oct→Nov).** Drop it and CatBoost is +0.17 pp *worse* than MA28. An origin-clustered 95% CI for the difference is [−4.88, +0.48] and includes 0.
+  - **The gain comes *entirely* from one festival-season origin (Oct→Nov).** Drop it and CatBoost is **indistinguishable from** MA28: +0.17 pp, SKU-clustered 95% CI [−0.17, +0.56], which includes 0. An origin-clustered 95% CI for the overall difference is [−4.88, +0.48] and also includes 0. (Both intervals: `eval_sop/forecast/subset_ci.py` → `results/subset_ci.txt`.)
   - The per-SKU CatBoost behind the README's `backtest_smape` is **worse** than the moving average at every origin (17.80% overall).
 - **Tool consistency.** This check needs no LLM and is complete. Of the overlapping tools, **only `get_stockout_prediction` was buggy**: it was wrong on 5 of 5 readings before the fix, and the fix brought 4 within tolerance (the 5th, C07, stays out only because the fix uses a 28-day window while the ground truth uses 30). The other cross-tool disagreements are **definition differences, not bugs** (all-months vs 2025 supplier averages; store-level vs SKU-level inventory; a reorder list that measures a different quantity). The evaluator chose the 10 quantities and the tolerances.
 - **Security.** Arbitrary local-file reads were possible through both `run_sql_query` and `python_repl`, and SQL had no timeout. The SQL path is now closed at the database-engine level and has a 20 s timeout. The Python tool is a **hardened blocklist, not a sandbox**: a first pass plus a review follow-up closed every file/process route I could enumerate (each with a test that fails on the prior code), but it has no OS-level isolation and no execution timeout, so an un-enumerated route could remain.
@@ -23,8 +23,10 @@ Everything here was measured on this machine on 2026-10-01; the LLM agent eval (
     | aggregation | 52.1% | [31.2, 72.9] |
     | multi-hop | 9.5% | [2.4, 16.7] |
     | conflict (all 14) | 42.9% | [21.4, 64.3] |
-    | &nbsp;&nbsp;· conflict: stale-count C01–C05 | 80.0% | [53.3, 100] |
+    | &nbsp;&nbsp;· conflict: stale-count C01–C05 | 80.0%\* | [53.3, 100] |
     | &nbsp;&nbsp;· conflict: real two-tool C06–C13 | **12.5%** (3/24) | [0, 25] |
+
+    \* **The 80% on C01–C05 is prompt recall, not reasoning.** These five questions ask for counts that the *fixed* system prompt now states correctly, so after the fix they are answerable from the prompt text alone without touching the data. The figure measures whether the model repeats a correct prompt, not a data-analysis capability (see §5).
 
   - **The before/after fix shows no measurable effect on the agent:**
     - All 56 questions: 47.6% before vs 47.6% after; paired difference 0.0 pp, CI [−6.0, +6.0].
@@ -44,12 +46,14 @@ Everything here was measured on this machine on 2026-10-01; the LLM agent eval (
 | Remote services | None were called. `DATABASE_URL` was forced empty (no Neon/Postgres). The HF Space and Vercel were not called. In the agent harness `web_search` is stubbed. |
 | LLM (agent eval, 2026-10-02) | `llama3.1:8b` Q4_K_M (digest `46e0c10c039e…`) on the main local Ollama 0.34.4 server (:11434), one request at a time. Settings: `num_ctx` 8192, `num_predict` 1024, temperature 0.7, Ollama `seed` 0/1/2, `OMP_NUM_THREADS=2`. The model was unloaded afterwards (`keep_alive: 0`). The 2026-10-01 smoke test used `qwen2.5:7b` at 32k context. |
 | Not run | Chronos, N-HiTS, TFT, and the blended ensemble: the heavy dependencies are not installed, so they were skipped. |
-| Test suite | Base: 30 passed / 2 skipped. Branch: 41 passed / 2 skipped (11 new tests). Command: `pytest tests backend/tests`. |
+| Test suite | Base: 30 passed / 2 skipped. Branch HEAD: **55 passed / 2 skipped (25 new tests)**. Command: `python -m pytest -q` (equivalently `pytest tests backend/tests`). The "41 passed (11 new)" figure quoted in earlier revisions of this file was the count at commit `cb49166`, before the round-2 `python_repl` tests and the traceback-disclosure test were added. |
 
 Reproduce from the repo root, with `DATABASE_URL=` empty:
 ```
 python eval_sop/forecast/backtest.py                   # forecasting (~70 min)
 python eval_sop/forecast/leak_check.py                 # leak before/after (~4 min)
+python eval_sop/forecast/subset_ci.py                  # per-origin / excl-Diwali CIs from the committed per-SKU CSV (~5 s)
+python eval_sop/forecast/annual_snaive_baseline.py     # annual seasonal-naive baseline check (~20 s)
 python -m eval_sop.agent_eval.tool_conflicts           # tool vs ground truth, before/after stockout fix
 python eval_sop/security/security_probe.py             # SQL / python_repl probes (scratch-dir canaries only)
 python eval_sop/repro/repro_stockout.py; python eval_sop/repro/repro_prompt_counts.py
@@ -92,8 +96,21 @@ python -m eval_sop.agent_eval.analyze                  # grading + bootstrap CIs
 | Dec | 14.51 | 14.06 |
 
 **CatBoost's advantage comes *entirely* from the one Oct→Nov (Diwali) origin.**
-- Per-origin ΔsMAPE (CatBoost − MA28): Jun **+0.42**, Aug **+0.55**, Oct→Nov **−6.65**, Dec **−0.45**. CatBoost is worse at 2 of 4 origins and essentially tied at Dec.
-- **Drop the Oct→Nov origin and CatBoost is +0.17 pp *worse* than MA28** (13.29 vs 13.12 over the other 3 origins, 480 pairs).
+
+All intervals in this block come from `eval_sop/forecast/subset_ci.py` (`results/subset_ci.txt`, `results/subset_ci.json`), which re-uses this backtest's own `paired()`/`boot_ci()` helpers — SKU-clustered, 2,000 reps, seed 20251231 — on the committed `results/per_sku_origin.csv`, so none of it requires re-running the 70-minute backtest.
+
+| subset | ΔsMAPE (CatBoost − MA28) | 95% CI | significant? |
+|---|---|---|---|
+| all 4 origins (640 pairs) | **−1.53** | [−1.92, −1.10] | yes (but see the origin-clustered row) |
+| **excluding Oct→Nov** (480 pairs) | **+0.17** | **[−0.17, +0.56]** | **no — includes 0** |
+| Jun only (160) | +0.42 | [+0.04, +0.84] | yes, CatBoost worse |
+| Aug only (160) | +0.55 | [+0.18, +0.92] | yes, CatBoost worse |
+| Oct→Nov only (160) | −6.65 | [−7.45, −5.76] | yes, CatBoost better |
+| Dec only (160) | −0.45 | [−0.98, +0.14] | no — includes 0 |
+| all 4, clustered by **origin** (4 clusters) | −1.53 | **[−4.88, +0.48]** | **no — includes 0** |
+
+- **Drop the Oct→Nov origin and CatBoost is indistinguishable from MA28**: +0.17 pp with a 95% CI of [−0.17, +0.56] that includes 0 (13.29 vs 13.12 over the other 3 origins, 480 pairs). Earlier revisions of this file called that delta "worse"; it is a point estimate that cannot be distinguished from zero and is not evidence either way.
+- CatBoost is *significantly* worse at 2 of the 3 non-Diwali origins (Jun +0.42, Aug +0.55, both CIs excluding 0) and indistinguishable at Dec (−0.45, CI includes 0).
 - Clustering the bootstrap by origin instead of SKU (resampling the 4 origin-level mean diffs) gives ΔsMAPE −1.53 pp, **95% CI [−4.88, +0.48] — it includes 0.** The narrow SKU-clustered CI [−1.92, −1.10] above overstates the evidence because it ignores that the whole effect rides on a single origin.
 
 **Seed SD of CatBoost global:** 0.13 pp.
@@ -156,6 +173,7 @@ All probes ran locally, using canary files in the session scratch directory only
 | python_repl `df.to_csv('<file>')` | **file written** | SecurityError, no file |
 | python_repl `pd.io.common.os.getcwd()` | **reached `os`** | SecurityError |
 | python_repl `while True: pass` | **no timeout** | **still no timeout** (not fixed; §6) |
+| python_repl error traceback (`pd.to_datetime('not-a-date', format=…)`) | **full `format_exc()`: absolute pandas/stdlib paths, i.e. the server user's home** | only `<repl>` frames; no path fragments (§8) |
 
 **Round-2 bypasses (found in adversarial review, closed in commit `d3c0c54`).** These are covered by `tests/test_python_repl_sandbox.py` (10 tests, all failing on branch HEAD `90606bc`, all passing after); `eval_sop/security/enumerate_io_routes.py` lists the routes walked. Booleans only — no probe echoes tool output.
 
@@ -205,11 +223,11 @@ The run took about 1 hour for 504 runs, at about 6 s per run. There were 0 infra
 | – aggregation | 48 (16×3) | 52.1% ± 9.5 [31.2, 72.9] | 54.2% | 60.4% | 2.5 | 1.5 | 116 | 16,341 | 10% |
 | – multi-hop | 42 (14×3) | 9.5% ± 4.1 [2.4, 16.7] | 9.5% | 45.2% | 2.7 | 2.6 | 242 | 18,283 | 31% |
 | – conflict (all 14) | 42 (14×3) | 42.9% ± 14.3 [21.4, 64.3] | 45.2% | 50.0% | 2.3 | 1.3 | 165 | 14,869 | 7% |
-| &nbsp;&nbsp;· conflict: stale-count C01–C05 | 15 (5×3) | 80.0% [53.3, 100] | 80.0% | 73.3% | 2.8 | 1.8 | 59 | 18,168 | 7% |
+| &nbsp;&nbsp;· conflict: stale-count C01–C05 — **prompt recall, not reasoning**: after the prompt fix these 5 answers are in the prompt text | 15 (5×3) | 80.0% [53.3, 100] | 80.0% | 73.3% | 2.8 | 1.8 | 59 | 18,168 | 7% |
 | &nbsp;&nbsp;· conflict: real two-tool C06–C13 | 24 (8×3) | **12.5% [0, 25]** (3/24) | 16.7% | 29.2% | 2.0 | 1.0 | 245 | 13,047 | 8% |
 | &nbsp;&nbsp;· conflict: C14 (inventory lookup w/ distractor) | 3 (1×3) | 100% | 100% | 100% | 2.0 | 1.0 | 53 | 12,950 | 0% |
 | before (base prompt + single-day velocity), all 56 Qs | 168 (56×3) | 47.6% ± 6.3 [36.3, 58.9] | 48.2% | 61.9% | 2.4 | 1.5 | 155 | 15,944 | 11% |
-| ablation: + "reconcile conflicts" instruction (conflict + multi-hop) | 84 (28×3) | 23.8% ± 10.9 [11.9, 38.1] | 26.2% | 47.6% | 2.4 | 1.6 | 175 | 16,265 | 18% |
+| ablation: + "reconcile conflicts" instruction (conflict + multi-hop) | 84 (28×3) | 23.8% ± 10.9 [11.9, 38.1] | 26.2% | 44.0% | 2.4 | 1.6 | 175 | 16,265 | 18% |
 | ablation: tool output 4,000 instead of 1,000 chars (conflict + multi-hop) | 84 (28×3) | 25.0% ± 7.1 [13.1, 39.3] | 26.2% | 46.4% | 2.5 | 1.9 | 205 | 16,606 | 24% |
 | baseline for both ablations (same 28 Qs × 3 seeds) | 84 | 26.2% ± 5.5 [14.3, 39.3] | 27.4% | 47.6% | 2.5 | 2.0 | 204 | 16,576 | 19% |
 
@@ -219,7 +237,7 @@ The run took about 1 hour for 504 runs, at about 6 s per run. There were 0 infra
 |---|---|---|
 | after − before, all questions | 56 | +0.0 pp [−6.0, +6.0] |
 | after − before, the 11 fix-relevant questions | 11 | −6.1 pp [−21.2, +6.1] |
-| after − before, stale-count questions C01–C05 | 5 | +6.7 pp [0.0, +20.0] (73.3% → 80.0%). Committed-to-distractor went 13.3% → 0%: in 2 of 3 "before" runs on C02, the agent answered "65 SKUs" from the stale prompt. |
+| after − before, stale-count questions C01–C05 | 5 | +6.7 pp [0.0, +20.0] (73.3% → 80.0%). Committed-to-distractor went 13.3% → 0%: in 2 of 3 "before" runs on C02, the agent answered "65 SKUs" from the stale prompt. **Caveat:** this is largely the answer having been *moved into the prompt*. The fix replaced wrong counts in the system prompt with right ones, so after the fix these questions can be answered by repeating the prompt. The delta measures the removal of a misleading string, not an improvement in the model's ability to read the data. |
 | reconcile instruction − baseline | 28 | −2.4 pp [−8.3, +3.6] |
 | 4,000-char − 1,000-char outputs | 28 | −1.2 pp [−3.6, 0.0] |
 
@@ -243,7 +261,11 @@ The run took about 1 hour for 504 runs, at about 6 s per run. There were 0 infra
   - One false negative: the answer said "July", but the `FINAL:` line held a date string.
   - One false positive: the `FINAL:` line listed three numbers, one of them within tolerance.
 - The grader also passes 19/19 synthetic self-checks.
-- It was **not** changed after seeing the results.
+- **Scoped honestly: the answer-scoring rules were not changed after seeing the results, but one metric definition and one subgroup split were.** The strict/lenient answer-matching rules, the tolerances and the `FLAG_RE` regex are unchanged since before the runs, and no run was re-executed or re-scored. Two things *were* decided post-hoc, in commit `80559db` two days after the runs (§8 item 10):
+  1. **`tool_ok` ("tool-selection OK") was redefined** to require a *useful* result, so a call that reaches a tool but returns "SKU not found" / "returned no rows" / "no data available" no longer counts. **Measured effect** (`eval_sop/agent_eval/tool_ok_redefinition_effect.py` → `results/tool_ok_redefinition_effect.txt`, which re-grades all 504 committed runs under both definitions): it flipped **3 of 504 runs**, all three in the reconcile ablation, moving that row's tool-selection figure from 47.6% to **44.0%**. It changed *nothing* in the main condition (60.1% under both) and *nothing* in the C06–C13 subgroup (**29.2% under both**).
+  2. **The conflict category was split** into C01–C05 / C06–C13 / C14. This is what moves the quoted tool-selection figure from 50.0% (the whole 14-question conflict category, reported before the split) down to 29.2% (the C06–C13 subgroup) — the split, not the `tool_ok` redefinition. The split now derives from the pre-registered `distractor_sources` field in `questions.jsonl` (§8 item 14), so it is not a slice chosen by accuracy, but the decision to report it was still taken after the numbers were visible.
+
+  Both changes are the more defensible definitions — the old `tool_ok` credited calls that returned nothing, and the undivided conflict category averaged two very different tasks — but both were adopted *after* the numbers were visible, so 44.0% and 29.2% should be read as post-hoc metrics, not pre-registered ones.
 
 **The 2026-10-01 smoke test** (`results/smoke_test_log.txt`, `qwen2.5:7b`, 32k context, all 54 tools, n = 2) answered both questions correctly. It is not a rate.
 
@@ -270,7 +292,7 @@ Additional findings:
 ## 4. What the numbers support, and what they don't
 
 **Supported:**
-- On this synthetic dataset, over all 4 origins the global CatBoost design beats naive, seasonal-naive, MA28 and Croston/TSB baselines over a 30-day multi-step horizon — but the advantage is **entirely** from the single Oct→Nov origin; without it CatBoost is +0.17 pp worse than MA28, and the origin-clustered CI for the difference includes 0.
+- On this synthetic dataset, over all 4 origins the global CatBoost design beats naive, seasonal-naive (weekly and annual), MA28 and Croston/TSB baselines over a 30-day multi-step horizon — but the advantage is **entirely** from the single Oct→Nov origin; without it CatBoost is **indistinguishable** from MA28 (+0.17 pp, 95% CI [−0.17, +0.56], includes 0), it is significantly *worse* at 2 of the 3 remaining origins (Jun +0.42 [+0.04, +0.84]; Aug +0.55 [+0.18, +0.92]), and the origin-clustered CI for the overall difference includes 0.
 - The per-SKU CatBoost behind the README's backtest figure does **not** beat MA28 at any origin.
 - The stockout fix removes a specific, reproducible false-critical (3 → 0 critical SKUs) and brings `get_stockout_prediction` into agreement with the other inventory tools (the only genuine tool bug found).
 - The SQL path is closed at the engine level; the file-read escapes in both tools and the missing SQL timeout were real and are now closed (tests in §8). The Python tool is a **hardened blocklist, not a sandbox** (see Not supported).
@@ -283,18 +305,29 @@ Additional findings:
 - Any real-world retail forecasting accuracy (the data is synthetic, and its seasonal shape matches the model's calendar features).
 - Any claim about intermittent-demand handling (n = 0 intermittent SKUs).
 - Any claim about the Chronos/N-HiTS ensemble (not run).
-- Calling `python_repl` a sandbox. After this round it is a **hardened name/AST blocklist, still not a sandbox**: it now also blocks leading-underscore attributes, path-like writer keywords, several more numpy/pandas/f2py I/O routes, and str.format traversal (§8), but it has no OS-level isolation and no execution timeout, so a route no one enumerated could still exist. The SQL path, by contrast, is closed at the engine level (`enable_external_access=false`).
+- Calling `python_repl` a sandbox. After this round it is a **hardened name/AST blocklist, still not a sandbox**: it now also blocks leading-underscore attributes, path-like writer keywords, several more numpy/pandas/f2py I/O routes, and str.format traversal (§8), but it has no OS-level isolation and no execution timeout, so a route no one enumerated could still exist, and exception *messages* are still returned verbatim even though the traceback frames are now scrubbed (§6). The SQL path, by contrast, is closed at the engine level (`enable_external_access=false`).
 
 ## 5. Threats to validity
 
 - **Synthetic data.** Demand is base × smooth festival bumps × trend × N(1, 0.12) noise, plus random spikes (`generate_data.py:2101-2160`). There is no weekday effect and no zeros, and the promotion features are all zero in the test windows.
 - **Only 4 forecast origins.** The SKU bootstrap CI ignores origin-to-origin variance, so it is too narrow for a general claim.
 - **Baseline choice.** The best baseline was chosen on the test pairs, which favours the baseline.
+- **Baseline choice, checked against the omitted annual baseline.** The original baseline set contains nothing with an **annual** period, which matters because the one origin CatBoost wins is the festival origin. Added as a check (`eval_sop/forecast/annual_snaive_baseline.py` → `results/annual_snaive_baseline.txt`, same panel, origins, horizon, SKUs and metric definitions as the main backtest):
+
+  | annual baseline | Jun | Aug | Oct→Nov | Dec | overall sMAPE % | overall MASE₇ |
+  |---|---|---|---|---|---|---|
+  | seasonal naive, m = 364 | 25.26 | 24.68 | 25.51 | 23.79 | 24.81 | 1.697 |
+  | seasonal naive, m = 365 | 25.42 | 24.69 | 24.86 | 23.63 | 24.65 | 1.685 |
+  | level-scaled seasonal naive, m = 364 | 17.94 | 18.14 | **18.18** | 18.60 | 18.21 | 1.410 |
+  | *for reference:* MA28 | 12.71 | 12.15 | 19.72 | 14.51 | 14.77 | 1.107 |
+  | *for reference:* CatBoost global | 13.12 | 12.70 | **13.07** | 14.06 | 13.24 | 0.979 |
+
+  ("Level-scaled" multiplies last year's path by mean(last 28 days) / mean(the same 28 days a year earlier), so the shape comes from last year and the level from the recent window.) **The "best baseline = MA28" choice holds:** MA28 is better overall (14.77 vs 18.21) and at 3 of the 4 origins, and every annual variant is far worse than CatBoost at the Diwali origin, so the Diwali win is not an artefact of omitting annual seasonality. **One honest exception:** at the Diwali origin the level-scaled annual naive (18.18%) actually *beats* MA28 (19.72%). Against the strongest per-origin baseline, CatBoost's Diwali edge is about −5.11 pp rather than −6.65 pp. (A reviewer reported these same numbers as "worse than MA28 at every origin"; that is true at 3 of 4 origins but not at the Diwali origin.)
 - **CatBoost tuning.** CatBoost is untuned, and its 500-iteration cap binds.
 - **Leak fix.** The fixed model also trains on 30 fewer days, so the leak-fix delta confounds two effects (both negligible).
 - **Tool-consistency audit.** The 10 quantities were *chosen by me* because I suspected conflicts. The 14/22 → 18/22 figure describes those quantities, not the tool suite as a whole.
 - **Ground-truth definitions.** Ground truth for "days of cover" uses a 30-day SKU-level definition. Other defensible definitions exist; the store-level table gives different numbers.
-- **Agent eval questions and grading.** The questions were written by the evaluator, and the question set is not held out. After the prompt fix, the five conflict questions C01-C05 become answerable from the prompt text itself.
+- **Agent eval questions and grading.** The questions were written by the evaluator, and the question set is not held out. After the prompt fix, the five conflict questions C01-C05 become answerable from the prompt text itself, so the **80% scored on C01-C05 is prompt recall, not reasoning**, and the +6.7 pp after−before delta on those questions is largely the answer having been moved into the prompt. Both figures are flagged inline in §0 and §2e.
 - **Agent eval grader.** It is rule-based and agreed with my hand check on 28 of 30 sampled runs. The audit was done by the evaluating agent, not an independent human.
 - **Agent eval configuration.** It differs from deployment: an 8B local model (the repo default is Claude Sonnet), 10 of 54 tools, tool output truncated to 1,000 characters, and an 8,192-token context. Runs that exceed the budget count as wrong (12.5% of main runs). The prompt-budget estimator is approximate (about 4% high on the first call).
 - **Agent eval sample size.** Only 14 questions per category, so the CIs are wide. Seeds vary only the sampling: temperature 0.7 with an Ollama seed on the same GPU, and Ollama sampling is not guaranteed bit-reproducible.
@@ -302,7 +335,10 @@ Additional findings:
 
 ## 6. Proposed, not done
 
-- **python_repl:** run the code in a subprocess with a wall-clock timeout, no filesystem or network access (for example a separate low-privilege process or a container), and memory limits. The current AST name blocklist is defence in depth only.
+- **python_repl — residual risks, in full.** The hardening closed every file/process route enumerated (§2d) and now also scrubs error tracebacks (§8), but three gaps remain:
+  1. **No OS-level isolation.** It is a name/AST blocklist, so an un-enumerated route could still reach the filesystem or the process table. *Proposed:* run the code in a separate low-privilege process or container with no filesystem or network access and memory limits. The AST blocklist is then defence in depth only.
+  2. **No execution timeout.** `while True: pass` still hangs the call (probe row in §2d). *Proposed:* a wall-clock timeout, which the subprocess design above would also provide.
+  3. **Information disclosure through error text.** *Partly fixed.* Until this round the tool returned `traceback.format_exc()` verbatim, so **any** execution error printed the absolute paths of the pandas/numpy/stdlib install — and therefore the server user's home directory — to the model. Frames outside the `<repl>` compile unit are now stripped (§8, `tests/test_python_repl_sandbox.py::test_execution_error_does_not_disclose_server_paths`). Residual: the **exception message itself** is still passed through unmodified, so a library that embeds a server path in its own message (for example a file-not-found error on a path the model supplied) can still echo that string back. Only the frame list is sanitised. *Proposed:* whitelist the exception text as well, or return only the exception type.
 - **SQL guard:** replace the substring blacklist, which has false positives on legit names containing `load`/`replace`, with DuckDB's own parser (`json_serialize_sql`) to allow only SELECTs over known tables. Not done, because engine-level `enable_external_access=false` already closes the file path.
 - **Agent prompt:** document `run_sql_query` and de-emphasise the MySQL/Postgres tools when no credentials are set. Not done, to keep the before/after prompt change scoped to the counts.
 - **`get_supplier_lead_time_tracker`:** add a date-range argument. **Reconcile** `store_daily_inventory` with the SKU table.
@@ -336,7 +372,7 @@ The free local run (§2e) took about 1 hour for 504 runs, but only in the constr
 1. **`f4b2bb9` fix(stockout).** `intelligence/stockout.py`
    - **What:** velocity is now the trailing mean over `velocity_window_days` (default 28) per (store, SKU), summed across stores. A single-date snapshot falls back to the old column, and `velocity_window_days=1` reproduces the old behaviour.
    - **Why:** a one-day spike made SKUs critical (§2c).
-   - **Evidence:** base `stockout.py:56-64`. In `tests/test_stockout_velocity.py`, the behavioural test `test_single_day_spike_is_not_critical` **fails on base for the right reason** (AssertionError: base classifies the spiked SKU `critical`). The other two tests fail on base with a TypeError only because they exercise the new `velocity_window_days` parameter, so they document the new behaviour rather than prove the bug; the real-reason evidence is that first test plus `eval_sop/repro/repro_stockout.out` (base vs fixed on real data). (`pytest_stockout.out` records this base run.)
+   - **Evidence:** base `stockout.py:56-64`. In `tests/test_stockout_velocity.py`, the behavioural test `test_single_day_spike_is_not_critical` **fails on base for the right reason** (AssertionError: base classifies the spiked SKU `critical`). **Exactly one** other test fails on base with a TypeError only — `test_window_one_reproduces_old_behaviour`, which passes the new `velocity_window_days` parameter — so it documents the new behaviour rather than proving the bug. The third test, `test_single_snapshot_falls_back_to_snapshot_demand`, **passes on base**: the committed `eval_sop/repro/pytest_stockout.out` records `2 failed, 1 passed` on base (earlier revisions of this entry said "the other two tests fail on base with a TypeError", which the committed output contradicts). The real-reason evidence is the first test plus `eval_sop/repro/repro_stockout.out` (base vs fixed on real data).
    - **Preserved:** risk buckets, reorder formula, return shape, docstring rationale (extended, not removed).
 2. **`c399b89` fix(agent).** `agent/agent.py` system prompt, plus two tool descriptions in `mcp_server/server.py`.
    - **What:** replaced 8 stale counts (67→92 stores, 65→160 SKUs, 5,000→25,000 customers, 47,515→175,360 rows, 50,000→326,883 transactions, 1,500→9,806 returns, 624→936 reviews, 50→54 tools).
@@ -366,33 +402,63 @@ The free local run (§2e) took about 1 hour for 504 runs, but only in the constr
    - **Not fixed:** the execution timeout.
    - **Superseded by `d3c0c54` (round 2), which closes bypasses this entry missed.**
 
-9. **`d3c0c54` fix(python_repl) — round 2, review follow-up.** `mcp_server/server.py::tool_python_repl`
+6. **`cb49166` eval(agent).** Eval-only code, no product code: `eval_sop/agent_eval/run_agent_eval.py` and `run_all.sh`.
+   - **What:** added a constrained mode: the `--tools compact` 10-tool set, `--trunc-chars`, a `--max-prompt-tokens` guard, `--num-predict`, and `--keep-alive`. The schedule now runs on `llama3.1:8b`.
+   - **Why:** the coordinator's limit of at most 8,192 tokens of context; prompt plus 54 tools measures about 12.2k tokens.
+   - **Evidence:** token counts were measured with llama3.1 via Ollama: system prompt 4,330, 54 tool schemas about 7,906, 10 tool schemas 1,718.
+   - **Preserved:** the previous defaults (`--tools all`, no truncation, no budget). The suite was run before committing (41 passed / 2 skipped **at that commit**; HEAD is now 55 / 2).
+   - After seeing the results, `grade.py` and `analyze.py` gained a `budget_exceeded` column and before/after grouping. No answer-scoring rule was changed; the one metric definition that *was* changed later is item 10 below.
+7. **`d3c0c54` fix(python_repl) — round 2, review follow-up.** `mcp_server/server.py::tool_python_repl`
    - **What:** closed bypasses the round-1 blocklist missed: `np.lib._datasource.open` (read/write), `df.to_string(buf=)`/positional path, `df.info(buf=)`, `np.lib.format.open_memmap(mode='w+')`, `ndarray.dump`, `json.codecs.open`, pandas `get_handle`, f2py `subprocess`, and the `"{0.__globals__[sys]…}".format(obj)` gadget. Added: block ALL leading-underscore attributes; extend the name blocklist; block path-like writer keywords (`buf=`, `path=`, …) and positional paths on path-first writers; block str.format field traversal (format specs like `{:,.2f}` still allowed).
    - **Why:** adversarial review found the round-1 blocklist was incomplete.
    - **Evidence:** 10 new tests in `tests/test_python_repl_sandbox.py`; all 10 fail on branch HEAD `90606bc` (`eval_sop/repro/pytest_python_repl_bypass_before.out`) and the 17 pass after (`…_after.out`). `eval_sop/security/enumerate_io_routes.py` lists the routes walked. Assertions report booleans only — they never echo tool output (one earlier probe printed the process environment; that scratch file was deleted and never committed).
    - **Honest limit:** still a name/AST blocklist, **not a sandbox**, and still no execution timeout.
    - **Preserved:** all round-1 checks and comments.
-10. **`7bf3195` fix(tools).** `mcp_server/server.py`
+8. **`013ae32` privacy.** Scrubbed machine-specific absolute paths (the `C:\Users\<user>\…` home, scratch, and venv roots) from the committed agent-run JSONL, security results, and `leak_check_log.txt`; `security_probe.py` now redacts paths and canary content at write time.
+   - **Limitation — the scrub applies to HEAD only, not to this branch's history.** `git show` on any commit before `013ae32` still yields the unscrubbed blobs, so the absolute user paths remain recoverable: counting occurrences of the home-directory name, **90 across 9 files** at `013ae32^` versus **0 at HEAD** — `eval_sop/forecast/results/leak_check_log.txt` (2), the four agent-eval JSONL files (34 + 34 + 5 + 3), and `eval_sop/security/results_*.{json,txt}` (2 + 2 + 4 + 4). Nothing was rewritten here on purpose: this session's rules forbid rewriting git history, and the session owner handles that. **The history must be filtered (or the branch squashed) before this branch is published or pushed anywhere.** Treat the current scrub as "clean at HEAD, dirty in history".
+   - **Root cause, now fixed upstream:** the paths inside the agent-run JSONL came from `python_repl` error tracebacks, which returned the full `format_exc()`. That disclosure is closed in item 12, so future runs will not reproduce the leak at the source.
+9. **`7bf3195` fix(tools).** `mcp_server/server.py`
    - **What:** the SKU "not found" message now lists real prefixes via `_sku_not_found_msg()` (was hard-coded "DOG, CAT, MED, ACC", which match 0 SKUs and misled C02); fixed the module docstring "50 MCP tools" → 54.
    - **Evidence:** repro script `eval_sop/repro/repro_sku_prefix_msg.out` (base advertises 4 zero-match prefixes); new pytest `test_sku_not_found_message_lists_real_prefixes` passes.
    - **Preserved:** both call sites' other behaviour and surrounding comments.
-11. **`80559db` eval(agent) — grading only.** `eval_sop/agent_eval/grade.py`, `analyze.py`
-   - **What:** tool-selection now requires a *useful* result (a reached-but-empty call like "SKU not found" / "returned no rows" no longer counts); analyze reports the conflict category split C01–C05 vs C06–C13 vs C14.
-   - **Why:** review items 6 and 8.
-   - **Effect:** overall tool_ok ≈ unchanged (60.1%); real two-tool-conflict subgroup C06–C13 = 12.5% strict, tool_ok 29.2%. No reruns; `graded.csv`/`summary.*` regenerated; grader self-check still 19/19.
-12. **`a96e685` eval(agent) — metadata only.** `run_agent_eval.py` and the recorded JSONL
+10. **`80559db` eval(agent) — grading only, and the one post-hoc metric change.** `eval_sop/agent_eval/grade.py`, `analyze.py`
+   - **What:** (a) tool-selection now requires a *useful* result (a reached-but-empty call like "SKU not found" / "returned no rows" no longer counts); (b) analyze reports the conflict category split C01–C05 vs C06–C13 vs C14.
+   - **Why:** review items 6 and 8. Both decisions were taken **two days after the runs**, i.e. after the numbers were visible. No run was re-executed and no answer was re-scored; `graded.csv`/`summary.*` were regenerated and the grader self-check is still 19/19.
+   - **Measured effect** (`eval_sop/agent_eval/tool_ok_redefinition_effect.py`, item 14): change (a) flipped **3 of 504 runs**, all in the reconcile ablation → that row's tool-selection goes 47.6% → **44.0%**. It changed nothing in the main condition (60.1% under both definitions) and nothing in C06–C13 (**29.2% under both**). The move from the 50.0% previously quoted for the whole 14-question conflict category to 29.2% is caused by change (b), the split, not by (a). The commit message's "the real-conflict subgroup drops to 29.2%" is therefore loosely worded: 29.2% is that subgroup's value under *either* definition.
+11. **`a96e685` eval(agent) — metadata only.** `run_agent_eval.py` and the recorded JSONL
    - **What:** record the *effective* per-result truncation (the `truncate` ablation forces 4,000 regardless of `--trunc-chars`); relabeled the already-recorded files (`trunc_chars` now 4,000 for `ablation_truncate`, 1,000 elsewhere; `trunc_chars_cli` keeps the CLI value).
-13. **`013ae32` privacy.** Scrubbed machine-specific absolute paths (the `C:\Users\<user>\…` home, scratch, and venv roots) from the committed agent-run JSONL, security results, and `leak_check_log.txt`; `security_probe.py` now redacts paths and canary content at write time.
-6. **`cb49166` eval(agent).** Eval-only code, no product code: `eval_sop/agent_eval/run_agent_eval.py` and `run_all.sh`.
-   - **What:** added a constrained mode: the `--tools compact` 10-tool set, `--trunc-chars`, a `--max-prompt-tokens` guard, `--num-predict`, and `--keep-alive`. The schedule now runs on `llama3.1:8b`.
-   - **Why:** the coordinator's limit of at most 8,192 tokens of context; prompt plus 54 tools measures about 12.2k tokens.
-   - **Evidence:** token counts were measured with llama3.1 via Ollama: system prompt 4,330, 54 tool schemas about 7,906, 10 tool schemas 1,718.
-   - **Preserved:** the previous defaults (`--tools all`, no truncation, no budget). The suite was run before committing (41 passed / 2 skipped).
-   - After seeing the results, `grade.py` and `analyze.py` gained only a `budget_exceeded` column and before/after grouping. No grading rule was changed.
-14. **Non-code commits:**
+12. **`45613a3` fix(python_repl) — round 3, traceback disclosure.** `mcp_server/server.py::tool_python_repl`
+   - **What:** the error path returned `traceback.format_exc()` verbatim, so **every** execution error printed the absolute pandas/numpy/stdlib install paths — and therefore the server user's home directory — back to the model. New `_scrub_repl_traceback()` keeps only frames whose filename is the `<repl>` compile unit, over the whole `__cause__`/`__context__` chain.
+   - **Why:** an undisclosed information-disclosure residual, found in round-2 review. It was not in §6's residual list, which mentioned only "no isolation" and "no timeout".
+   - **Evidence:** new test `tests/test_python_repl_sandbox.py::test_execution_error_does_not_disclose_server_paths` **fails on the prior code for the right reason** — the captured failure shows a `site-packages\pandas\core\tools\datetimes.py` frame (`eval_sop/repro/pytest_repl_traceback_before.out`; the absolute paths in that captured message are hand-redacted there, since committing them would reintroduce exactly the leak the test is about) — and passes after.
+   - **Preserved:** exception type and message, the "Output before error" suffix, and every existing AST/name check.
+   - **Honest limit:** only the frame list is sanitised. The exception *message* is still returned verbatim, so a library that embeds a server path in its own message can still echo it (§6, residual 3).
+13. **`2114b0e` eval(forecast) — review follow-up, eval-only code.** `eval_sop/forecast/subset_ci.py`, `eval_sop/forecast/annual_snaive_baseline.py`
+   - **What:** (a) `subset_ci.py` computes SKU-clustered CIs for the excl-Diwali and per-origin deltas by re-using this backtest's own `paired()`/`boot_ci()` (2,000 reps, seed 20251231) on the committed `per_sku_origin.csv`, plus the origin-clustered CI; (b) `annual_snaive_baseline.py` adds the annual seasonal-naive baselines the main backtest omitted.
+   - **Why:** the +0.17 pp excl-Diwali delta was stated as a bare point estimate and described as "worse" (it is indistinguishable from zero), and the baseline set had no annual period even though the one origin CatBoost wins is the festival origin.
+   - **Evidence:** `results/subset_ci.{txt,json}`, `results/annual_snaive_baseline.{txt,json}`, `results/annual_snaive_per_sku_origin.csv` (force-added; the repo ignores `*.csv`). §2a and §5 quote these files.
+   - **Preserved:** `backtest.py` is imported, not modified; no backtest was re-run.
+14. **`b964d58` eval(agent) — derive the conflict split; measure the `tool_ok` redefinition.** `eval_sop/agent_eval/analyze.py`, `eval_sop/agent_eval/tool_ok_redefinition_effect.py`
+   - **What:** (a) `analyze.py` no longer hardcodes the C01–C05 / C06–C13 id lists; the split is derived from the `distractor_sources` field that `questions.py` writes into `questions.jsonl` before any run (`SYSTEM_PROMPT` vs a tool name), with C14 kept as a single named, documented exception (tool distractor, but answerable as a plain SKU lookup). (b) the new script re-grades all 504 committed runs under both `tool_ok` definitions.
+   - **Why:** a hardcoded id list makes a pre-registered subgroup look like a post-hoc slice; and §2e needed the actual size of the post-hoc metric change.
+   - **Evidence:** regenerating gives byte-identical `graded.csv` and `summary.md`, i.e. the derived split is the same partition as the old hardcoded one. `results/tool_ok_redefinition_effect.txt` holds the 3-of-504 result.
+15. **Non-code commits:**
    - `c69f751`, `f52a8ef`, `3875cf3`, `90606bc`: agent-eval harness and results.
    - `4dd67a7`, `80785d7`: forecast backtest and raw CSVs. The CSVs were force-added because the repo's `.gitignore` excludes `*.csv`; they total 1.8 MB.
-15. **Other:**
+   - `e32a97f`, `3b358fe`, and the round-2 review-fix commit at the end of this branch: `RESULTS.md` only.
+16. **Round-2 review corrections to this document (this revision, `RESULTS.md` only).** Every item was checked against the committed artifacts first; two reviewer claims did not hold and are noted as such.
+   - §0, §2a, §4, §9 sentence 2: the excl-Diwali delta is no longer called "worse". It is **+0.17 pp, 95% CI [−0.17, +0.56], indistinguishable from zero**; §2a gains a full per-subset CI table from `subset_ci.py` (item 13), and the significant per-origin deltas (Jun, Aug) and non-significant Dec are now labelled as such.
+   - §1: the test-suite line said "41 passed / 2 skipped (11 new tests)". HEAD is **55 passed / 2 skipped**, i.e. 25 new tests over base's 30; 41/11 was the count at `cb49166`.
+   - §2e ablation table: the reconcile ablation's tool-selection-OK was 47.6%; **recounted from `graded.csv` it is 44.0% (37/84)**, matching `results/summary.md`. *The reviewer attributed this to the baseline row being copied down; it is actually the pre-`80559db` value — the baseline row's 47.6% is a coincidence (item 14).*
+   - §2e grader audit: "It was **not** changed after seeing the results" is now scoped. The answer-scoring rules were not, but `tool_ok` was redefined and the conflict category was split post-hoc, with the measured effect of each stated. *The reviewer's claim that the redefinition moved C06–C13 from ~50% to 29.2% does **not** hold: 29.2% is that subgroup's value under both definitions, the ~50% was the undivided 14-question category, and the redefinition flipped only 3 of 504 runs (all in the reconcile ablation).*
+   - §0 and §2e: the **80% on C01–C05 is flagged inline as prompt recall, not reasoning**, and the +6.7 pp after−before delta on those questions is flagged as largely the answer having been moved into the prompt. §5 already said this; it is now at the point of use.
+   - §8 item 8 (`013ae32`): the path scrub is now stated to apply **at HEAD only**; the pre-`013ae32` blobs still contain the absolute user paths and the history must be filtered before publishing. No history was rewritten.
+   - §8 item 1: "the other two tests fail on base with a TypeError" corrected to **one** — `pytest_stockout.out` records `2 failed, 1 passed` on base.
+   - §2d, §4, §6: the **traceback path-disclosure residual** is now disclosed and §6's `python_repl` residual list is spelled out as three numbered risks (no isolation, no timeout, error-text disclosure) instead of one line.
+   - §5: new **annual seasonal-naive baseline check** (item 13), with the honest exception that the level-scaled annual naive beats MA28 at the Diwali origin. *The reviewer reported these numbers as "worse than MA28 at every origin"; that holds at 3 of 4 origins, not at Diwali (18.18% vs 19.72%).*
+   - §8: renumbered 1–17 in commit order (it previously ran 1–5, 9–13, 6, 14–15).
+   - §9: SOP sentence 2 rewritten; sentence 4 now gives "roughly one in eight (3 of 24 runs)" instead of leaning on 12.5%, and states 11 correct out of the 17 exposed runs.
+17. **Other:**
    - No dependency changes. Nothing was installed.
    - The original working tree and the uncommitted `agent_traces_2026-10-01/` folder were not modified.
    - Nothing was pushed.
@@ -400,6 +466,6 @@ The free local run (§2e) took about 1 hour for 504 runs, but only in the constr
 ## 9. SOP-ready sentences (true as of this branch)
 
 1. "I built a ReAct-style LLM agent for supply-chain analytics that exposes 54 tools via a hand-written MCP-style JSON-RPC server (in-process dispatch by default). Auditing the tools against ground truth computed directly from the data, I found that its stockout estimator derived demand velocity from a single day, so a one-day spike flagged a healthy SKU as critical; I replaced it with a trailing-window mean, which brought it into agreement with the other inventory tools and dropped the false 'critical' count from 3 to 0, verified by a regression test that fails on the original code."
-2. "In a rolling-origin, 30-day multi-step backtest over 160 SKUs of synthetic data, the project's global CatBoost forecaster averaged 13.2% sMAPE versus 14.8% for a 28-day moving-average baseline — but I found the advantage came entirely from one festival-season origin: excluding it, CatBoost was 0.2 pp worse than the baseline, and an origin-clustered confidence interval for the difference included zero. The per-SKU model behind the project's originally reported backtest number was worse than the moving average at every origin."
+2. "In a rolling-origin, 30-day multi-step backtest over 160 SKUs of synthetic data, the project's global CatBoost forecaster averaged 13.2% sMAPE versus 14.8% for a 28-day moving-average baseline — but I found the advantage came entirely from one festival-season origin: excluding it, CatBoost was indistinguishable from the baseline (+0.2 pp, 95% CI [−0.2, +0.6]) and significantly worse at two of the three remaining origins, and an origin-clustered confidence interval for the overall difference included zero. The per-SKU model behind the project's originally reported backtest number was worse than the moving average at every origin."
 3. "A security review of the agent's tools found that both its SQL tool and its Python tool could read arbitrary local files and that SQL queries had no timeout. I closed the SQL path at the database-engine level (external file access disabled) and added a query timeout, and I hardened the Python tool's blocklist against the file- and process-access routes I could enumerate — a hardened blocklist, not a true sandbox — backing each fix with regression tests, several of which fail on the original code."
-4. "I wrote a 56-question evaluation with ground truth computed directly from the data — lookups, aggregations, multi-hop reasoning, and questions where the prompt or one tool contradicts another — and ran a local 8B model on it three times each in a reduced 10-tool, 8k-context configuration (not the deployed setup). It answered 47.6% of questions correctly (95% CI 36–59%): 92% of single lookups but 12.5% of the genuine two-tool-conflict questions; and across the 11 runs where the prompt and a tool disagreed it chose the correct data value yet never once flagged the discrepancy (flagging detected by regex), while in the remaining exposed runs it did not surface the conflict either."
+4. "I wrote a 56-question evaluation with ground truth computed directly from the data — lookups, aggregations, multi-hop reasoning, and questions where the prompt or one tool contradicts another — and ran a local 8B model on it three times each in a reduced 10-tool, 8k-context configuration (not the deployed setup). It answered 47.6% of questions correctly (95% CI 36–59%): 92% of single lookups but only roughly one in eight (3 of 24 runs) of the genuine two-tool-conflict questions; and of the 17 runs actually exposed to a value that contradicted the data it gave the correct data-derived answer in 11 and flagged the discrepancy in none (flagging detected by regex)."
