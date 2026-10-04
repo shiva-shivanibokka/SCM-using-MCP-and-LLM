@@ -1,0 +1,27 @@
+Annual seasonal-naive baselines vs the committed MA28 / CatBoost numbers
+data: data/huft_daily_demand.csv sha256=04d0834d90c3de1a…  160 SKUs x 4 origins x H=30
+
+mean sMAPE % by origin:
+
+origin            2025-06-30  2025-08-31  2025-10-31  2025-12-01  overall
+model                                                                    
+snaive364             25.261      24.683      25.511      23.794   24.812
+snaive364_scaled      17.935      18.143      18.181      18.595   18.214
+snaive365             25.420      24.691      24.861      23.631   24.651
+catboost_global       13.124      12.698      13.075      14.061   13.239
+ma28                  12.707      12.148      19.720      14.506   14.770
+
+mean MASE7 of the annual baselines:
+model
+snaive364           1.697
+snaive364_scaled    1.410
+snaive365           1.685
+
+Conclusion: MA28 remains the best baseline overall (14.77% vs 18.21% for the best
+annual variant) and at 3 of the 4 origins. The ONE exception is the Diwali origin,
+where level-scaled snaive364 (18.18%) edges out MA28 (19.72%) -- so a reviewer who
+insists on the strongest per-origin baseline would compare CatBoost's 13.07% there
+against 18.18% rather than 19.72%, narrowing that origin's gap from -6.65 pp to
+about -5.11 pp. Every annual variant is still far worse than CatBoost at Diwali and
+worse than MA28 overall, so the 'best baseline = MA28' choice holds and the
+Diwali-origin CatBoost win is not an artefact of omitting annual seasonality.

@@ -1,0 +1,44 @@
+{
+  "data_sha256": "04d0834d90c3de1aaeae960d5b4b1a392714baa094fad49ec4d5d073cfa8e16c",
+  "origins": [
+    "2025-06-30",
+    "2025-08-31",
+    "2025-10-31",
+    "2025-12-01"
+  ],
+  "horizon_days": 30,
+  "n_skus": 160,
+  "level_ratio_window_days": 28,
+  "smape_by_origin": {
+    "2025-06-30": {
+      "snaive364": 25.2614,
+      "snaive364_scaled": 17.9352,
+      "snaive365": 25.4204
+    },
+    "2025-08-31": {
+      "snaive364": 24.6827,
+      "snaive364_scaled": 18.1433,
+      "snaive365": 24.691
+    },
+    "2025-10-31": {
+      "snaive364": 25.5112,
+      "snaive364_scaled": 18.1813,
+      "snaive365": 24.8605
+    },
+    "2025-12-01": {
+      "snaive364": 23.7942,
+      "snaive364_scaled": 18.595,
+      "snaive365": 23.6309
+    }
+  },
+  "smape_overall": {
+    "snaive364": 24.8124,
+    "snaive364_scaled": 18.2137,
+    "snaive365": 24.6507
+  },
+  "mase7_overall": {
+    "snaive364": 1.6968,
+    "snaive364_scaled": 1.4102,
+    "snaive365": 1.6846
+  }
+}
