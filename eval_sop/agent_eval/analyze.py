@@ -128,17 +128,28 @@ def main():
     groups.append(("after (fixed), all 56 Qs", main_))
     for cat in ["lookup", "aggregation", "multihop", "conflict"]:
         groups.append((f"after, {cat}", main_[main_.category == cat]))
-    # The "conflict" category mixes two very different things: C01-C05 are
-    # stale-prompt-count questions answerable from the data alone, while
-    # C06-C14 are the genuine two-tools-disagree questions. Report them apart.
-    stale_ids = ["C01", "C02", "C03", "C04", "C05"]
-    # C06-C13 are the two-tools-disagree questions. C14 (inventory of EXT_059)
-    # also carries a distractor but is answerable as a plain SKU lookup, so it is
-    # reported on its own rather than mixed into the hard-conflict group.
-    real_conf = ["C06", "C07", "C08", "C09", "C10", "C11", "C12", "C13"]
-    groups.append(("after, conflict: stale-count C01-C05", main_[main_.qid.isin(stale_ids)]))
-    groups.append(("after, conflict: real tool-conflict C06-C13", main_[main_.qid.isin(real_conf)]))
-    groups.append(("after, conflict: C14 (inventory lookup w/ distractor)", main_[main_.qid == "C14"]))
+    # The "conflict" category mixes two very different things: questions whose
+    # distractor is the stale SYSTEM PROMPT (answerable from the data alone) and
+    # questions where a TOOL returns a number that disagrees with the data.
+    # The split is DERIVED from the pre-registered `distractor_sources` field in
+    # questions.jsonl (written by questions.py before any run), not from a
+    # hand-picked id list — so the subgroup cannot be a post-hoc slice.
+    conf_ids = sorted(qid for qid, q in qs.items()
+                      if q.get("category") == "conflict" and q.get("distractor_sources"))
+    stale_ids = [q for q in conf_ids if "SYSTEM_PROMPT" in qs[q]["distractor_sources"]]
+    tool_conf = [q for q in conf_ids if "SYSTEM_PROMPT" not in qs[q]["distractor_sources"]]
+    # One documented exception: C14 (inventory of EXT_059) carries a tool
+    # distractor but is answerable as a plain SKU lookup from the SKU-level
+    # table, so it is reported on its own rather than mixed into the hard group.
+    LOOKUP_WITH_DISTRACTOR = ["C14"]
+    real_conf = [q for q in tool_conf if q not in LOOKUP_WITH_DISTRACTOR]
+    c14 = [q for q in tool_conf if q in LOOKUP_WITH_DISTRACTOR]
+    def _rng(ids):
+        return f"{ids[0]}-{ids[-1]}" if len(ids) > 1 else (ids[0] if ids else "none")
+    groups.append((f"after, conflict: stale-count {_rng(stale_ids)}", main_[main_.qid.isin(stale_ids)]))
+    groups.append((f"after, conflict: real tool-conflict {_rng(real_conf)}", main_[main_.qid.isin(real_conf)]))
+    groups.append((f"after, conflict: {_rng(c14)} (inventory lookup w/ distractor)",
+                   main_[main_.qid.isin(c14)]))
     bef = d[(d.variant == "before") & (d.ablation == "none")]
     fr = sorted(bef.qid.unique())
     frq = [q for q, v in qs.items() if v["fix_relevant"]]
