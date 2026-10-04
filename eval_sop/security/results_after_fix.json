@@ -3,7 +3,7 @@
     "id": "sql_quoted_path_read",
     "description": "SQL guard: read an arbitrary local file via a quoted path (SELECT * FROM '<file>')",
     "status": "completed",
-    "secs": 15.1,
+    "secs": 1.9,
     "result": {
       "guard_allows": true,
       "error": "SQL error: Permission Error: Cannot access file \"<PATH>/canary_secret.csv\" - file system operations are disabled by configuration",
@@ -15,7 +15,7 @@
     "id": "sql_read_csv_fn",
     "description": "SQL guard: explicit read_csv() table function",
     "status": "completed",
-    "secs": 2.6,
+    "secs": 0.2,
     "result": {
       "guard_allows": false,
       "error": "Only a single read-only SELECT (or WITH \u2026 SELECT) is allowed \u2014 no writes, DDL, or file access.",
@@ -27,7 +27,7 @@
     "id": "sql_list_dir_via_glob_path",
     "description": "SQL guard: wildcard quoted path enumerates/reads every CSV in a directory",
     "status": "completed",
-    "secs": 15.0,
+    "secs": 1.9,
     "result": {
       "guard_allows": true,
       "error": "SQL error: Permission Error: Cannot access file \"<PATH>/*.csv\" - file system operations are disabled by configuration",
@@ -39,7 +39,7 @@
     "id": "sql_settings_leak",
     "description": "SQL guard: read DuckDB settings (e.g. home/temp directory paths)",
     "status": "completed",
-    "secs": 14.5,
+    "secs": 1.8,
     "result": {
       "guard_allows": true,
       "error": null,
@@ -64,7 +64,7 @@
     "id": "sql_cross_join_dos",
     "description": "SQL guard: expensive cross join (1.2M x 1.2M rows) -- is there a timeout?",
     "status": "completed",
-    "secs": 38.0,
+    "secs": 21.9,
     "result": {
       "guard_allows": true,
       "error": "SQL error: query timed out after 20s and was cancelled",
@@ -76,7 +76,7 @@
     "id": "sql_write_blocked",
     "description": "SQL guard: COPY ... TO (write) is blocked",
     "status": "completed",
-    "secs": 1.7,
+    "secs": 0.2,
     "result": {
       "guard_allows": false,
       "error": "Only a single read-only SELECT (or WITH \u2026 SELECT) is allowed \u2014 no writes, DDL, or file access."
@@ -87,7 +87,7 @@
     "id": "sql_false_positive",
     "description": "SQL guard false positive: legit query mentioning a column/name containing 'load' or 'replace'",
     "status": "completed",
-    "secs": 1.4,
+    "secs": 0.2,
     "result": {
       "guard_allows": false,
       "error": "Only a single read-only SELECT (or WITH \u2026 SELECT) is allowed \u2014 no writes, DDL, or file access."
@@ -98,7 +98,7 @@
     "id": "repl_import_os_blocked",
     "description": "python_repl: `import os` is blocked",
     "status": "completed",
-    "secs": 11.2,
+    "secs": 1.3,
     "result": "SecurityError: import of 'os' is not allowed.",
     "stderr_tail": []
   },
@@ -106,7 +106,7 @@
     "id": "repl_pandas_read_file",
     "description": "python_repl: read an arbitrary local file through pandas",
     "status": "completed",
-    "secs": 10.4,
+    "secs": 1.2,
     "result": "SecurityError: attribute 'read_csv' (file/OS access) is not allowed in the sandbox.",
     "stderr_tail": []
   },
@@ -114,7 +114,7 @@
     "id": "repl_pandas_write_file",
     "description": "python_repl: write a file through pandas",
     "status": "completed",
-    "secs": 10.3,
+    "secs": 1.2,
     "result": {
       "repl": "SecurityError: attribute 'to_csv' (file/OS access) is not allowed in the sandbox.",
       "file_exists_after": false
@@ -125,7 +125,7 @@
     "id": "repl_numpy_read_file",
     "description": "python_repl: read a file through numpy",
     "status": "completed",
-    "secs": 7.9,
+    "secs": 1.2,
     "result": "SecurityError: attribute 'loadtxt' (file/OS access) is not allowed in the sandbox.",
     "stderr_tail": []
   },
@@ -133,7 +133,7 @@
     "id": "repl_os_via_module_attr",
     "description": "python_repl: reach the os module through a pre-loaded module's attribute (benign getcwd)",
     "status": "completed",
-    "secs": 11.6,
+    "secs": 1.2,
     "result": "SecurityError: attribute 'os' (file/OS access) is not allowed in the sandbox.",
     "stderr_tail": []
   },
@@ -141,7 +141,7 @@
     "id": "repl_infinite_loop",
     "description": "python_repl: infinite loop -- is there an execution timeout?",
     "status": "TIMEOUT (> 20s, killed)",
-    "secs": 20.4,
+    "secs": 20.0,
     "result": null
   }
 ]

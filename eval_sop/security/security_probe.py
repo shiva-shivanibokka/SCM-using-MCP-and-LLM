@@ -33,6 +33,26 @@ CANARY_P = CANARY.as_posix()
 WRITE_P = WRITE_TARGET.as_posix()
 
 
+def _redact(obj):
+    """Strip machine-specific absolute paths (and any returned canary content)
+    from probe output so the committed JSON leaks neither host paths nor the
+    bytes an exploit read. The canary itself is a fake value this script writes,
+    but we still reduce 'the file was read' to a flag rather than echoing bytes."""
+    roots = [str(ROOT), ROOT.as_posix(), str(TMP), TMP.as_posix()]
+    if isinstance(obj, str):
+        s = obj
+        for r in roots:
+            s = s.replace(r, "<PATH>")
+        if "CANARY_TOKEN" in s or "s3cr3t-canary" in s:
+            return "<REDACTED: canary file content was returned>"
+        return s
+    if isinstance(obj, list):
+        return [_redact(x) for x in obj]
+    if isinstance(obj, dict):
+        return {k: _redact(v) for k, v in obj.items()}
+    return obj
+
+
 def run(code: str, timeout: float) -> dict:
     prog = textwrap.dedent(f"""
         import os, sys, json
@@ -50,8 +70,9 @@ def run(code: str, timeout: float) -> dict:
         for line in p.stdout.splitlines():
             if line.startswith("@@RESULT@@"):
                 res = json.loads(line[len("@@RESULT@@"):])
-        return {"status": "completed", "secs": round(time.time() - t0, 1), "result": res,
-                "stderr_tail": p.stderr.strip().splitlines()[-1:] if p.returncode else []}
+        return {"status": "completed", "secs": round(time.time() - t0, 1),
+                "result": _redact(res),
+                "stderr_tail": _redact(p.stderr.strip().splitlines()[-1:] if p.returncode else [])}
     except subprocess.TimeoutExpired:
         return {"status": f"TIMEOUT (> {timeout}s, killed)", "secs": round(time.time() - t0, 1), "result": None}
 
