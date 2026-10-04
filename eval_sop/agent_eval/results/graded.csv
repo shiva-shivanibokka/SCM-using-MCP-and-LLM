@@ -10,7 +10,7 @@ M08,multihop,after,reconcile,0,False,0,0,1,0,0,0,1,1,0,0,2,0,,,0,,10986,146,1322
 M09,multihop,after,reconcile,0,False,0,0,0,1,0,1,0,3,3,0,4,0,,,0,,15784,220,27360,8.1,run_sql_query,,ablation_reconcile.jsonl,llama3.1:8b
 M10,multihop,after,reconcile,0,False,0,0,1,0,0,0,1,3,2,0,4,0,,,0,,20781,201,27184,8.6,run_sql_query,ON001; Kolkata,ablation_reconcile.jsonl,llama3.1:8b
 M11,multihop,after,reconcile,0,False,1,1,1,0,0,0,1,2,0,0,3,0,,,0,,15624,97,19871,4.1,run_sql_query,Heads Up For Tails; 7771567.49; 53,ablation_reconcile.jsonl,llama3.1:8b
-M12,multihop,after,reconcile,0,False,0,0,0,0,0,0,1,4,2,0,3,0,,,0,,15943,332,20437,12.3,run_sql_query,,ablation_reconcile.jsonl,llama3.1:8b
+M12,multihop,after,reconcile,0,False,0,0,0,0,0,0,0,4,2,0,3,0,,,0,,15943,332,20437,12.3,run_sql_query,,ablation_reconcile.jsonl,llama3.1:8b
 M13,multihop,after,reconcile,0,False,0,0,0,0,0,0,0,2,2,0,2,0,,,0,,10970,399,13253,15.6,get_cold_chain_monitor,,ablation_reconcile.jsonl,llama3.1:8b
 M14,multihop,after,reconcile,0,False,0,0,1,0,0,0,1,1,0,0,2,0,,,0,,10896,71,13158,3.6,run_sql_query,1; 43977.79,ablation_reconcile.jsonl,llama3.1:8b
 C01,conflict,after,reconcile,0,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10825,32,13056,2.3,run_sql_query,92,ablation_reconcile.jsonl,llama3.1:8b
@@ -66,8 +66,8 @@ M08,multihop,after,reconcile,2,False,0,0,1,0,0,0,1,1,0,0,2,0,,,0,,10999,144,1322
 M09,multihop,after,reconcile,2,False,0,0,0,1,0,1,0,3,3,0,4,0,,,0,,15805,238,27436,9.3,run_sql_query,,ablation_reconcile.jsonl,llama3.1:8b
 M10,multihop,after,reconcile,2,False,0,0,0,1,0,1,0,3,3,0,4,0,,,0,,15785,163,27261,7.0,run_sql_query,,ablation_reconcile.jsonl,llama3.1:8b
 M11,multihop,after,reconcile,2,False,0,0,1,0,0,0,1,3,0,0,3,0,,,0,,15979,113,20244,5.3,get_return_rate_analysis,Pedigree; 10,ablation_reconcile.jsonl,llama3.1:8b
-M12,multihop,after,reconcile,2,False,0,0,1,0,0,0,1,3,2,0,2,0,,,0,,11106,423,13452,16.3,run_sql_query,DOG_001; 500,ablation_reconcile.jsonl,llama3.1:8b
-M13,multihop,after,reconcile,2,False,0,0,1,0,0,0,1,3,1,0,2,0,,,0,,11005,352,13298,13.5,get_cold_chain_monitor,0; 0,ablation_reconcile.jsonl,llama3.1:8b
+M12,multihop,after,reconcile,2,False,0,0,1,0,0,0,0,3,2,0,2,0,,,0,,11106,423,13452,16.3,run_sql_query,DOG_001; 500,ablation_reconcile.jsonl,llama3.1:8b
+M13,multihop,after,reconcile,2,False,0,0,1,0,0,0,0,3,1,0,2,0,,,0,,11005,352,13298,13.5,get_cold_chain_monitor,0; 0,ablation_reconcile.jsonl,llama3.1:8b
 M14,multihop,after,reconcile,2,False,0,0,1,0,0,0,1,1,0,0,2,0,,,0,,10900,71,13153,3.7,run_sql_query,1; 43977.79,ablation_reconcile.jsonl,llama3.1:8b
 C01,conflict,after,reconcile,2,True,1,1,1,0,0,0,1,1,0,0,2,0,0.0,0.0,0,0.0,10825,27,13056,2.8,run_sql_query,92,ablation_reconcile.jsonl,llama3.1:8b
 C02,conflict,after,reconcile,2,True,0,1,0,0,0,0,0,6,0,0,7,0,0.0,0.0,0,0.0,34543,149,46865,5.5,get_sku_360,,ablation_reconcile.jsonl,llama3.1:8b

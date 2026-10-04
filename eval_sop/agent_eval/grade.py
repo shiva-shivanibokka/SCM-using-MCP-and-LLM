@@ -13,6 +13,12 @@ import re
 FAIL_PREFIXES = ("TOOL_ERROR", "MCP tool call failed", "SecurityError", "Execution error",
                  "Unknown tool", "SQL error", "Only a single read-only", "SyntaxError",
                  "MySQL connection failed", "PostgreSQL connection failed", "web_search is disabled")
+# A call that reached a tool but produced no usable data (bad SKU id, empty
+# result, missing data file). These do NOT count toward tool-selection success:
+# reaching a tool with an argument that returns nothing is not "selecting the
+# tool that answers the question". Matched as a case-insensitive substring.
+NO_DATA_MARKERS = ("not found. valid prefixes", "no skus match", "returned no rows",
+                   "no inventory data available", "no data available", "query ran successfully but returned no rows")
 DB_TOOLS = {"query_mysql", "query_postgres", "test_mysql_connection", "test_postgres_connection",
             "log_forecast_to_postgres", "create_inventory_alert", "get_active_alerts", "get_monthly_kpis"}
 FLAG_RE = re.compile(r"discrepan|conflict|inconsisten|mismatch|disagree|contradict|differ(?:s|ent|ence)? (?:from|between|across)", re.I)
@@ -106,6 +112,14 @@ def ok_result(r: str) -> bool:
     return not str(r).lstrip().startswith(FAIL_PREFIXES)
 
 
+def useful_result(r: str) -> bool:
+    """A call that neither errored nor returned a no-data placeholder. Used for
+    the tool-selection metric (reaching a tool but getting nothing back is not
+    a correct tool selection for the question)."""
+    s = str(r)
+    return ok_result(s) and not any(m in s.lower() for m in NO_DATA_MARKERS)
+
+
 def grade(run: dict, q: dict) -> dict:
     ans = run.get("answer") or ""
     fin = final_line(ans)
@@ -113,7 +127,7 @@ def grade(run: dict, q: dict) -> dict:
     lenient = bool(ans) and all(part_match(ans, p) for p in q["parts"])
     calls = run.get("tool_calls", [])
     names = [c["name"] for c in calls]
-    ok_names = {c["name"] for c in calls if ok_result(c["result"])}
+    ok_names = {c["name"] for c in calls if useful_result(c["result"])}
     acc_tools = set(q["acceptable_tools"])
     llm = run.get("llm_calls", [])
     srcs = q.get("distractor_sources", [])

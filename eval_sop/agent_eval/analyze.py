@@ -128,6 +128,17 @@ def main():
     groups.append(("after (fixed), all 56 Qs", main_))
     for cat in ["lookup", "aggregation", "multihop", "conflict"]:
         groups.append((f"after, {cat}", main_[main_.category == cat]))
+    # The "conflict" category mixes two very different things: C01-C05 are
+    # stale-prompt-count questions answerable from the data alone, while
+    # C06-C14 are the genuine two-tools-disagree questions. Report them apart.
+    stale_ids = ["C01", "C02", "C03", "C04", "C05"]
+    # C06-C13 are the two-tools-disagree questions. C14 (inventory of EXT_059)
+    # also carries a distractor but is answerable as a plain SKU lookup, so it is
+    # reported on its own rather than mixed into the hard-conflict group.
+    real_conf = ["C06", "C07", "C08", "C09", "C10", "C11", "C12", "C13"]
+    groups.append(("after, conflict: stale-count C01-C05", main_[main_.qid.isin(stale_ids)]))
+    groups.append(("after, conflict: real tool-conflict C06-C13", main_[main_.qid.isin(real_conf)]))
+    groups.append(("after, conflict: C14 (inventory lookup w/ distractor)", main_[main_.qid == "C14"]))
     bef = d[(d.variant == "before") & (d.ablation == "none")]
     fr = sorted(bef.qid.unique())
     frq = [q for q, v in qs.items() if v["fix_relevant"]]
