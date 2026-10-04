@@ -365,7 +365,11 @@ def main():
                    "ablation": args.ablation, "seed": seed, "model": args.model,
                    "model_digest": digest, "ollama_version": ver, "num_ctx": args.num_ctx,
                    "temperature": args.temperature, "n_tools_offered": len(runner.tools),
-                   "tools_config": args.tools, "trunc_chars": args.trunc_chars,
+                   "tools_config": args.tools,
+                   # effective per-result truncation actually applied this run:
+                   # the "truncate" ablation forces TRUNC_CHARS regardless of --trunc-chars.
+                   "trunc_chars": (TRUNC_CHARS if args.ablation == "truncate" else args.trunc_chars),
+                   "trunc_chars_cli": args.trunc_chars,
                    "max_prompt_tokens": args.max_prompt_tokens, "num_predict": args.num_predict,
                    "ts": time.strftime("%Y-%m-%dT%H:%M:%S"), **res}
             with out.open("a", encoding="utf-8") as f:
