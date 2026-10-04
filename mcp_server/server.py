@@ -1934,6 +1934,28 @@ def tool_web_search(query: str, num_results: int = 5) -> str:
 # ── Python REPL Tool ──────────────────────────────────────────────────────────
 
 
+def _scrub_repl_traceback(exc: BaseException, limit: int = 5) -> str:
+    """Format `exc` keeping only the frames compiled from the REPL unit.
+
+    SECURITY: the raw ``traceback.format_exc()`` lists every frame, including
+    pandas/numpy/stdlib frames whose filenames are ABSOLUTE paths on the server
+    host.  Any execution error therefore disclosed the installation layout (and
+    the operating user's home directory) to the model.  Only frames whose
+    filename is the ``"<repl>"`` compile unit are kept, for the whole
+    ``__cause__``/``__context__`` chain.  The exception type and message are
+    preserved unchanged, so genuine errors stay debuggable.
+    """
+    te = traceback.TracebackException.from_exception(exc)
+    seen: set[int] = set()
+    cur: "traceback.TracebackException | None" = te
+    while cur is not None and id(cur) not in seen:
+        seen.add(id(cur))
+        kept = [f for f in cur.stack if f.filename == "<repl>"]
+        cur.stack = traceback.StackSummary.from_list(kept[-limit:])
+        cur = cur.__cause__ or cur.__context__
+    return "".join(te.format())
+
+
 def tool_python_repl(code: str) -> str:
     """
     Execute arbitrary Python code in a secure, sandboxed namespace and return
@@ -1959,7 +1981,6 @@ def tool_python_repl(code: str) -> str:
     import io
     import math
     import re
-    import traceback as _tb
     from contextlib import redirect_stdout
 
     # ── Safe built-ins whitelist ──────────────────────────────────────────
@@ -2193,8 +2214,10 @@ def tool_python_repl(code: str) -> str:
             except Exception:
                 pass
 
-    except Exception:
-        tb = _tb.format_exc(limit=5)
+    except Exception as exc:
+        # SECURITY: never return the raw traceback — it names absolute library
+        # paths on the server host. Keep only "<repl>" frames.
+        tb = _scrub_repl_traceback(exc, limit=5)
         output = stdout_buf.getvalue()
         return f"Execution error:\n{tb}" + (
             f"\nOutput before error:\n{output}" if output else ""

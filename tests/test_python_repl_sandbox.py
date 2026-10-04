@@ -139,3 +139,24 @@ def test_legit_fstring_and_to_string_still_work():
     out = R("x = df['demand'].sum()\nprint(f'{x:,.0f}')\ndf.head(2)[['sku_id','demand']].to_string(index=False)")
     ok = ("Error" not in out) and ("sku_id" in out)
     assert ok
+
+
+def test_execution_error_does_not_disclose_server_paths():
+    """A library-level error must not leak absolute server paths via the traceback.
+
+    Before the fix `tool_python_repl` returned `traceback.format_exc()`, whose
+    frames name the pandas/stdlib install directories (and therefore the server
+    user's home). Only "<repl>" frames may survive; the exception type and
+    message must still be reported.
+    """
+    import pandas as pd
+
+    pandas_dir = os.path.dirname(os.path.dirname(os.path.abspath(pd.__file__)))
+    out = R("pd.to_datetime('not-a-date', format='%Y-%m-%d')")
+    assert "Execution error" in out
+    assert "ValueError" in out  # the real error is still reported
+    assert "<repl>" in out  # the user's own frame is kept
+    leaks = [pandas_dir, os.path.dirname(os.path.abspath(pd.__file__)),
+             "site-packages", os.path.expanduser("~")]
+    for frag in leaks:
+        assert frag not in out, "traceback disclosed a server path fragment"
