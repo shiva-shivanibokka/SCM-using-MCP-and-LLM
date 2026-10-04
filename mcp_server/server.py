@@ -2,7 +2,7 @@
 Pet Store Supply Chain Intelligence MCP Server
 Transport: SSE over HTTP (FastAPI + uvicorn)
 
-Exposes 50 MCP tools:
+Exposes 54 MCP tools:
 
   DATABASE TOOLS (original):
    1. get_inventory_status      — current inventory levels and risk classification
@@ -371,6 +371,20 @@ def get_products() -> pd.DataFrame:
     return _products_cache
 
 
+def _sku_not_found_msg(sku_id: str, frame: pd.DataFrame) -> str:
+    """'Not found' message that lists the SKU prefixes actually present in the
+    data. The old hard-coded 'DOG, CAT, MED, ACC' matched zero real SKUs and
+    misled the agent about the catalog (see eval_sop/repro/repro_sku_prefix_msg)."""
+    import re as _re
+
+    prefixes = sorted({
+        m.group() for s in frame["sku_id"].astype(str)
+        if (m := _re.match(r"[A-Za-z]+", s))
+    })
+    shown = ", ".join(prefixes[:12]) + (", ..." if len(prefixes) > 12 else "")
+    return f"SKU '{sku_id}' not found. Valid prefixes: {shown}."
+
+
 def get_stores() -> pd.DataFrame:
     global _stores_cache
     if _stores_cache is None:
@@ -709,7 +723,7 @@ def tool_get_inventory_status(sku_id: str | None = None, top_n: int = 10) -> str
         sku_id = sku_id.upper()
         row = merged[merged["sku_id"] == sku_id]
         if row.empty:
-            return f"SKU '{sku_id}' not found. Valid prefixes: DOG, CAT, MED, ACC."
+            return _sku_not_found_msg(sku_id, merged)
         r = row.iloc[0]
         return (
             f"=== Inventory Status: {r['sku_id']} — {r['name']} ===\n"
@@ -908,7 +922,7 @@ def tool_get_sku_360(sku_id: str) -> str:
     sku_id = sku_id.upper().strip()
     sku_df = df[df["sku_id"] == sku_id].sort_values("date")
     if sku_df.empty:
-        return f"SKU '{sku_id}' not found. Valid prefixes: DOG, CAT, MED, ACC."
+        return _sku_not_found_msg(sku_id, df)
 
     latest = sku_df.iloc[-1]
     hist_30 = sku_df.tail(30)["demand"]

@@ -1,0 +1,4 @@
+real SKU prefixes in data: ['BED', 'BOWL', 'CLTH', 'EXT', 'FOOD', 'GIFT', 'GROM', 'HLTH', 'LITT', 'SPA', 'TOYS', 'TRT', 'TRVL', 'WALK']
+prefixes advertised by 90606bc 'not found' message: ['DOG, CAT, MED, ACC']
+advertised prefixes that match ZERO SKUs: ['DOG', 'CAT', 'MED', 'ACC']
+RESULT: BUG reproduced — message lists only non-existent prefixes
