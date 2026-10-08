@@ -27,10 +27,24 @@ def _defaults() -> dict:
         "last_finetune": last.isoformat(),
         "next_finetune": (last + timedelta(days=_FINETUNE_PERIOD_DAYS)).isoformat(),
         "weights": dict(zip(_NAMES, ENSEMBLE_WEIGHTS)),
+        # `measured` is False because these three numbers are placeholders, not
+        # results. No backtest in this repository produced them, and the only
+        # run that measures anything (eval_sop/forecast) reports catboost_global
+        # at 13.24 sMAPE -- not 16.8. They were shipped as chart-shaped filler so
+        # the MLOps page had bars before a fine-tune existed, and the dashboard
+        # then presented them as "reference backtests". A number a reviewer can
+        # read off a live page has to say where it came from, so the flag travels
+        # with the value and the UI labels anything unmeasured.
+        #
+        # A real fine-tune overwrites the matching model's value from the
+        # model_registry table in get_registry() and flips the flag.
         "models": [
-            {"name": "chronos", "type": "amazon/chronos-t5-small", "backtest_mape": 12.4},
-            {"name": "nhits", "type": "neuralforecast/NHITS", "backtest_mape": 14.1},
-            {"name": "catboost", "type": "CatBoost/Quantile", "backtest_mape": 16.8},
+            {"name": "chronos", "type": "amazon/chronos-t5-small",
+             "backtest_mape": 12.4, "measured": False},
+            {"name": "nhits", "type": "neuralforecast/NHITS",
+             "backtest_mape": 14.1, "measured": False},
+            {"name": "catboost", "type": "CatBoost/Quantile",
+             "backtest_mape": 16.8, "measured": False},
         ],
     }
 
@@ -113,5 +127,7 @@ def get_registry() -> dict:
             for m in base["models"]:
                 if m["name"] == latest["model_name"]:
                     m["backtest_mape"] = latest["backtest_smape"]
+                    # This one now comes from a run that happened.
+                    m["measured"] = True
     base["history"] = history
     return base

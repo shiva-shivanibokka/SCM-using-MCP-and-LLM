@@ -50,7 +50,19 @@ export default function MLOps() {
     name,
     pct: Math.round(w * 100),
   }))
-  const mape = data.models.map((m) => ({ name: m.name, mape: m.backtest_mape, type: m.type }))
+  // `measured` says whether the bar is a real backtest or a placeholder the
+  // registry ships so the chart is not empty before the first fine-tune. The
+  // label has to say which, or the page reads as if all three were measured.
+  const mape = data.models.map((m) => ({
+    name: m.name,
+    // Starred on the axis so the chart itself carries the caveat. `name` stays
+    // untouched because WEIGHT_COLORS is keyed on it.
+    label: m.measured === false ? `${m.name}*` : m.name,
+    mape: m.backtest_mape,
+    type: m.type,
+    measured: m.measured !== false,
+  }))
+  const anyPlaceholder = mape.some((m) => !m.measured)
   const history = data.history || []
   const runs = agent?.runs || []
   const STATUS_STYLE = {
@@ -137,17 +149,31 @@ export default function MLOps() {
 
         <ChartCard
           title="Backtest error % (lower is better)"
-          hint="CatBoost shows the sMAPE from your latest real retrain; Chronos and N-HiTS show reference backtests. Triggering a fine-tune pushes CatBoost's bar to its freshly measured score."
+          hint={
+            anyPlaceholder
+              ? "A starred bar (*) is a placeholder, not a measurement: no backtest in this repository produced it. Only a model you have actually fine-tuned shows a measured sMAPE, logged in the registry below. Trigger a fine-tune to replace CatBoost's bar with a real score."
+              : "Each bar is the sMAPE from a real retrain, logged in the model registry below."
+          }
         >
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={mape}>
               <CartesianGrid strokeDasharray="3 3" stroke="#2A214010" vertical={false} />
-              <XAxis dataKey="name" tick={{ fontSize: 13, fontWeight: 700 }} />
+              <XAxis dataKey="label" tick={{ fontSize: 13, fontWeight: 700 }} />
               <YAxis unit="%" tick={{ fontSize: 12 }} />
-              <Tooltip formatter={(v) => `${v}%`} cursor={{ fill: "#2A214008" }} />
+              <Tooltip
+                formatter={(v, _n, p) =>
+                  p?.payload?.measured ? `${v}%` : `${v}% — placeholder, not measured`
+                }
+                cursor={{ fill: "#2A214008" }}
+              />
               <Bar dataKey="mape" radius={[8, 8, 0, 0]}>
                 {mape.map((m, i) => (
-                  <Cell key={i} fill={WEIGHT_COLORS[m.name] || "#12B5A6"} />
+                  <Cell
+                    key={i}
+                    fill={WEIGHT_COLORS[m.name] || "#12B5A6"}
+                    // Placeholders are drawn hollow so they do not read as results.
+                    fillOpacity={m.measured ? 1 : 0.35}
+                  />
                 ))}
               </Bar>
             </BarChart>

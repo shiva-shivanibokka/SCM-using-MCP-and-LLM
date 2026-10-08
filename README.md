@@ -357,12 +357,22 @@ Interactive OpenAPI docs: **`/docs`** on the backend.
 
 | Suite | What | How |
 |---|---|---|
-| Backend | 23 passing (+3 heavy Chronos/N-HiTS tests skipped when their deps aren't installed) | `python -m pytest backend/tests` |
-| Intelligence & data | stockout, anomaly, what-if, Croston/TSB contract, dataset shape | `python -m pytest tests/` |
+| Backend | 25 passing (+2 heavy Chronos/N-HiTS tests skipped when their deps aren't installed) | `python -m pytest backend/tests` |
+| Intelligence, security & data | 32 passing — python_repl sandbox escapes, SQL file-access guard, REPL timeout, stockout velocity, anomaly, what-if, Croston/TSB contract, dataset shape | `python -m pytest tests` |
+| Both, as CI runs them | **57 passing, 2 skipped** | `python -m pytest backend/tests tests -k "not chronos and not nhits"` |
 | Frontend | 3 passing (KpiCard render, LLM store: provider switch + key storage) | `cd frontend && npm run test` |
 | Data quality | dbt tests (not-null, unique, relationships, accepted-values, singular) | `python db/run_dbt.py test` |
 
-The backend and frontend suites run in **GitHub Actions CI** on every push. Coverage is focused on the data layer, routes, and registry/forecast contracts rather than an exhaustive line-coverage number.
+Counts measured 2026-10-08 with the commands shown.
+
+The backend and frontend suites run in **GitHub Actions CI** on every push. Until
+2026-10-08 the backend workflow ran `pytest backend/tests` only, so the entire
+top-level `tests/` directory — including every sandbox-escape and SQL-guard
+regression test — was never executed by CI, and those protections could have
+regressed with the badge green. The workflow now runs both directories.
+
+Coverage is focused on the data layer, routes, security guards, and
+registry/forecast contracts rather than an exhaustive line-coverage number.
 
 ---
 

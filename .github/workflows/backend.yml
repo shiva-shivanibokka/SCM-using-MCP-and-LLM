@@ -18,5 +18,10 @@ jobs:
           pip install -r backend/requirements.txt pytest
       - name: Generate data
         run: python data/generate_data.py
+      # `backend/tests` alone left the top-level `tests/` directory out of CI
+      # entirely -- the sandbox-escape, SQL file-access, REPL-timeout and
+      # stockout-velocity regression tests among them. Every one of those could
+      # have regressed with this workflow green, which is the opposite of what a
+      # guard is for.
       - name: Run fast tests
-        run: python -m pytest backend/tests -v -k "not chronos and not nhits"
+        run: python -m pytest backend/tests tests -v -k "not chronos and not nhits"
