@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 from pathlib import Path
 
 # Compact data dictionary handed to the LLM for natural-language → SQL.
@@ -72,6 +73,10 @@ _FORBIDDEN_SUB = (
 
 _CON_CACHE: dict[str, object] = {}
 
+# Wall-clock cap per query. DuckDB has no statement timeout, so a cross join
+# over store_inventory (1.2M rows) would otherwise run unbounded.
+DEFAULT_TIMEOUT_S = 20
+
 
 def is_safe_select(sql: str) -> bool:
     s = sql.strip().rstrip(";").lower()
@@ -91,15 +96,51 @@ def _get_con(data_dir):
     import duckdb
 
     con = duckdb.connect(database=":memory:")
+    con.execute("SET enable_progress_bar = false")  # CTAS below would print bars to stdout
     for name, csv in VIEWS.items():
         p = Path(data_dir) / csv
         if p.exists():
-            con.execute(f"CREATE VIEW {name} AS SELECT * FROM read_csv_auto('{p.as_posix()}')")
+            # Materialised as tables (not views over read_csv_auto) so external
+            # file access can be switched off for every user query below. Trade-off:
+            # the data is a snapshot taken when the connection is first built.
+            con.execute(f"CREATE TABLE {name} AS SELECT * FROM read_csv_auto('{p.as_posix()}')")
+    # Engine-level sandbox on top of the keyword guard: user SQL can no longer
+    # read files or URLs by quoted path (SELECT * FROM '/any/file.csv'), and the
+    # setting cannot be turned back on from SQL.
+    con.execute("SET enable_external_access = false")
+    con.execute("SET lock_configuration = true")
+    # Warm up the DataFrame conversion path once (first fetchdf lazily imports
+    # pandas/numpy glue) so that one-off cost is not charged to the first user
+    # query's timeout.
+    con.execute("SELECT 1 AS warmup").fetchdf()
     _CON_CACHE[key] = con
     return con
 
 
-def run_query(sql: str, data_dir, max_rows: int = 100) -> dict:
+def _execute_with_timeout(con, sql: str, timeout_s: float):
+    cur = con.cursor()
+    out: dict = {}
+
+    def work():
+        try:
+            out["df"] = cur.execute(sql).fetchdf()
+        except Exception as e:  # surfaced to the caller below
+            out["exc"] = e
+
+    th = threading.Thread(target=work, daemon=True)
+    th.start()
+    th.join(timeout_s)
+    if th.is_alive():
+        cur.interrupt()
+        th.join(5)
+        raise TimeoutError(f"query timed out after {timeout_s:g}s and was cancelled")
+    if "exc" in out:
+        raise out["exc"]
+    return out["df"]
+
+
+def run_query(sql: str, data_dir, max_rows: int = 100,
+              timeout_s: float = DEFAULT_TIMEOUT_S) -> dict:
     """Execute a guarded SELECT. Returns
     {columns: [...], rows: [ {col: val} ], total: int, truncated: bool, error: str|None}.
     """
@@ -114,7 +155,7 @@ def run_query(sql: str, data_dir, max_rows: int = 100) -> dict:
                          "no writes, DDL, or file access."}
     try:
         con = _get_con(data_dir)
-        df = con.execute(sql).fetchdf()
+        df = _execute_with_timeout(con, sql, timeout_s)
         total = int(len(df))
         head = df.head(max_rows)
         # json round-trip makes numpy/NaN/timestamps JSON-safe.

@@ -77,3 +77,22 @@ def test_intermittent_classification_and_contract():
     validate_forecast(f, 30)                       # raises if contract violated
     assert f["method"] in ("croston", "tsb")
     assert all(f["p10"][i] <= f["p50"][i] <= f["p90"][i] for i in range(30))
+
+
+def test_sku_not_found_message_lists_real_prefixes():
+    """get_sku_360 / get_inventory_status must advertise prefixes that exist in
+    the data, not the old hard-coded DOG/CAT/MED/ACC (which matched 0 SKUs)."""
+    import asyncio
+    import pandas as pd
+
+    from mcp_server.server import tool_get_sku_360, get_products
+
+    real = {str(s).split("_")[0] for s in get_products()["sku_id"]}
+    msg = tool_get_sku_360("ZZZ_999")
+    assert "not found" in msg
+    advertised = msg.split("Valid prefixes:")[1].strip().rstrip(".")
+    shown = {p.strip() for p in advertised.split(",") if p.strip() and p.strip() != "..."}
+    assert shown, msg
+    assert shown <= real, f"advertised non-existent prefixes: {shown - real}"
+    assert {"DOG", "CAT", "MED", "ACC"}.isdisjoint(shown)
+    assert "FOOD" in shown and "EXT" in shown

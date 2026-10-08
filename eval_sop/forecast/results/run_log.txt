@@ -1,0 +1,211 @@
+[backtest] all 160 SKUs; origins=['2025-06-30', '2025-08-31', '2025-10-31', '2025-12-01']; seeds=[0, 1, 2]
+[backtest] repo features built in 4s
+[backtest] origin 2025-06-30 seed 0: fit 15s, best_iter=491, total 158s
+[backtest]   backend per-SKU CatBoost: 173s
+[backtest] origin 2025-06-30 seed 1: fit 73s, best_iter=499, total 439s
+[backtest]   backend per-SKU CatBoost: 89s
+[backtest] origin 2025-06-30 seed 2: fit 50s, best_iter=499, total 206s
+[backtest]   backend per-SKU CatBoost: 80s
+[backtest] origin 2025-08-31 seed 0: fit 60s, best_iter=498, total 230s
+[backtest]   backend per-SKU CatBoost: 89s
+[backtest] origin 2025-08-31 seed 1: fit 54s, best_iter=495, total 211s
+[backtest]   backend per-SKU CatBoost: 82s
+[backtest] origin 2025-08-31 seed 2: fit 53s, best_iter=498, total 217s
+[backtest]   backend per-SKU CatBoost: 79s
+[backtest] origin 2025-10-31 seed 0: fit 59s, best_iter=499, total 321s
+[backtest]   backend per-SKU CatBoost: 110s
+[backtest] origin 2025-10-31 seed 1: fit 60s, best_iter=497, total 319s
+[backtest]   backend per-SKU CatBoost: 108s
+[backtest] origin 2025-10-31 seed 2: fit 69s, best_iter=499, total 261s
+[backtest]   backend per-SKU CatBoost: 90s
+[backtest] origin 2025-12-01 seed 0: fit 68s, best_iter=499, total 232s
+[backtest]   backend per-SKU CatBoost: 86s
+[backtest] origin 2025-12-01 seed 1: fit 63s, best_iter=498, total 236s
+[backtest]   backend per-SKU CatBoost: 88s
+[backtest] origin 2025-12-01 seed 2: fit 55s, best_iter=498, total 189s
+[backtest]   backend per-SKU CatBoost: 75s
+                        model       subset  n_pairs  smape_mean  smape_std  smape_ci_lo  smape_ci_hi  mase7_mean  mase7_std  mase7_ci_lo  mase7_ci_hi  mae_mean
+                        naive          all      640      20.284     11.675       19.472       21.152       1.527      1.197        1.454        1.610    22.204
+                      snaive7          all      640      21.159      7.316       20.671       21.706       1.677      0.880        1.622        1.735    24.542
+                         ma28          all      640      14.770      4.499       14.481       15.087       1.107      0.435        1.080        1.137    16.073
+                      croston          all      640      16.148      6.155       15.805       16.523       1.221      0.570        1.190        1.253    17.790
+                          tsb          all      640      16.148      6.155       15.805       16.523       1.221      0.570        1.190        1.253    17.790
+    catboost_global[seedmean]          all      640      13.239      4.095       12.806       13.705       0.979      0.382        0.947        1.013    15.306
+catboost_repo_infer[seedmean]          all      640      13.217      3.967       12.806       13.657       0.979      0.377        0.947        1.011    15.209
+   catboost_backend[seedmean]          all      640      17.797      6.707       17.418       18.193       1.325      0.624        1.290        1.363    19.227
+         catboost_backend[s0]          all      640      17.677      6.845       17.290       18.094       1.314      0.634        1.278        1.353    19.043
+         catboost_backend[s1]          all      640      17.798      6.814       17.410       18.195       1.325      0.632        1.289        1.364    19.281
+         catboost_backend[s2]          all      640      17.918      6.992       17.509       18.329       1.335      0.650        1.298        1.374    19.356
+          catboost_global[s0]          all      640      13.271      4.131       12.847       13.747       0.982      0.385        0.948        1.015    15.344
+          catboost_global[s1]          all      640      13.350      4.244       12.900       13.833       0.986      0.387        0.952        1.020    15.479
+          catboost_global[s2]          all      640      13.097      4.031       12.680       13.553       0.971      0.380        0.938        1.004    15.095
+      catboost_repo_infer[s0]          all      640      13.245      3.983       12.839       13.690       0.981      0.379        0.948        1.014    15.232
+      catboost_repo_infer[s1]          all      640      13.326      4.108       12.900       13.784       0.985      0.381        0.953        1.018    15.385
+      catboost_repo_infer[s2]          all      640      13.082      3.918       12.684       13.512       0.971      0.375        0.939        1.002    15.009
+                        naive intermittent        0         NaN        NaN          NaN          NaN         NaN        NaN          NaN          NaN       NaN
+                      snaive7 intermittent        0         NaN        NaN          NaN          NaN         NaN        NaN          NaN          NaN       NaN
+                         ma28 intermittent        0         NaN        NaN          NaN          NaN         NaN        NaN          NaN          NaN       NaN
+                      croston intermittent        0         NaN        NaN          NaN          NaN         NaN        NaN          NaN          NaN       NaN
+                          tsb intermittent        0         NaN        NaN          NaN          NaN         NaN        NaN          NaN          NaN       NaN
+    catboost_global[seedmean] intermittent        0         NaN        NaN          NaN          NaN         NaN        NaN          NaN          NaN       NaN
+catboost_repo_infer[seedmean] intermittent        0         NaN        NaN          NaN          NaN         NaN        NaN          NaN          NaN       NaN
+   catboost_backend[seedmean] intermittent        0         NaN        NaN          NaN          NaN         NaN        NaN          NaN          NaN       NaN
+         catboost_backend[s0] intermittent        0         NaN        NaN          NaN          NaN         NaN        NaN          NaN          NaN       NaN
+         catboost_backend[s1] intermittent        0         NaN        NaN          NaN          NaN         NaN        NaN          NaN          NaN       NaN
+         catboost_backend[s2] intermittent        0         NaN        NaN          NaN          NaN         NaN        NaN          NaN          NaN       NaN
+          catboost_global[s0] intermittent        0         NaN        NaN          NaN          NaN         NaN        NaN          NaN          NaN       NaN
+          catboost_global[s1] intermittent        0         NaN        NaN          NaN          NaN         NaN        NaN          NaN          NaN       NaN
+          catboost_global[s2] intermittent        0         NaN        NaN          NaN          NaN         NaN        NaN          NaN          NaN       NaN
+      catboost_repo_infer[s0] intermittent        0         NaN        NaN          NaN          NaN         NaN        NaN          NaN          NaN       NaN
+      catboost_repo_infer[s1] intermittent        0         NaN        NaN          NaN          NaN         NaN        NaN          NaN          NaN       NaN
+      catboost_repo_infer[s2] intermittent        0         NaN        NaN          NaN          NaN         NaN        NaN          NaN          NaN       NaN
+{
+ "paired": {
+  "catboost_global[seedmean]_vs_ma28_smape": {
+   "model_a": "catboost_global[seedmean]",
+   "model_b": "ma28",
+   "metric": "smape",
+   "n_pairs": 640,
+   "mean_diff_a_minus_b": -1.5308565675418921,
+   "ci95": [
+    -1.9214082725690296,
+    -1.1004557852473782
+   ],
+   "median_diff": -0.501566727155323,
+   "win_rate_a": 0.61875
+  },
+  "catboost_global[seedmean]_vs_ma28_mase7": {
+   "model_a": "catboost_global[seedmean]",
+   "model_b": "ma28",
+   "metric": "mase7",
+   "n_pairs": 640,
+   "mean_diff_a_minus_b": -0.12791904661234116,
+   "ci95": [
+    -0.15291380263662877,
+    -0.10158064345263851
+   ],
+   "median_diff": -0.03318529639568346,
+   "win_rate_a": 0.6203125
+  },
+  "catboost_global[seedmean]_vs_ma28_smape_intermittent": {
+   "n_pairs": 0
+  },
+  "catboost_repo_infer[seedmean]_vs_ma28_smape": {
+   "model_a": "catboost_repo_infer[seedmean]",
+   "model_b": "ma28",
+   "metric": "smape",
+   "n_pairs": 640,
+   "mean_diff_a_minus_b": -1.5527860267425173,
+   "ci95": [
+    -1.9121350525662717,
+    -1.1458431150718194
+   ],
+   "median_diff": -0.5354786523911219,
+   "win_rate_a": 0.6171875
+  },
+  "catboost_repo_infer[seedmean]_vs_ma28_mase7": {
+   "model_a": "catboost_repo_infer[seedmean]",
+   "model_b": "ma28",
+   "metric": "mase7",
+   "n_pairs": 640,
+   "mean_diff_a_minus_b": -0.12829032435971682,
+   "ci95": [
+    -0.15158014231252467,
+    -0.10330339607410621
+   ],
+   "median_diff": -0.034872495639718004,
+   "win_rate_a": 0.6203125
+  },
+  "catboost_repo_infer[seedmean]_vs_ma28_smape_intermittent": {
+   "n_pairs": 0
+  },
+  "catboost_backend[seedmean]_vs_ma28_smape": {
+   "model_a": "catboost_backend[seedmean]",
+   "model_b": "ma28",
+   "metric": "smape",
+   "n_pairs": 640,
+   "mean_diff_a_minus_b": 3.0272302437101613,
+   "ci95": [
+    2.7301422662545693,
+    3.3399985608614355
+   ],
+   "median_diff": 1.8067555890314377,
+   "win_rate_a": 0.234375
+  },
+  "catboost_backend[seedmean]_vs_ma28_mase7": {
+   "model_a": "catboost_backend[seedmean]",
+   "model_b": "ma28",
+   "metric": "mase7",
+   "n_pairs": 640,
+   "mean_diff_a_minus_b": 0.21766100461349147,
+   "ci95": [
+    0.1935236346949506,
+    0.24325969662005043
+   ],
+   "median_diff": 0.10590179112409043,
+   "win_rate_a": 0.2296875
+  },
+  "catboost_backend[seedmean]_vs_ma28_smape_intermittent": {
+   "n_pairs": 0
+  }
+ },
+ "seed_variation": {
+  "catboost_global": {
+   "per_seed_mean_smape": {
+    "0": 13.271,
+    "1": 13.3505,
+    "2": 13.0966
+   },
+   "per_seed_mean_mase7": {
+    "0": 0.9815,
+    "1": 0.9857,
+    "2": 0.9707
+   },
+   "std_across_seeds_smape": 0.12988100387840684,
+   "range_across_seeds_smape": 0.2539150132583252
+  },
+  "catboost_repo_infer": {
+   "per_seed_mean_smape": {
+    "0": 13.2446,
+    "1": 13.3256,
+    "2": 13.082
+   },
+   "per_seed_mean_mase7": {
+    "0": 0.9808,
+    "1": 0.9854,
+    "2": 0.9707
+   },
+   "std_across_seeds_smape": 0.12408107210386582,
+   "range_across_seeds_smape": 0.2436401984181149
+  },
+  "catboost_backend": {
+   "per_seed_mean_smape": {
+    "0": 17.677,
+    "1": 17.7977,
+    "2": 17.9176
+   },
+   "per_seed_mean_mase7": {
+    "0": 1.3143,
+    "1": 1.3254,
+    "2": 1.335
+   },
+   "std_across_seeds_smape": 0.12027045357889599,
+   "range_across_seeds_smape": 0.24054045012224634
+  }
+ },
+ "class_counts": {
+  "2025-06-30": {
+   "smooth": 160
+  },
+  "2025-08-31": {
+   "smooth": 160
+  },
+  "2025-10-31": {
+   "smooth": 160
+  },
+  "2025-12-01": {
+   "smooth": 160
+  }
+ },
+ "runtime_s": 4186.4
+}

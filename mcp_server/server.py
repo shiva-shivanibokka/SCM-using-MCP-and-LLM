@@ -2,7 +2,7 @@
 Pet Store Supply Chain Intelligence MCP Server
 Transport: SSE over HTTP (FastAPI + uvicorn)
 
-Exposes 50 MCP tools:
+Exposes 54 MCP tools:
 
   DATABASE TOOLS (original):
    1. get_inventory_status      — current inventory levels and risk classification
@@ -49,7 +49,7 @@ Exposes 50 MCP tools:
   38. get_marketing_campaign_recommendations — top 5 categories to promote / avoid
   39. get_inventory_financial_summary  — CFO-level inventory value, margin, working capital
   40. get_customer_cohort_demand_analysis — quarterly cohort LTV, retention, top products
-  41. get_store_level_demand_intelligence — 67-store demand intelligence, rebalancing
+  41. get_store_level_demand_intelligence — store-level demand intelligence, rebalancing
   42. get_supplier_negotiation_brief   — leverage score, YoY volume, negotiation talking points
   43. get_product_recommendation       — pet-specific product recommendations (breed/age/health)
   44. get_store_inventory_breakdown    — per-store live inventory from DB (city/region/risk)
@@ -369,6 +369,20 @@ def get_products() -> pd.DataFrame:
         else:
             raise FileNotFoundError(f"Products CSV not found: {PRODUCTS_CSV}")
     return _products_cache
+
+
+def _sku_not_found_msg(sku_id: str, frame: pd.DataFrame) -> str:
+    """'Not found' message that lists the SKU prefixes actually present in the
+    data. The old hard-coded 'DOG, CAT, MED, ACC' matched zero real SKUs and
+    misled the agent about the catalog (see eval_sop/repro/repro_sku_prefix_msg)."""
+    import re as _re
+
+    prefixes = sorted({
+        m.group() for s in frame["sku_id"].astype(str)
+        if (m := _re.match(r"[A-Za-z]+", s))
+    })
+    shown = ", ".join(prefixes[:12]) + (", ..." if len(prefixes) > 12 else "")
+    return f"SKU '{sku_id}' not found. Valid prefixes: {shown}."
 
 
 def get_stores() -> pd.DataFrame:
@@ -709,7 +723,7 @@ def tool_get_inventory_status(sku_id: str | None = None, top_n: int = 10) -> str
         sku_id = sku_id.upper()
         row = merged[merged["sku_id"] == sku_id]
         if row.empty:
-            return f"SKU '{sku_id}' not found. Valid prefixes: DOG, CAT, MED, ACC."
+            return _sku_not_found_msg(sku_id, merged)
         r = row.iloc[0]
         return (
             f"=== Inventory Status: {r['sku_id']} — {r['name']} ===\n"
@@ -908,7 +922,7 @@ def tool_get_sku_360(sku_id: str) -> str:
     sku_id = sku_id.upper().strip()
     sku_df = df[df["sku_id"] == sku_id].sort_values("date")
     if sku_df.empty:
-        return f"SKU '{sku_id}' not found. Valid prefixes: DOG, CAT, MED, ACC."
+        return _sku_not_found_msg(sku_id, df)
 
     latest = sku_df.iloc[-1]
     hist_30 = sku_df.tail(30)["demand"]
@@ -1920,6 +1934,28 @@ def tool_web_search(query: str, num_results: int = 5) -> str:
 # ── Python REPL Tool ──────────────────────────────────────────────────────────
 
 
+def _scrub_repl_traceback(exc: BaseException, limit: int = 5) -> str:
+    """Format `exc` keeping only the frames compiled from the REPL unit.
+
+    SECURITY: the raw ``traceback.format_exc()`` lists every frame, including
+    pandas/numpy/stdlib frames whose filenames are ABSOLUTE paths on the server
+    host.  Any execution error therefore disclosed the installation layout (and
+    the operating user's home directory) to the model.  Only frames whose
+    filename is the ``"<repl>"`` compile unit are kept, for the whole
+    ``__cause__``/``__context__`` chain.  The exception type and message are
+    preserved unchanged, so genuine errors stay debuggable.
+    """
+    te = traceback.TracebackException.from_exception(exc)
+    seen: set[int] = set()
+    cur: "traceback.TracebackException | None" = te
+    while cur is not None and id(cur) not in seen:
+        seen.add(id(cur))
+        kept = [f for f in cur.stack if f.filename == "<repl>"]
+        cur.stack = traceback.StackSummary.from_list(kept[-limit:])
+        cur = cur.__cause__ or cur.__context__
+    return "".join(te.format())
+
+
 def tool_python_repl(code: str) -> str:
     """
     Execute arbitrary Python code in a secure, sandboxed namespace and return
@@ -1945,7 +1981,6 @@ def tool_python_repl(code: str) -> str:
     import io
     import math
     import re
-    import traceback as _tb
     from contextlib import redirect_stdout
 
     # ── Safe built-ins whitelist ──────────────────────────────────────────
@@ -2048,6 +2083,33 @@ def tool_python_repl(code: str) -> str:
         "termios",
         "tty",
     }
+    _BLOCKED_ATTRS = {
+        "os", "sys", "subprocess", "shutil", "pathlib", "io", "builtins", "importlib",
+        "ctypes", "socket", "load", "save", "savez", "savez_compressed", "loadtxt",
+        "savetxt", "genfromtxt", "fromfile", "tofile", "memmap", "fromregex",
+        "DataSource", "ExcelWriter", "HDFStore", "ExcelFile",
+        # Additional file / process / network routes found by adversarial review
+        # (eval_sop/security/enumerate_io_routes.py walks the pd/np/json object
+        # graphs). numpy.lib._datasource is reached by its single-underscore name,
+        # which the leading-underscore rule below also blocks.
+        "open", "open_memmap", "get_handle", "dump", "codecs", "urlopen", "popen",
+        "system", "fdopen", "write_array", "read_array", "load_library", "fromstring",
+        "frombuffer", "Popen", "call", "check_call", "check_output", "run",
+        "build_and_import_extension", "compile_extension_module", "run_subprocess",
+        "import_optional_dependency", "import_module",
+    }
+    _BLOCKED_TO_IO = {
+        "to_csv", "to_excel", "to_parquet", "to_pickle", "to_json", "to_sql", "to_hdf",
+        "to_feather", "to_stata", "to_html", "to_xml", "to_latex", "to_clipboard", "to_orc",
+        "to_gbq",
+    }
+    # Writer/renderer methods that take a destination as the FIRST positional
+    # argument or via a path-like keyword. We allow them with no destination
+    # (e.g. df.to_string(index=False) returns a string) but block any call that
+    # names a sink. The path-like keyword set is checked on EVERY call.
+    _PATH_FIRST_WRITERS = {"to_string", "to_markdown", "to_latex", "to_html", "to_xml", "info"}
+    _PATH_KWARGS = {"buf", "path", "path_or_buf", "path_or_buffer", "fname", "file",
+                    "filepath", "filepath_or_buffer", "excel_writer", "fp", "sheet_name_to_path"}
     try:
         tree = ast.parse(code)
         for node in ast.walk(tree):
@@ -2062,13 +2124,50 @@ def tool_python_repl(code: str) -> str:
                     root = name.split(".")[0]
                     if root in _BLOCKED_IMPORTS:
                         return f"SecurityError: import of '{root}' is not allowed."
-            # Block ALL dunder attribute access (e.g. __class__, __subclasses__)
-            # This closes the getattr() sandbox-escape chain even if getattr were present
+            # Block ALL leading-underscore attribute access. This covers the
+            # dunder escape chain (__class__, __globals__, __subclasses__) AND
+            # single-underscore private internals such as numpy.lib._datasource
+            # and pandas._libs that expose file/OS routes. Analysis code has no
+            # legitimate need for private attributes.
             if isinstance(node, ast.Attribute):
-                if node.attr.startswith("__") and node.attr.endswith("__"):
+                if node.attr.startswith("_"):
                     return (
-                        f"SecurityError: access to dunder attribute "
+                        f"SecurityError: access to private attribute "
                         f"'{node.attr}' is not allowed in the sandbox."
+                    )
+            # Block file / network I/O reachable through the pre-loaded pandas and
+            # numpy modules (pd.read_csv, df.to_csv, np.loadtxt, ...) and module
+            # attributes that lead back to os/sys (e.g. pd.io.common.os). Without
+            # this, the import blacklist above can be sidestepped entirely.
+            # NOTE: name-based blocklist = defence in depth, not a real sandbox.
+            if isinstance(node, ast.Attribute) and (
+                node.attr in _BLOCKED_ATTRS
+                or node.attr.startswith("read_")
+                or node.attr in _BLOCKED_TO_IO
+            ):
+                return (
+                    f"SecurityError: attribute '{node.attr}' (file/OS access) "
+                    f"is not allowed in the sandbox."
+                )
+            # Block writer/renderer calls that name a file sink: a path-like
+            # keyword (buf=, path=, ...) on any call, or a positional destination
+            # on a path-first writer (df.to_string('/x'), df.info(buf=...)).
+            if isinstance(node, ast.Call):
+                for kw in node.keywords:
+                    if kw.arg in _PATH_KWARGS:
+                        return (
+                            f"SecurityError: writing to a file via '{kw.arg}=' "
+                            f"is not allowed in the sandbox."
+                        )
+                fn = node.func
+                if (
+                    isinstance(fn, ast.Attribute)
+                    and fn.attr in _PATH_FIRST_WRITERS
+                    and any(not isinstance(a, ast.Starred) for a in node.args)
+                ):
+                    return (
+                        f"SecurityError: writing to a file via "
+                        f"'{fn.attr}(<path>)' is not allowed in the sandbox."
                     )
             # Block names that reference dunder globals
             if isinstance(node, ast.Name):
@@ -2076,6 +2175,17 @@ def tool_python_repl(code: str) -> str:
                     return (
                         f"SecurityError: reference to '{node.id}' "
                         f"is not allowed in the sandbox."
+                    )
+            # Block str.format payloads that traverse attributes/items, e.g.
+            # "{0.__globals__[sys]...}".format(obj). The dunder lives inside a
+            # string literal, so the Attribute check above cannot see it.
+            if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                # `.`/`[` before any `:` is field traversal; after `:` is a format
+                # spec (e.g. "{:,.2f}"), which stays allowed.
+                if re.search(r"\{[^{}:]*[.\[]", node.value):
+                    return (
+                        "SecurityError: format-string attribute/item access "
+                        "is not allowed in the sandbox."
                     )
     except SyntaxError as e:
         return f"SyntaxError: {e}"
@@ -2104,8 +2214,10 @@ def tool_python_repl(code: str) -> str:
             except Exception:
                 pass
 
-    except Exception:
-        tb = _tb.format_exc(limit=5)
+    except Exception as exc:
+        # SECURITY: never return the raw traceback — it names absolute library
+        # paths on the server host. Keep only "<repl>" frames.
+        tb = _scrub_repl_traceback(exc, limit=5)
         output = stdout_buf.getvalue()
         return f"Execution error:\n{tb}" + (
             f"\nOutput before error:\n{output}" if output else ""
@@ -5164,7 +5276,7 @@ MCP_TOOLS = [
     {
         "name": "get_customer_segmentation_insights",
         "description": (
-            "Customer segment analysis for the Pet Store's 5000 customers. "
+            "Customer segment analysis for the Pet Store's 25,000 customers. "
             "Shows: avg order value, purchase frequency, LTV, top categories, preferred channel per segment. "
             "Recommends inventory allocation per segment. "
             "USE THIS for: 'customer segments', 'who buys most', 'segment LTV', 'top customer profiles'."
@@ -5327,7 +5439,7 @@ MCP_TOOLS = [
     {
         "name": "get_store_level_demand_intelligence",
         "description": (
-            "Store-level demand intelligence for the Pet Store's 67 stores across India. "
+            "Store-level demand intelligence for the Pet Store's 92 stores across India. "
             "Identifies stores with unique demand vs national average, consistently under/overstocked stores. "
             "Shows top SKUs per store and inventory rebalancing opportunities. "
             "USE THIS for: 'store performance', 'city-wise demand', 'which city sells most', "

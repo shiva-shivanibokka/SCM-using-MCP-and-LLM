@@ -1,0 +1,63 @@
+Manual audit of grade.py: 30 runs sampled from main_after.jsonl with random.seed(7).
+Human judgement by the evaluating agent (Claude) reading the full final answer; DISAGREE marks a grader error.
+#0 A15 seed=1 grader_strict=0 human=1 DISAGREE
+    truth: ['July'] | answer tail: The calendar month with the highest total net revenue in 2025 was July 2025.  |  | FINAL: 2025-07-01T00:00:00.000; 20301859.0
+#1 M11 seed=0 grader_strict=1 human=1 
+    truth: ['Heads Up For Tails', 53.0] | answer tail: FINAL: Heads Up For Tails; 7771567.49; 53
+#2 C04 seed=1 grader_strict=0 human=0 
+    truth: [326883.0] | answer tail: Since the table does not exist, let me check the available tables in the database. |  | {"name": "list_tables", "parameters": {}}
+#3 A01 seed=0 grader_strict=0 human=0 
+    truth: [226690575.0] | answer tail: An unexpected error occurred: ContextBudgetExceeded: estimated prompt 7224 tok > budget 7100 |  | Please check your API key and try again, or rephrase the question.
+#4 A07 seed=0 grader_strict=1 human=1 
+    truth: ['South', 28.0] | answer tail: FINAL: South; 28
+#5 A14 seed=2 grader_strict=1 human=1 
+    truth: [5097285.75] | answer tail: FINAL: 5097285.75
+#6 A13 seed=0 grader_strict=1 human=1 
+    truth: [31.0] | answer tail: FINAL: 31
+#7 M10 seed=1 grader_strict=0 human=0 
+    truth: ['ON001', 'Online'] | answer tail: tore_id, s.city FROM (SELECT store_id, SUM(net_revenue_inr) AS total_revenue FROM transactions WHERE date LIKE '%2025%' GROUP BY store_id) t JOIN stores s ON t.store_id = s.store_id ORDER BY total_revenue DESC LIMIT 1"}}
+#8 M10 seed=2 grader_strict=0 human=0 
+    truth: ['ON001', 'Online'] | answer tail: venue FROM transactions WHERE EXTRACT(YEAR FROM date) = 2025 GROUP BY store_id ORDER BY net_revenue DESC LIMIT 1) t ON s.store_id = t.store_id"}} | ``` |  | Query returned **1** rows. |  | | city      | | |-----------| | | New Delhi |
+#9 A03 seed=0 grader_strict=1 human=1 
+    truth: ['Dog Food'] | answer tail: FINAL: Dog Food; 18764.0
+#10 A06 seed=2 grader_strict=0 human=0 
+    truth: ['Ruffwear India'] | answer tail: {"name": "get_supplier_performance", "parameters": {"supplier_name": "all", "from_date": "2025-01-01", "to_date": "2025-12-31"}}; FINAL: {'supplier_name': 'Pet Store Private Label', 'on_time_delivery_pct': 92.5}
+#11 C13 seed=0 grader_strict=0 human=0 
+    truth: ['Ruffwear India', 87.97500000000001, 1512.0] | answer tail: ays', 'price_inr', 'cost_inr', 'margin_pct', 'is_cold_chain']"}}  |  | FINAL: worst_supplier; 3.2; [table with worst supplier's SKUs]; 14 days; 2023-02-28; SKU_001; 100 units; 10 units/day; cold chain; ₹10/unit; ₹5/unit; 20%
+#12 L10 seed=0 grader_strict=1 human=1 
+    truth: [3.0] | answer tail: FINAL: 3
+#13 A11 seed=0 grader_strict=1 human=1 
+    truth: [4480.0] | answer tail: FINAL: 4480
+#14 C14 seed=1 grader_strict=1 human=1 
+    truth: [375.0] | answer tail: FINAL: 375 units; 4.8 days; WARNING
+#15 C10 seed=1 grader_strict=0 human=0 
+    truth: ['GIFT_002'] | answer tail: ✅ CORRECT — reproduce the table the tool gives you: |  | | SKU_ID | | |--------| | | DOG_003| |  | FINAL: DOG_003
+#16 A06 seed=0 grader_strict=0 human=0 
+    truth: ['Ruffwear India'] | answer tail: {"name": "get_supplier_performance", "parameters": {"supplier_name": "all", "period": "2025"}}
+#17 L06 seed=1 grader_strict=1 human=1 
+    truth: [25.0] | answer tail: FINAL: 25
+#18 A12 seed=0 grader_strict=0 human=0 
+    truth: ['Pune'] | answer tail: An unexpected error occurred: ContextBudgetExceeded: estimated prompt 7207 tok > budget 7100 |  | Please check your API key and try again, or rephrase the question.
+#19 M02 seed=2 grader_strict=0 human=0 
+    truth: ['GROM_004', 'Cat Grooming'] | answer tail: FINAL: SKU_001; Cat Treats;
+#20 C11 seed=1 grader_strict=0 human=0 
+    truth: ['NO', 315.50724657588444] | answer tail: iloc[0] + 1.65 * df[df['sku_id'] == sku_id]['demand'].rolling(90).std().iloc[-1] * (df[df['sku_id'] == sku_id]['lead_time_days'].iloc[0] ** 0.5)) | print(reorder_point > df[df['sku_id'] == sku_id]['inventory'].iloc[-1])"}}
+#21 A04 seed=0 grader_strict=1 human=1 
+    truth: ['Customer changed mind', 1268.0] | answer tail: FINAL: Customer changed mind; 1268
+#22 M05 seed=2 grader_strict=0 human=0 
+    truth: ['Year End Clearance', 7.233525] | answer tail: {"name": "get_promotion_inventory_impact", "parameters": {"metric": "revenue_generated_inr", "budget_metric": "budget_inr"}}  |  | FINAL: ₹1,234.56 (ratio)
+#23 M04 seed=0 grader_strict=0 human=0 
+    truth: ['EXT_066', 'Wrong product sent'] | answer tail: An unexpected error occurred: ContextBudgetExceeded: estimated prompt 7357 tok > budget 7100 |  | Please check your API key and try again, or rephrase the question.
+#24 L02 seed=1 grader_strict=1 human=1 
+    truth: ["Sara's Kitchen (HUFT)"] | answer tail: FINAL: Sara's Kitchen (HUFT)
+#25 M07 seed=2 grader_strict=1 human=1 
+    truth: ['Heads Up For Tails', 'GROM_004'] | answer tail: FINAL: GROM_004; Heads Up For Tails; 6005.0
+#26 C12 seed=2 grader_strict=1 human=0 DISAGREE
+    truth: [89.24166666666666] | answer tail: {"name": "get_supplier_performance", "parameters": {"supplier_name": "Trixie India", "start_date": "2025-01-01", "end_date": "2025-12-31"}}  |  | FINAL: 95.4; 92.1; 89.2
+#27 C11 seed=2 grader_strict=0 human=0 
+    truth: ['NO', 315.50724657588444] | answer tail: An unexpected error occurred: ContextBudgetExceeded: estimated prompt 7237 tok > budget 7100 |  | Please check your API key and try again, or rephrase the question.
+#28 L01 seed=1 grader_strict=1 human=1 
+    truth: [720.0] | answer tail: FINAL: ₹720
+#29 L12 seed=0 grader_strict=1 human=1 
+    truth: [24.0] | answer tail: FINAL: 24
+agreement: 28/30; #0 A15 false negative (said July 2025 but FINAL gave a date string); #26 C12 false positive (FINAL listed three numbers, one within tolerance)

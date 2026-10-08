@@ -1,0 +1,13 @@
+CatBoost global (seed-mean) minus ma28, smape pp; SKU-clustered bootstrap 2000 reps, seed 20251231
+
+subset                       n pairs n SKUs    delta  95% CI
+all_4_origins                    640          -1.531  [-1.921, -1.100]  win_rate_catboost=0.619
+excl_diwali_2025-10-31           480          +0.174  [-0.170, +0.560]  win_rate_catboost=0.512
+origin_2025-06-30                160          +0.417  [+0.040, +0.841]  win_rate_catboost=0.438
+origin_2025-08-31                160          +0.551  [+0.183, +0.919]  win_rate_catboost=0.400
+origin_2025-10-31                160          -6.645  [-7.450, -5.761]  win_rate_catboost=0.938
+origin_2025-12-01                160          -0.445  [-0.978, +0.138]  win_rate_catboost=0.700
+
+Origin-clustered (4 origin-level mean diffs resampled):
+  per-origin deltas: 2025-06-30: +0.417, 2025-08-31: +0.551, 2025-10-31: -6.645, 2025-12-01: -0.445
+  delta -1.531 pp, 95% CI [-4.880, +0.484]

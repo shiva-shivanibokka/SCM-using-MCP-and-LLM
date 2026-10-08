@@ -1,0 +1,5 @@
+[synthetic 30d @75/day, last day 300, inv 400, LT 3] BASE: velocity=300.0 days_to_zero=1.3 risk=critical
+[synthetic 30d @75/day, last day 300, inv 400, LT 3] FIXED: velocity=83.0 days_to_zero=4.8 risk=warning
+[real data EXT_059] BASE: velocity=293.0 days_to_zero=1.2 reorder_qty=2582 risk=critical | summary critical=3 warning=38
+[real data EXT_059] FIXED: velocity=76.4 days_to_zero=4.6 reorder_qty=416 risk=warning | summary critical=0 warning=31
+EXT_059 summed store demand, last 8 days: {Timestamp('2025-12-24 00:00:00'): 76, Timestamp('2025-12-25 00:00:00'): 73, Timestamp('2025-12-26 00:00:00'): 67, Timestamp('2025-12-27 00:00:00'): 76, Timestamp('2025-12-28 00:00:00'): 79, Timestamp('2025-12-29 00:00:00'): 77, Timestamp('2025-12-30 00:00:00'): 68, Timestamp('2025-12-31 00:00:00'): 293}

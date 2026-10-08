@@ -1,0 +1,26 @@
+Effect of the post-hoc `tool_ok` redefinition (commit 80559db) on every
+tool-selection figure quoted in RESULTS.md. Only the tool_ok column can
+change; strict/lenient scoring rules were untouched.
+
+ALL committed runs                                    504 runs   old  56.3%   new  55.8%   delta  -0.6 pp   runs changed 3
+main: after/none, all 56 Qs                           168 runs   old  60.1%   new  60.1%   delta  +0.0 pp   runs changed 0
+main: conflict category (all 14)                       42 runs   old  50.0%   new  50.0%   delta  +0.0 pp   runs changed 0
+main: conflict stale-count C01-C05                     15 runs   old  73.3%   new  73.3%   delta  +0.0 pp   runs changed 0
+main: conflict real two-tool C06-C13                   24 runs   old  29.2%   new  29.2%   delta  +0.0 pp   runs changed 0
+main: conflict C14                                      3 runs   old 100.0%   new 100.0%   delta  +0.0 pp   runs changed 0
+before/none, all Qs                                   168 runs   old  61.9%   new  61.9%   delta  +0.0 pp   runs changed 0
+ablation reconcile                                     84 runs   old  47.6%   new  44.0%   delta  -3.6 pp   runs changed 3
+ablation truncate                                      84 runs   old  46.4%   new  46.4%   delta  +0.0 pp   runs changed 0
+
+Runs whose tool_ok flipped: 3 of 504
+  ablation_reconcile.jsonl   M12 ablation=reconcile old=1 new=0
+  ablation_reconcile.jsonl   M12 ablation=reconcile old=1 new=0
+  ablation_reconcile.jsonl   M13 ablation=reconcile old=1 new=0
+
+Finding: the redefinition flipped 3 of 504 runs, all in the reconcile
+ablation (47.6% -> 44.0%). It did NOT change the main condition (60.1%)
+or the C06-C13 subgroup (29.2% under BOTH definitions). The drop from
+the ~50% quoted for the 14-question conflict category to 29.2% comes
+from SPLITTING that category in the same commit, not from the
+redefinition. Both the split and the redefinition were nonetheless
+decided after the runs, so both are post-hoc.

@@ -1143,7 +1143,15 @@ def _train_catboost(df: pd.DataFrame) -> dict[str, Any]:
     feat_df = _make_cb_features(df).dropna(subset=_CB_FEATURES)
     tr = feat_df[feat_df["date"] <= cutoff]
     va = feat_df[feat_df["date"] > cutoff]
-    X_tr, y_tr = tr[_CB_FEATURES], tr["demand"]
+    # Early stopping must NOT see the reported validation window, otherwise the
+    # best iteration is chosen on X_va and the MAPE below is optimistically
+    # biased. Carve an inner early-stopping split (last 30 days of the training
+    # window) and keep X_va strictly held out for scoring.
+    es_cutoff = cutoff - pd.Timedelta(days=30)
+    tr_fit = tr[tr["date"] <= es_cutoff]
+    tr_es = tr[tr["date"] > es_cutoff]
+    X_tr, y_tr = tr_fit[_CB_FEATURES], tr_fit["demand"]
+    X_es, y_es = tr_es[_CB_FEATURES], tr_es["demand"]
     X_va, y_va = va[_CB_FEATURES], va["demand"]
 
     base_params = dict(
@@ -1163,7 +1171,7 @@ def _train_catboost(df: pd.DataFrame) -> dict[str, Any]:
     best_iters: dict[str, int] = {}
     for label, alpha in QUANTILES.items():
         m = CatBoostRegressor(loss_function=f"Quantile:alpha={alpha}", **base_params)
-        m.fit(X_tr, y_tr, eval_set=(X_va, y_va), use_best_model=True)
+        m.fit(X_tr, y_tr, eval_set=(X_es, y_es), use_best_model=True)
         _cb_models[label] = m
         bi = m.get_best_iteration()
         best_iters[label] = int(bi) if bi is not None else base_params["iterations"]
@@ -1179,6 +1187,7 @@ def _train_catboost(df: pd.DataFrame) -> dict[str, Any]:
         "mae": round(mae, 2),
         "rmse": round(rmse, 2),
         "train_rows": int(len(X_tr)),
+        "es_rows": int(len(X_es)),
         "val_rows": int(len(X_va)),
         "n_features": len(_CB_FEATURES),
         "n_skus": len(_cb_sku_encoder),

@@ -41,11 +41,30 @@ def _bucket(days_to_zero: float, velocity: float, inventory: float,
     return "excess"
 
 
+def _trailing_velocity(inv: pd.DataFrame, window_days: int) -> pd.Series | None:
+    """Mean daily demand per (store, SKU) over the trailing `window_days`
+    calendar days ending at the latest date in the frame. Returns None when the
+    frame has no usable history (e.g. a single-date snapshot), in which case the
+    caller falls back to the snapshot's own demand column."""
+    if "date" not in inv.columns or window_days <= 1:
+        return None
+    dates = pd.to_datetime(inv["date"])
+    if dates.nunique() < 2:
+        return None
+    cutoff = dates.max() - pd.Timedelta(days=window_days)
+    recent = inv.loc[dates > cutoff]
+    return recent.groupby(["store_id", "sku_id"])["demand"].mean()
+
+
 def predict_stockouts(inv: pd.DataFrame, safety_stock_days: int = 7,
-                      risk_filter: str | None = None) -> dict:
+                      risk_filter: str | None = None,
+                      velocity_window_days: int = 28) -> dict:
     """Per-SKU stockout risk. Returns {"rows": [...], "summary": {...}}.
 
-    velocity   = total daily demand across stores (units/day)
+    velocity   = sum across stores of each store's mean daily demand over the
+                 trailing `velocity_window_days` (default 28). Previously this
+                 was the latest single day's demand, so a one-day spike made
+                 a SKU look critical. velocity_window_days=1 reproduces that.
     days_to_zero = current inventory / velocity
     reorder_qty  = max(0, (lead_time + safety_stock) * velocity - inventory)
     risk buckets = critical < lead_time < warning < +safety < watch < 30d < healthy < 90d < excess
@@ -54,6 +73,11 @@ def predict_stockouts(inv: pd.DataFrame, safety_stock_days: int = 7,
         return {"rows": [], "summary": {}}
 
     snap = _latest_snapshot(inv)
+    vel = _trailing_velocity(inv, velocity_window_days)
+    if vel is not None:
+        snap = snap.drop(columns=["demand"]).merge(
+            vel.rename("demand").reset_index(), on=["store_id", "sku_id"], how="left")
+        snap["demand"] = snap["demand"].fillna(0.0)
     grp = snap.groupby("sku_id")
     agg = grp.agg(
         name=("name", "first"),

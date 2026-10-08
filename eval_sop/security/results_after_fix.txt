@@ -1,0 +1,26 @@
+- sql_quoted_path_read: completed (1.9s)
+    {"guard_allows": true, "error": "SQL error: Permission Error: Cannot access file \"<PATH>/canary_secret.csv\" - file system operations are disabled by configuration", "rows": []}
+- sql_read_csv_fn: completed (0.2s)
+    {"guard_allows": false, "error": "Only a single read-only SELECT (or WITH \u2026 SELECT) is allowed \u2014 no writes, DDL, or file access.", "rows": []}
+- sql_list_dir_via_glob_path: completed (1.9s)
+    {"guard_allows": true, "error": "SQL error: Permission Error: Cannot access file \"<PATH>/*.csv\" - file system operations are disabled by configuration", "rows": []}
+- sql_settings_leak: completed (1.8s)
+    {"guard_allows": true, "error": null, "rows": [{"name": "enable_external_access", "value": "false"}, {"name": "home_directory", "value": ""}, {"name": "temp_directory", "value": ".tmp"}]}
+- sql_cross_join_dos: completed (21.9s)
+    {"guard_allows": true, "error": "SQL error: query timed out after 20s and was cancelled", "rows": []}
+- sql_write_blocked: completed (0.2s)
+    {"guard_allows": false, "error": "Only a single read-only SELECT (or WITH \u2026 SELECT) is allowed \u2014 no writes, DDL, or file access."}
+- sql_false_positive: completed (0.2s)
+    {"guard_allows": false, "error": "Only a single read-only SELECT (or WITH \u2026 SELECT) is allowed \u2014 no writes, DDL, or file access."}
+- repl_import_os_blocked: completed (1.3s)
+    "SecurityError: import of 'os' is not allowed."
+- repl_pandas_read_file: completed (1.2s)
+    "SecurityError: attribute 'read_csv' (file/OS access) is not allowed in the sandbox."
+- repl_pandas_write_file: completed (1.2s)
+    {"repl": "SecurityError: attribute 'to_csv' (file/OS access) is not allowed in the sandbox.", "file_exists_after": false}
+- repl_numpy_read_file: completed (1.2s)
+    "SecurityError: attribute 'loadtxt' (file/OS access) is not allowed in the sandbox."
+- repl_os_via_module_attr: completed (1.2s)
+    "SecurityError: attribute 'os' (file/OS access) is not allowed in the sandbox."
+- repl_infinite_loop: TIMEOUT (> 20s, killed) (20.0s)
+    null

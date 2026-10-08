@@ -1,0 +1,20 @@
+== BASE 65c1c06
+  stores             prompt=      67  data=      92  MISMATCH
+  SKUs (catalog)     prompt=      65  data=     160  MISMATCH
+  customers          prompt=    5000  data=   25000  MISMATCH
+  demand rows        prompt=   47515  data=  175360  MISMATCH
+  transactions       prompt=   50000  data=  326883  MISMATCH
+  returns            prompt=    1500  data=    9806  MISMATCH
+  supplier reviews   prompt=     624  data=     936  MISMATCH
+  tools              prompt=      50  data=      54  MISMATCH
+  -> 8 mismatches
+== THIS BRANCH
+  stores             prompt=      92  data=      92  OK
+  SKUs (catalog)     prompt=     160  data=     160  OK
+  customers          prompt=   25000  data=   25000  OK
+  demand rows        prompt=  175360  data=  175360  OK
+  transactions       prompt=  326883  data=  326883  OK
+  returns            prompt=    9806  data=    9806  OK
+  supplier reviews   prompt=     936  data=     936  OK
+  tools              prompt=      54  data=      54  OK
+  -> 0 mismatches

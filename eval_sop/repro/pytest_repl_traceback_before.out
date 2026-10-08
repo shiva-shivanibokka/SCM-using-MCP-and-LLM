@@ -1,0 +1,22 @@
+### pytest tests/test_python_repl_sandbox.py -k disclose against mcp_server/server.py
+### at branch HEAD 3b358fe (i.e. BEFORE the traceback scrub)
+### Absolute paths in the captured failure message are redacted by hand below;
+### the point of the test is precisely that they were present.
+
+        leaks = [pandas_dir, os.path.dirname(os.path.abspath(pd.__file__)),
+                 "site-packages", os.path.expanduser("~")]
+        for frag in leaks:
+>           assert frag not in out, "traceback disclosed a server path fragment"
+E           AssertionError: traceback disclosed a server path fragment
+E             '<HOME>\...\Lib\site-packages' is contained here:
+E               >
+E                 File "<HOME>\<PYTHON>\Lib\site-packages\pandas\core\tools\datetimes.py", line 1106, in to_datetime
+E                   result = convert_listlike(np.array([arg]), format)[0]
+
+tests\test_python_repl_sandbox.py:162: AssertionError
+=========================== short test summary here ===========================
+FAILED tests/test_python_repl_sandbox.py::test_execution_error_does_not_disclose_server_paths
+1 failed, 17 deselected
+
+### same test against the fixed server.py: whole file
+18 passed

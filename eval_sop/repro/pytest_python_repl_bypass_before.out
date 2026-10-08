@@ -1,0 +1,19 @@
+### tests/test_python_repl_sandbox.py BEFORE the bypass fix (branch HEAD 90606bc); assertions report booleans only
+PASSED tests/test_python_repl_sandbox.py::test_normal_analysis_still_works
+PASSED tests/test_python_repl_sandbox.py::test_pandas_read_of_local_file_blocked
+PASSED tests/test_python_repl_sandbox.py::test_numpy_read_of_local_file_blocked
+PASSED tests/test_python_repl_sandbox.py::test_pandas_write_blocked
+PASSED tests/test_python_repl_sandbox.py::test_os_via_module_attribute_blocked
+PASSED tests/test_python_repl_sandbox.py::test_subprocess_via_f2py_blocked
+PASSED tests/test_python_repl_sandbox.py::test_legit_fstring_and_to_string_still_work
+FAILED tests/test_python_repl_sandbox.py::test_numpy_datasource_open_read_blocked
+FAILED tests/test_python_repl_sandbox.py::test_numpy_datasource_open_write_blocked
+FAILED tests/test_python_repl_sandbox.py::test_to_string_buf_keyword_write_blocked
+FAILED tests/test_python_repl_sandbox.py::test_to_string_positional_path_write_blocked
+FAILED tests/test_python_repl_sandbox.py::test_info_buf_write_blocked
+FAILED tests/test_python_repl_sandbox.py::test_open_memmap_write_blocked
+FAILED tests/test_python_repl_sandbox.py::test_ndarray_dump_write_blocked
+FAILED tests/test_python_repl_sandbox.py::test_json_codecs_open_read_blocked
+FAILED tests/test_python_repl_sandbox.py::test_pandas_get_handle_read_blocked
+FAILED tests/test_python_repl_sandbox.py::test_format_string_attribute_traversal_env_leak_blocked
+10 failed, 7 passed in 2.97s
