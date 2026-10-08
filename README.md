@@ -21,6 +21,15 @@ license: mit
 
 **Live demo:** [scm-using-mcp-and-llm.vercel.app](https://scm-using-mcp-and-llm.vercel.app) · **API:** [HF Space](https://shiva-1993-petstore-scm-mcp-backend.hf.space/docs) · **Data source check:** [`/diagnostics`](https://shiva-1993-petstore-scm-mcp-backend.hf.space/diagnostics)
 
+> **Measured evaluation: [`RESULTS.md`](RESULTS.md)** — the forecasting gain is
+> **one season, not a model**. Global CatBoost beats a 28-day moving average
+> 13.24% vs 14.77% sMAPE overall, but the gain comes *entirely* from one
+> festival-season origin: drop it and the difference is +0.17 pp with a
+> SKU-clustered 95% CI of [−0.17, +0.56], which includes 0. Also covers the
+> tool-consistency audit, two arbitrary-file-read holes that are now closed, and
+> an agent accuracy eval run in a constrained configuration rather than the
+> deployed one.
+
 ---
 
 ## Recruiter TL;DR
