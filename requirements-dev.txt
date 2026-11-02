@@ -11,4 +11,5 @@ dbt-postgres>=1.8,<2.0
 # over a Parquet raw layer. See db/build_marts.py and db/export_parquet.py.
 dbt-duckdb>=1.8,<2.0
 duckdb>=1.0.0
-pyarrow>=15.0.0
+# <26: pyarrow 26.0.0 requires numpy>=2; backend pins numpy<2.0.
+pyarrow>=15.0.0,<26
